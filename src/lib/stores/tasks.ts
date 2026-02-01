@@ -1,17 +1,35 @@
-// src/lib/stores/tasks.ts
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 
-// --- Subtask Schema ---
+// --- Types & Schemas ---
+
+const TeamMemberSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    shortsign: z.string(),
+    email: z.string().optional(),
+    color: z.string().default('bg-slate-200 text-slate-700'),
+    isLeader: z.boolean().default(false) // NEU: Team Leader Flag
+});
+
+const SettingsSchema = z.object({
+    myShortsign: z.string().default('ME'),
+    darkMode: z.boolean().default(false), // NEU: Dark Mode
+    team: z.array(TeamMemberSchema).default([])
+});
+
+const SubtaskTypeSchema = z.enum(['GENERIC', 'DOCUMENT', 'RESEARCH', 'EMAIL']);
+
 const SubtaskSchema = z.object({
     id: z.string(),
     title: z.string(),
-    done: z.boolean().default(false)
+    done: z.boolean().default(false),
+    type: SubtaskTypeSchema.default('GENERIC'),
+    payload: z.string().optional()
 });
 
-// --- Task Schema Update ---
 export const TaskSchema = z.object({
 	id: z.string(),
 	title: z.string().min(1, "Titel fehlt"),
@@ -21,115 +39,193 @@ export const TaskSchema = z.object({
 	priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
 	createdAt: z.string(),
     timeTracked: z.number().default(0),
-    // NEU: Subtasks Array (Standard leer)
     subtasks: z.array(SubtaskSchema).default([])
+});
+
+const AppDataSchema = z.object({
+    tasks: z.array(TaskSchema),
+    settings: SettingsSchema
 });
 
 export type Task = z.infer<typeof TaskSchema>;
 export type Subtask = z.infer<typeof SubtaskSchema>;
+export type SubtaskType = z.infer<typeof SubtaskTypeSchema>;
+export type TeamMember = z.infer<typeof TeamMemberSchema>;
+export type Settings = z.infer<typeof SettingsSchema>;
+export type AppData = z.infer<typeof AppDataSchema>;
 
-const STORAGE_KEY = 'associate-os-v1';
-const SNAPSHOT_KEY = 'associate-os-snapshots';
+const STORAGE_KEY = 'associate-os-v3';
 
-const createTasksStore = () => {
-	let initialData: Task[] = [];
+const createStore = () => {
+	let data: AppData = { 
+        tasks: [], 
+        settings: { myShortsign: 'ME', darkMode: false, team: [] } 
+    };
 	
 	if (browser) {
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (stored) {
 			try {
 				const parsed = JSON.parse(stored);
-				initialData = z.array(TaskSchema).parse(parsed);
+                // Migration Check wäre hier gut, wir parsen einfach strikt
+                if (!Array.isArray(parsed)) {
+                    data = AppDataSchema.parse(parsed);
+                }
 			} catch (e) {
-				console.error("Datenbank korrupt", e);
+				console.error("Store Load Error", e);
 			}
 		}
 	}
 
-	const { subscribe, update, set } = writable<Task[]>(initialData);
+	const { subscribe, update, set } = writable<AppData>(data);
 
-	const saveToDisk = (data: Task[]) => {
-		if (browser) localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+	const saveToDisk = (currentData: AppData) => {
+		if (browser) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+            // Dark Mode Sync
+            if (currentData.settings.darkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
 	};
 
 	return {
 		subscribe,
-		
-		addTask: (title: string, matterRef: string, dueDate: string, priority: Task['priority'] = 'MEDIUM') => {
-			update(tasks => {
+        
+        // --- SETTINGS ---
+        updateSettings: (newSettings: Settings) => {
+            update(state => {
+                const newState = { ...state, settings: newSettings };
+                saveToDisk(newState);
+                return newState;
+            });
+        },
+        
+        addTeamMember: (name: string, shortsign: string, color: string) => {
+            update(state => {
+                const newMember: TeamMember = { id: uuidv4(), name, shortsign, color, isLeader: false };
+                const newSettings = { ...state.settings, team: [...state.settings.team, newMember] };
+                saveToDisk({ ...state, settings: newSettings });
+                return { ...state, settings: newSettings };
+            });
+        },
+
+        removeTeamMember: (id: string) => {
+            update(state => {
+                const newSettings = { ...state.settings, team: state.settings.team.filter(m => m.id !== id) };
+                saveToDisk({ ...state, settings: newSettings });
+                return { ...state, settings: newSettings };
+            });
+        },
+
+        setTeamLeader: (id: string) => {
+            update(state => {
+                const newTeam = state.settings.team.map(m => ({ ...m, isLeader: m.id === id }));
+                const newSettings = { ...state.settings, team: newTeam };
+                saveToDisk({ ...state, settings: newSettings });
+                return { ...state, settings: newSettings };
+            });
+        },
+
+        toggleDarkMode: () => {
+            update(state => {
+                const newSettings = { ...state.settings, darkMode: !state.settings.darkMode };
+                saveToDisk({ ...state, settings: newSettings });
+                return { ...state, settings: newSettings };
+            });
+        },
+
+        // --- TASKS ---
+		addTask: (title: string, matterRef: string, dueDate: string) => {
+			update(state => {
 				const newTask: Task = {
 					id: uuidv4(),
 					title,
-					matterRef: matterRef || 'General',
+					matterRef: matterRef || '',
 					dueDate,
 					status: 'TODO',
-					priority,
+					priority: 'MEDIUM',
 					createdAt: new Date().toISOString(),
                     timeTracked: 0,
                     subtasks: []
 				};
-				const newTx = [newTask, ...tasks];
-				saveToDisk(newTx);
-				return newTx;
+                const newState = { ...state, tasks: [newTask, ...state.tasks] };
+				saveToDisk(newState);
+				return newState;
 			});
 		},
 
-        // NEU: Subtask hinzufügen
-        addSubtask: (taskId: string, title: string) => {
-            update(tasks => {
-                const newTx = tasks.map(t => {
-                    if (t.id !== taskId) return t;
-                    return {
-                        ...t,
-                        subtasks: [...t.subtasks, { id: uuidv4(), title, done: false }]
-                    };
-                });
-                saveToDisk(newTx);
-                return newTx;
+        updateTaskTitle: (id: string, title: string) => {
+            update(state => {
+                const newTasks = state.tasks.map(t => t.id === id ? { ...t, title } : t);
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
             });
         },
 
-        // NEU: Subtask abhaken
+        addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC') => {
+            update(state => {
+                const newTasks = state.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    const newSub: Subtask = { id: uuidv4(), title, done: false, type };
+                    return { ...t, subtasks: [...t.subtasks, newSub] };
+                });
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
+            });
+        },
+
+        updateSubtaskTitle: (taskId: string, subId: string, title: string) => {
+            update(state => {
+                const newTasks = state.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    return {
+                        ...t,
+                        subtasks: t.subtasks.map(s => s.id === subId ? { ...s, title } : s)
+                    };
+                });
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
+            });
+        },
+
         toggleSubtask: (taskId: string, subtaskId: string) => {
-            update(tasks => {
-                const newTx = tasks.map(t => {
+            update(state => {
+                const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return {
-                        ...t,
-                        subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s)
-                    };
+                    return { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s) };
                 });
-                saveToDisk(newTx);
-                return newTx;
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
             });
         },
-
-        // Datum Update
+        
         updateDate: (id: string, newDate: string) => {
-            update(tasks => {
-                const newTx = tasks.map(t => t.id === id ? { ...t, dueDate: newDate } : t);
-                saveToDisk(newTx);
-                return newTx;
+             update(state => {
+                const newTasks = state.tasks.map(t => t.id === id ? { ...t, dueDate: newDate } : t);
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
             });
         },
 
 		moveTask: (id: string, status: Task['status']) => {
-			update(tasks => {
-				const newTx = tasks.map(t => t.id === id ? { ...t, status } : t);
-				saveToDisk(newTx);
-				return newTx;
-			});
+			update(state => {
+                const newTasks = state.tasks.map(t => t.id === id ? { ...t, status } : t);
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
+            });
 		},
 
 		deleteTask: (id: string) => {
-			update(tasks => {
-				const newTx = tasks.filter(t => t.id !== id);
-				saveToDisk(newTx);
-				return newTx;
-			});
+			update(state => {
+                const newTasks = state.tasks.filter(t => t.id !== id);
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
+            });
 		},
-        
-        // --- BACKUP FEATURES ---
+
         exportData: () => {
             if (!browser) return;
             const data = localStorage.getItem(STORAGE_KEY);
@@ -138,46 +234,11 @@ const createTasksStore = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `lawcp_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = `lawcp_backup.json`;
             a.click();
             URL.revokeObjectURL(url);
-        },
-
-        createSnapshot: (name: string) => {
-            if (!browser) return;
-            const currentData = localStorage.getItem(STORAGE_KEY);
-            if (!currentData) return;
-            const snapshotsRaw = localStorage.getItem(SNAPSHOT_KEY);
-            const snapshots = snapshotsRaw ? JSON.parse(snapshotsRaw) : {};
-            const timestamp = new Date().toLocaleString('de-DE');
-            const key = name ? `${timestamp} - ${name}` : timestamp;
-            snapshots[key] = JSON.parse(currentData);
-            localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots));
-        },
-
-        getSnapshots: (): string[] => {
-            if (!browser) return [];
-            const snapshotsRaw = localStorage.getItem(SNAPSHOT_KEY);
-            if (!snapshotsRaw) return [];
-            return Object.keys(JSON.parse(snapshotsRaw)).reverse();
-        },
-
-        restoreSnapshot: (key: string) => {
-            if (!browser) return;
-            const snapshotsRaw = localStorage.getItem(SNAPSHOT_KEY);
-            if (!snapshotsRaw) return;
-            const snapshots = JSON.parse(snapshotsRaw);
-            if (snapshots[key]) {
-                try {
-                    const validData = z.array(TaskSchema).parse(snapshots[key]);
-                    set(validData);
-                    saveToDisk(validData);
-                } catch(e) {
-                    alert("Backup beschädigt!");
-                }
-            }
         }
 	};
 };
 
-export const taskStore = createTasksStore();
+export const store = createStore();

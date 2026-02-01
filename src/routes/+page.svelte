@@ -1,13 +1,11 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { Settings, Save, LayoutGrid, Calendar, GitBranch } from 'lucide-svelte';
+    import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2 } from 'lucide-svelte';
     import TaskInput from '$lib/components/TaskInput.svelte';
     import TaskColumn from '$lib/components/TaskColumn.svelte';
 
-    // Helper for sorting
     const byDate = (a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 
-    // Reactive Stores (Filtering the main task list)
     $: todos = $store.tasks.filter(t => t.status === 'TODO').sort(byDate);
     $: waiting = $store.tasks.filter(t => t.status === 'WAITING').sort(byDate);
     $: review = $store.tasks.filter(t => t.status === 'REVIEW').sort(byDate);
@@ -33,6 +31,9 @@
                         </a>
                         <a href="/workflow" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
                             <GitBranch size={18} /> Workflow
+                        </a>
+                        <a href="/resources" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
+                            <Building2 size={18} /> Ressourcen
                         </a>
                     </div>
                 </div>

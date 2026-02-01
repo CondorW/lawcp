@@ -1,67 +1,22 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import { v4 as uuidv4 } from 'uuid';
-import { z } from 'zod';
+import { 
+    AppDataSchema, TaskSchema, 
+    type AppData, type Task, type Subtask, type Settings, type Resource, type SubtaskType 
+} from '$lib/types';
 
-// --- Types & Schemas ---
+// Re-Export für Komponenten, damit Imports einfach bleiben
+export type { Task, Subtask, Settings, Resource, SubtaskType };
 
-const TeamMemberSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    shortsign: z.string(),
-    email: z.string().optional(),
-    color: z.string().default('bg-slate-200 text-slate-700'),
-    isLeader: z.boolean().default(false)
-});
-
-const SettingsSchema = z.object({
-    myShortsign: z.string().default('ME'),
-    darkMode: z.boolean().default(false),
-    team: z.array(TeamMemberSchema).default([])
-});
-
-const SubtaskTypeSchema = z.enum(['GENERIC', 'DOCUMENT', 'RESEARCH', 'EMAIL']);
-
-const SubtaskSchema = z.object({
-    id: z.string(),
-    title: z.string(),
-    done: z.boolean().default(false),
-    type: SubtaskTypeSchema.default('GENERIC'),
-    payload: z.string().optional()
-});
-
-export const TaskSchema = z.object({
-	id: z.string(),
-	title: z.string().min(1, "Titel fehlt"),
-	matterRef: z.string().optional(),
-	dueDate: z.string(),
-	status: z.enum(['TODO', 'WAITING', 'REVIEW', 'DONE']),
-	priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
-	createdAt: z.string(),
-    timeTracked: z.number().default(0),
-    subtasks: z.array(SubtaskSchema).default([]),
-    // NEU: Vorgänger-Aufgaben für Workflow
-    dependencies: z.array(z.string()).default([])
-});
-
-const AppDataSchema = z.object({
-    tasks: z.array(TaskSchema),
-    settings: SettingsSchema
-});
-
-export type Task = z.infer<typeof TaskSchema>;
-export type Subtask = z.infer<typeof SubtaskSchema>;
-export type SubtaskType = z.infer<typeof SubtaskTypeSchema>;
-export type TeamMember = z.infer<typeof TeamMemberSchema>;
-export type Settings = z.infer<typeof SettingsSchema>;
-export type AppData = z.infer<typeof AppDataSchema>;
-
-const STORAGE_KEY = 'associate-os-v4';
+const STORAGE_KEY = 'associate-os-v5';
 
 const createStore = () => {
+    // Initial State
 	let data: AppData = { 
         tasks: [], 
-        settings: { myShortsign: 'ME', darkMode: false, team: [] } 
+        settings: { myShortsign: 'ME', darkMode: false, team: [] },
+        resources: []
     };
 	
 	if (browser) {
@@ -70,14 +25,12 @@ const createStore = () => {
 			try {
 				const parsed = JSON.parse(stored);
                 if (!Array.isArray(parsed)) {
-                    // Safe parse to allow schema evolution
-                    const safeParse = AppDataSchema.safeParse(parsed);
-                    if (safeParse.success) data = safeParse.data;
-                    else console.error("Schema Mismatch", safeParse.error);
+                     const safe = AppDataSchema.safeParse(parsed);
+                     if(safe.success) data = safe.data;
+                     // Defaults auffüllen falls Felder fehlen
+                     if(!data.resources) data.resources = [];
                 }
-			} catch (e) {
-				console.error("Store Load Error", e);
-			}
+			} catch (e) { console.error("Store Load Error", e); }
 		}
 	}
 
@@ -86,117 +39,101 @@ const createStore = () => {
 	const saveToDisk = (currentData: AppData) => {
 		if (browser) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-            // Direct DOM Manipulation for Instant Feedback
-            if (currentData.settings.darkMode) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
+            if (currentData.settings.darkMode) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
         }
 	};
 
 	return {
 		subscribe,
         
-        // --- SETTINGS ---
-        updateSettings: (newSettings: Settings) => {
-            update(state => {
-                const newState = { ...state, settings: newSettings };
-                saveToDisk(newState);
-                return newState;
-            });
-        },
-        
-        addTeamMember: (name: string, shortsign: string, color: string) => {
-            update(state => {
-                const newMember: TeamMember = { id: uuidv4(), name, shortsign, color, isLeader: false };
-                const newSettings = { ...state.settings, team: [...state.settings.team, newMember] };
-                saveToDisk({ ...state, settings: newSettings });
-                return { ...state, settings: newSettings };
-            });
-        },
-
-        removeTeamMember: (id: string) => {
-            update(state => {
-                const newSettings = { ...state.settings, team: state.settings.team.filter(m => m.id !== id) };
-                saveToDisk({ ...state, settings: newSettings });
-                return { ...state, settings: newSettings };
-            });
-        },
-
-        setTeamLeader: (id: string) => {
-            update(state => {
-                const newTeam = state.settings.team.map(m => ({ ...m, isLeader: m.id === id }));
-                const newSettings = { ...state.settings, team: newTeam };
-                saveToDisk({ ...state, settings: newSettings });
-                return { ...state, settings: newSettings };
-            });
-        },
-
-        toggleDarkMode: () => {
-            update(state => {
-                const newSettings = { ...state.settings, darkMode: !state.settings.darkMode };
-                const newState = { ...state, settings: newSettings };
-                saveToDisk(newState);
-                return newState;
-            });
-        },
-
-        // --- TASKS ---
+        // --- CORE TASK ACTIONS ---
 		addTask: (title: string, matterRef: string, dueDate: string) => {
 			update(state => {
 				const newTask: Task = {
 					id: uuidv4(),
-					title,
-					matterRef: matterRef || '',
-					dueDate,
-					status: 'TODO',
-					priority: 'MEDIUM',
-					createdAt: new Date().toISOString(),
-                    timeTracked: 0,
-                    subtasks: [],
-                    dependencies: []
+					title, 
+                    matterRef: matterRef || '', 
+                    dueDate, 
+                    status: 'TODO', 
+                    priority: 'MEDIUM', 
+                    createdAt: new Date().toISOString(), 
+                    timeTracked: 0, 
+                    subtasks: [], 
+                    dependencies: [], 
+                    flaggedDate: null
 				};
                 const newState = { ...state, tasks: [newTask, ...state.tasks] };
-				saveToDisk(newState);
-				return newState;
+				saveToDisk(newState); 
+                return newState;
 			});
 		},
 
         updateTaskTitle: (id: string, title: string) => {
             update(state => {
                 const newTasks = state.tasks.map(t => t.id === id ? { ...t, title } : t);
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
             });
         },
 
-        // NEU: Workflow Dependency hinzufügen/entfernen
-        toggleDependency: (taskId: string, dependencyId: string) => {
-            update(state => {
-                const newTasks = state.tasks.map(t => {
-                    if (t.id !== taskId) return t;
-                    const deps = t.dependencies || [];
-                    if (deps.includes(dependencyId)) {
-                        return { ...t, dependencies: deps.filter(d => d !== dependencyId) };
-                    } else {
-                        return { ...t, dependencies: [...deps, dependencyId] };
-                    }
-                });
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+		deleteTask: (id: string) => {
+			update(state => {
+                const newTasks = state.tasks.filter(t => t.id !== id);
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
+            });
+		},
+
+        moveTask: (id: string, status: Task['status']) => {
+			update(state => {
+                const newTasks = state.tasks.map(t => t.id === id ? { ...t, status } : t);
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
+            });
+		},
+
+        updateDate: (id: string, newDate: string) => {
+             update(state => {
+                const newTasks = state.tasks.map(t => t.id === id ? { ...t, dueDate: newDate } : t);
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
             });
         },
 
+        toggleFlag: (taskId: string, date: string | null) => {
+             update(s => {
+                const tasks = s.tasks.map(t => t.id === taskId ? { ...t, flaggedDate: date } : t);
+                const ns = { ...s, tasks };
+                saveToDisk(ns); 
+                return ns;
+            });
+        },
+
+        // --- SUBTASK ACTIONS ---
+        
         addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC') => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    const newSub: Subtask = { id: uuidv4(), title, done: false, type };
+                    const newSub: Subtask = { 
+                        id: uuidv4(), 
+                        title, 
+                        done: false, 
+                        type, 
+                        x: Math.random() * 200, 
+                        y: Math.random() * 200, 
+                        next: [] 
+                    };
                     return { ...t, subtasks: [...t.subtasks, newSub] };
                 });
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
             });
         },
 
@@ -204,13 +141,14 @@ const createStore = () => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return {
-                        ...t,
-                        subtasks: t.subtasks.map(s => s.id === subId ? { ...s, title } : s)
+                    return { 
+                        ...t, 
+                        subtasks: t.subtasks.map(s => s.id === subId ? { ...s, title } : s) 
                     };
                 });
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
             });
         },
 
@@ -218,37 +156,107 @@ const createStore = () => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s) };
+                    return { 
+                        ...t, 
+                        subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s) 
+                    };
                 });
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
-            });
-        },
-        
-        updateDate: (id: string, newDate: string) => {
-             update(state => {
-                const newTasks = state.tasks.map(t => t.id === id ? { ...t, dueDate: newDate } : t);
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
             });
         },
 
-		moveTask: (id: string, status: Task['status']) => {
-			update(state => {
-                const newTasks = state.tasks.map(t => t.id === id ? { ...t, status } : t);
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+        // --- RESOURCES & SETTINGS (Keep existing logic) ---
+        addResource: (res: Omit<Resource, 'id'>) => {
+            update(s => {
+                const newRes = { ...res, id: uuidv4() };
+                const ns = { ...s, resources: [...s.resources, newRes] };
+                saveToDisk(ns); return ns;
             });
-		},
-
-		deleteTask: (id: string) => {
-			update(state => {
-                const newTasks = state.tasks.filter(t => t.id !== id);
-                saveToDisk({ ...state, tasks: newTasks });
-                return { ...state, tasks: newTasks };
+        },
+        deleteResource: (id: string) => {
+            update(s => {
+                const ns = { ...s, resources: s.resources.filter(r => r.id !== id) };
+                saveToDisk(ns); return ns;
             });
-		},
+        },
+        updateSettings: (newSettings: Settings) => {
+            update(state => {
+                const newState = { ...state, settings: newSettings };
+                saveToDisk(newState); return newState;
+            });
+        },
+        addTeamMember: (name: string, shortsign: string, color: string) => {
+            update(state => {
+                const newMember = { id: uuidv4(), name, shortsign, color, isLeader: false };
+                const newSettings = { ...state.settings, team: [...state.settings.team, newMember] };
+                saveToDisk({ ...state, settings: newSettings }); return { ...state, settings: newSettings };
+            });
+        },
+        removeTeamMember: (id: string) => {
+            update(state => {
+                const newSettings = { ...state.settings, team: state.settings.team.filter(m => m.id !== id) };
+                saveToDisk({ ...state, settings: newSettings }); return { ...state, settings: newSettings };
+            });
+        },
+        setTeamLeader: (id: string) => {
+            update(state => {
+                const newTeam = state.settings.team.map(m => ({ ...m, isLeader: m.id === id }));
+                const newSettings = { ...state.settings, team: newTeam };
+                saveToDisk({ ...state, settings: newSettings }); return { ...state, settings: newSettings };
+            });
+        },
+        toggleDarkMode: () => {
+            update(state => {
+                const newSettings = { ...state.settings, darkMode: !state.settings.darkMode };
+                const newState = { ...state, settings: newSettings };
+                saveToDisk(newState); return newState;
+            });
+        },
 
+        // --- WORKFLOW HELPERS ---
+        updateSubtaskPos: (taskId: string, subId: string, x: number, y: number) => {
+            update(s => {
+                const tasks = s.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    return { ...t, subtasks: t.subtasks.map(sub => sub.id === subId ? { ...sub, x, y } : sub) };
+                });
+                const ns = { ...s, tasks };
+                saveToDisk(ns); return ns;
+            });
+        },
+        connectSubtasks: (taskId: string, sourceId: string, targetId: string) => {
+             update(s => {
+                const tasks = s.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    return { ...t, subtasks: t.subtasks.map(sub => {
+                            if (sub.id === sourceId) {
+                                if (sub.next.includes(targetId)) return sub;
+                                return { ...sub, next: [...sub.next, targetId] };
+                            } return sub;
+                        }) 
+                    };
+                });
+                const ns = { ...s, tasks };
+                saveToDisk(ns); return ns;
+            });
+        },
+        disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => {
+             update(s => {
+                const tasks = s.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    return { ...t, subtasks: t.subtasks.map(sub => {
+                            if (sub.id === sourceId) {
+                                return { ...sub, next: sub.next.filter(n => n !== targetId) };
+                            } return sub;
+                        }) 
+                    };
+                });
+                const ns = { ...s, tasks };
+                saveToDisk(ns); return ns;
+            });
+        },
         exportData: () => {
             if (!browser) return;
             const data = localStorage.getItem(STORAGE_KEY);

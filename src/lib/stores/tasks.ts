@@ -11,12 +11,12 @@ const TeamMemberSchema = z.object({
     shortsign: z.string(),
     email: z.string().optional(),
     color: z.string().default('bg-slate-200 text-slate-700'),
-    isLeader: z.boolean().default(false) // NEU: Team Leader Flag
+    isLeader: z.boolean().default(false)
 });
 
 const SettingsSchema = z.object({
     myShortsign: z.string().default('ME'),
-    darkMode: z.boolean().default(false), // NEU: Dark Mode
+    darkMode: z.boolean().default(false),
     team: z.array(TeamMemberSchema).default([])
 });
 
@@ -39,7 +39,9 @@ export const TaskSchema = z.object({
 	priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
 	createdAt: z.string(),
     timeTracked: z.number().default(0),
-    subtasks: z.array(SubtaskSchema).default([])
+    subtasks: z.array(SubtaskSchema).default([]),
+    // NEU: Vorgänger-Aufgaben für Workflow
+    dependencies: z.array(z.string()).default([])
 });
 
 const AppDataSchema = z.object({
@@ -54,7 +56,7 @@ export type TeamMember = z.infer<typeof TeamMemberSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type AppData = z.infer<typeof AppDataSchema>;
 
-const STORAGE_KEY = 'associate-os-v3';
+const STORAGE_KEY = 'associate-os-v4';
 
 const createStore = () => {
 	let data: AppData = { 
@@ -67,9 +69,11 @@ const createStore = () => {
 		if (stored) {
 			try {
 				const parsed = JSON.parse(stored);
-                // Migration Check wäre hier gut, wir parsen einfach strikt
                 if (!Array.isArray(parsed)) {
-                    data = AppDataSchema.parse(parsed);
+                    // Safe parse to allow schema evolution
+                    const safeParse = AppDataSchema.safeParse(parsed);
+                    if (safeParse.success) data = safeParse.data;
+                    else console.error("Schema Mismatch", safeParse.error);
                 }
 			} catch (e) {
 				console.error("Store Load Error", e);
@@ -82,7 +86,7 @@ const createStore = () => {
 	const saveToDisk = (currentData: AppData) => {
 		if (browser) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-            // Dark Mode Sync
+            // Direct DOM Manipulation for Instant Feedback
             if (currentData.settings.darkMode) {
                 document.documentElement.classList.add('dark');
             } else {
@@ -132,8 +136,9 @@ const createStore = () => {
         toggleDarkMode: () => {
             update(state => {
                 const newSettings = { ...state.settings, darkMode: !state.settings.darkMode };
-                saveToDisk({ ...state, settings: newSettings });
-                return { ...state, settings: newSettings };
+                const newState = { ...state, settings: newSettings };
+                saveToDisk(newState);
+                return newState;
             });
         },
 
@@ -149,7 +154,8 @@ const createStore = () => {
 					priority: 'MEDIUM',
 					createdAt: new Date().toISOString(),
                     timeTracked: 0,
-                    subtasks: []
+                    subtasks: [],
+                    dependencies: []
 				};
                 const newState = { ...state, tasks: [newTask, ...state.tasks] };
 				saveToDisk(newState);
@@ -160,6 +166,23 @@ const createStore = () => {
         updateTaskTitle: (id: string, title: string) => {
             update(state => {
                 const newTasks = state.tasks.map(t => t.id === id ? { ...t, title } : t);
+                saveToDisk({ ...state, tasks: newTasks });
+                return { ...state, tasks: newTasks };
+            });
+        },
+
+        // NEU: Workflow Dependency hinzufügen/entfernen
+        toggleDependency: (taskId: string, dependencyId: string) => {
+            update(state => {
+                const newTasks = state.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    const deps = t.dependencies || [];
+                    if (deps.includes(dependencyId)) {
+                        return { ...t, dependencies: deps.filter(d => d !== dependencyId) };
+                    } else {
+                        return { ...t, dependencies: [...deps, dependencyId] };
+                    }
+                });
                 saveToDisk({ ...state, tasks: newTasks });
                 return { ...state, tasks: newTasks };
             });

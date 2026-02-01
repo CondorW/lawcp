@@ -1,6 +1,6 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { Settings, Save } from 'lucide-svelte';
+    import { Settings, Save, LayoutGrid, Calendar, GitBranch } from 'lucide-svelte';
     import TaskInput from '$lib/components/TaskInput.svelte';
     import TaskColumn from '$lib/components/TaskColumn.svelte';
 
@@ -18,15 +18,31 @@
     <nav class="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur-md dark:bg-slate-800/90 dark:border-slate-700">
         <div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white font-bold dark:bg-blue-600">L</div>
-                    <span class="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Law<span class="text-blue-600 dark:text-blue-400">CP</span></span>
+                <div class="flex items-center gap-8">
+                    <div class="flex items-center gap-2">
+                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white font-bold dark:bg-blue-600">L</div>
+                        <span class="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Law<span class="text-blue-600 dark:text-blue-400">CP</span></span>
+                    </div>
+
+                    <div class="hidden md:flex items-center gap-1">
+                        <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-slate-900 dark:bg-slate-700 dark:text-white transition-colors">
+                            <LayoutGrid size={18} /> Board
+                        </a>
+                        <a href="/calendar" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
+                            <Calendar size={18} /> Kalender
+                        </a>
+                        <a href="/workflow" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
+                            <GitBranch size={18} /> Workflow
+                        </a>
+                    </div>
                 </div>
+
                 <div class="flex items-center gap-2">
-                    <a href="/settings" class="p-2 text-gray-500 hover:text-slate-900 dark:text-gray-400 dark:hover:text-white transition-colors" aria-label="Settings" title="Settings">
+                    <a href="/settings" class="p-2 text-gray-500 hover:text-slate-900 dark:text-gray-400 dark:hover:text-white transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-slate-700" aria-label="Settings" title="Konfiguration">
                         <Settings size={20} />
                     </a>
-                    <button onclick={() => store.exportData()} class="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200 dark:hover:bg-slate-600">
+                    <div class="h-6 w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
+                    <button onclick={() => store.exportData()} class="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200 dark:hover:bg-slate-600 transition-all active:scale-95">
                         <Save size={16} /> Export
                     </button>
                 </div>

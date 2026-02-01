@@ -1,3 +1,11 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+/* Zwingt Tailwind v4, die .dark Klasse zu respektieren */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Globale Styles für Smoothness */
+html, body {
+    @apply transition-colors duration-300;
+}

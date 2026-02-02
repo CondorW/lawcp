@@ -116,7 +116,7 @@ const createStore = () => {
 
         // --- SUBTASK ACTIONS ---
         
-        addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC') => {
+        addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 400, y = 300) => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
@@ -125,8 +125,9 @@ const createStore = () => {
                         title, 
                         done: false, 
                         type, 
-                        x: Math.random() * 200, 
-                        y: Math.random() * 200, 
+                        // Wichtig für Workflow:
+                        x, 
+                        y, 
                         next: [] 
                     };
                     return { ...t, subtasks: [...t.subtasks, newSub] };
@@ -136,6 +137,7 @@ const createStore = () => {
                 return newState;
             });
         },
+        
 
         updateSubtaskTitle: (taskId: string, subId: string, title: string) => {
             update(state => {
@@ -220,41 +222,54 @@ const createStore = () => {
             update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(sub => sub.id === subId ? { ...sub, x, y } : sub) };
+                    return { 
+                        ...t, 
+                        subtasks: t.subtasks.map(sub => sub.id === subId ? { ...sub, x, y } : sub) 
+                    };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); return ns;
+                saveToDisk(ns); 
+                return ns;
             });
         },
         connectSubtasks: (taskId: string, sourceId: string, targetId: string) => {
              update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(sub => {
+                    return { 
+                        ...t, 
+                        subtasks: t.subtasks.map(sub => {
                             if (sub.id === sourceId) {
+                                // Duplikate vermeiden
                                 if (sub.next.includes(targetId)) return sub;
                                 return { ...sub, next: [...sub.next, targetId] };
-                            } return sub;
+                            } 
+                            return sub;
                         }) 
                     };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); return ns;
+                saveToDisk(ns); 
+                return ns;
             });
         },
         disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => {
              update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(sub => {
+                    return { 
+                        ...t, 
+                        subtasks: t.subtasks.map(sub => {
                             if (sub.id === sourceId) {
                                 return { ...sub, next: sub.next.filter(n => n !== targetId) };
-                            } return sub;
+                            } 
+                            return sub;
                         }) 
                     };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); return ns;
+                saveToDisk(ns); 
+                return ns;
             });
         },
         exportData: () => {

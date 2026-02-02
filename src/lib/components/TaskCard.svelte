@@ -1,8 +1,9 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import type { Task, Subtask, SubtaskType } from '$lib/types';
-    import { Calendar, Trash2, CheckSquare, Square, Mail, Copy, Flag, Search, ArrowUpRight } from 'lucide-svelte';
+    import { Calendar, Trash2, CheckSquare, Square, Mail, Copy, Flag, Search, ArrowUpRight, Clock, X } from 'lucide-svelte';
     import { cn, formatDate } from '$lib/utils';
+    import { scale } from 'svelte/transition';
 
     export let task: Task;
 
@@ -11,6 +12,10 @@
     let dragging = false;
     let isEditingTitle = false;
     let editTitleBuffer = task.title;
+
+    // Reschedule State
+    let showReschedule = false;
+    let rescheduleDate = task.dueDate;
 
     function renderTitleWithTags(title: string) {
         const team = $store.settings.team;
@@ -32,8 +37,7 @@
     
     function handleFlag(e: Event) {
         const input = e.currentTarget as HTMLInputElement;
-        // Wichtig: stopPropagation verhindert, dass Drag-Event feuert
-        e.stopPropagation();
+        e.stopPropagation(); // Stop drag start
         store.toggleFlag(task.id, input.value ? input.value : null);
     }
 
@@ -62,24 +66,25 @@
     }
 
     function onDragStart(e: DragEvent) {
-        // Verhindern, dass Drag startet, wenn wir Inputs klicken
-        if ((e.target as HTMLElement).tagName === 'INPUT') {
-            e.preventDefault();
-            return;
-        }
+        if ((e.target as HTMLElement).tagName === 'INPUT' || showReschedule) { e.preventDefault(); return; }
         if(e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', task.id); dragging = true; }
     }
     
     function openResearch(query: string) {
         if (!query) return;
         const q = encodeURIComponent(query);
-        const today = new Date().toLocaleDateString('de-DE');
+        const today = new Date().toLocaleDateString('de-DE'); 
         const urls = [
             `https://360.lexisnexis.at/search/${q}?selectedprefilterid=3`,
             `https://www.rechtportal.li/suche?term=${q}`,
             `https://www.ris.bka.gv.at/Ergebnis.wxe?Abfrage=Justiz&SucheNachRechtssatz=True&SucheNachText=False&BisDatum=${today}&ResultPageSize=100&Suchworte=${q}&Position=1`
         ];
-        urls.forEach(url => window.open(url, '_blank'));
+        window.open(urls[0], '_blank');
+        if (urls.length > 1) {
+            urls.slice(1).forEach((url, index) => {
+                setTimeout(() => { window.open(url, '_blank'); }, (index + 1) * 800);
+            });
+        }
     }
     
     function getFullFilename(subtask: Subtask, variant: string) {
@@ -87,6 +92,13 @@
         const cleanTask = task.title.replace(/[^a-zA-Z0-9äöüÄÖÜß ]/g, "").trim();
         const cleanSub = subtask.title.replace(/[^a-zA-Z0-9äöüÄÖÜß ]/g, "").trim();
         return `${date} ${cleanTask} - ${cleanSub} ${variant}`;
+    }
+
+    function saveReschedule() {
+        if (rescheduleDate !== task.dueDate) {
+            store.updateDate(task.id, rescheduleDate);
+        }
+        showReschedule = false;
     }
 </script>
 
@@ -108,7 +120,7 @@
             {task.matterRef || 'NO-REF'}
         </span>
         <div class="flex gap-1 items-center">
-            <div class="relative w-8 h-8 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-slate-700 rounded-full cursor-pointer">
+            <div class="relative w-8 h-8 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-slate-700 rounded-full cursor-pointer group/btn">
                 <Flag size={16} class={task.flaggedDate ? "text-red-500 fill-red-500" : "text-gray-300 hover:text-red-400"} />
                 <input 
                     type="date" 
@@ -116,10 +128,9 @@
                     onchange={handleFlag}
                     onclick={(e) => e.stopPropagation()} 
                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                    title={task.flaggedDate ? `Deadline: ${task.flaggedDate}` : "Priorität setzen"}
+                    title="Priorität setzen"
                 />
             </div>
-            
             <button onclick={() => store.deleteTask(task.id)} class="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
         </div>
     </div>
@@ -149,17 +160,12 @@
                     <button onclick={() => store.toggleSubtask(task.id, sub.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0">
                             {#if sub.done}<CheckSquare size={16} class="text-blue-500" />{:else}<Square size={16} />{/if}
                     </button>
-                    
                     {#if sub.type === 'DOCUMENT'}<span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded text-[10px] font-bold">DOC</span>{/if}
                     {#if sub.type === 'RESEARCH'}<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 rounded text-[10px] font-bold">RES</span>{/if}
                     {#if sub.type === 'EMAIL'}<span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200 rounded text-[10px] font-bold">MAIL</span>{/if}
-
-                    <input type="text" value={sub.title} onchange={(e) => updateSubtask(sub.id, e.currentTarget.value)}
-                        class={cn("flex-grow bg-transparent border-0 p-0 text-sm focus:ring-0 text-gray-700 dark:text-gray-300", sub.done && "line-through text-gray-400")} />
-
+                    <input type="text" value={sub.title} onchange={(e) => updateSubtask(sub.id, e.currentTarget.value)} class={cn("flex-grow bg-transparent border-0 p-0 text-sm focus:ring-0 text-gray-700 dark:text-gray-300", sub.done && "line-through text-gray-400")} />
                     {#if sub.type === 'EMAIL'}<button onclick={() => copyEmail(sub)} class="text-gray-300 hover:text-yellow-600 opacity-0 group-hover/sub:opacity-100"><Copy size={14}/></button>{/if}
                 </div>
-                
                 {#if !sub.done}
                     {#if sub.type === 'DOCUMENT'}
                         <div class="pl-7 flex gap-3">
@@ -177,7 +183,6 @@
                 {/if}
             </div>
         {/each}
-
         <div class="flex gap-2 items-center mt-3 pt-1 relative z-20">
             <select bind:value={newSubtaskType} class="text-xs bg-gray-100 dark:bg-slate-700 border-0 rounded px-2 py-1 text-gray-600 dark:text-gray-300 cursor-pointer focus:ring-0">
                 <option value="GENERIC">Task</option>
@@ -185,18 +190,16 @@
                 <option value="RESEARCH">Res</option>
                 <option value="EMAIL">Mail</option>
             </select>
-            <input 
-                type="text" 
-                bind:value={newSubtaskTitle}
-                placeholder="Neuer Subtask... (Enter)" 
-                class="flex-grow bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm placeholder:text-gray-400 focus:ring-0 text-gray-700 dark:text-gray-300"
-                onkeydown={onSubtaskKeydown} 
-            />
+            <input type="text" bind:value={newSubtaskTitle} placeholder="Neuer Subtask... (Enter)" class="flex-grow bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm placeholder:text-gray-400 focus:ring-0 text-gray-700 dark:text-gray-300" onkeydown={onSubtaskKeydown} />
         </div>
     </div>
 
-    <div class="flex items-center justify-between border-t border-gray-100 dark:border-slate-700 pt-3 mt-1">
-        <div class="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors relative group/date w-full">
+    <div class="relative flex items-center justify-between border-t border-gray-100 dark:border-slate-700 pt-3 mt-1">
+        
+        <button 
+            class="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors w-full text-left"
+            onclick={(e) => { e.stopPropagation(); showReschedule = !showReschedule; rescheduleDate = task.dueDate; }}
+        >
             <Calendar size={14} />
             <span>{formatDate(task.dueDate)}</span>
             {#if task.flaggedDate}
@@ -204,7 +207,33 @@
                     <Flag size={10} fill="currentColor"/> {formatDate(task.flaggedDate)}
                 </span>
             {/if}
-            <input type="date" value={task.dueDate} onchange={(e) => store.updateDate(task.id, e.currentTarget.value)} class="absolute inset-0 opacity-0 cursor-pointer w-full" />
-        </div>
+        </button>
+
+        {#if showReschedule}
+            <div 
+                class="absolute bottom-8 left-0 z-50 w-64 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl p-3"
+                transition:scale={{ duration: 150, start: 0.95 }}
+                onclick={(e) => e.stopPropagation()}
+                role="dialog"
+                tabindex="-1"
+            >
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold uppercase text-gray-500">Verschieben</span>
+                    <button onclick={() => showReschedule = false} class="text-gray-400 hover:text-gray-600"><X size={14}/></button>
+                </div>
+                <input 
+                    type="date" 
+                    bind:value={rescheduleDate}
+                    class="w-full text-sm rounded border-gray-300 dark:border-slate-600 dark:bg-slate-800 mb-2 p-1.5"
+                />
+                <button 
+                    onclick={saveReschedule} 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded"
+                >
+                    Speichern
+                </button>
+            </div>
+            <div class="fixed inset-0 z-40" onclick={() => showReschedule = false} role="button" tabindex="-1"></div>
+        {/if}
     </div>
 </div>

@@ -5,7 +5,24 @@
 /* Zwingt Tailwind v4, die .dark Klasse zu respektieren */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Globale Styles für Smoothness */
+/* Professional Typography & Base */
 html, body {
-    @apply transition-colors duration-300;
+    @apply transition-colors duration-300 font-sans antialiased;
+    @apply bg-slate-50 text-slate-900;
+    @apply dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* Custom Scrollbar for a cleaner look */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-600;
 }

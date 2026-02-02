@@ -12,53 +12,67 @@
     $: done = $store.tasks.filter(t => t.status === 'DONE').sort(byDate);
 </script>
 
-<div class="min-h-screen bg-gray-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 pb-20 font-sans transition-colors text-base">
-    <nav class="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur-md dark:bg-slate-800/90 dark:border-slate-700">
-        <div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans">
+    <nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800">
+        <div class="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between items-center">
-                <div class="flex items-center gap-8">
-                    <div class="flex items-center gap-2">
-                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white font-bold dark:bg-blue-600">L</div>
-                        <span class="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Law<span class="text-blue-600 dark:text-blue-400">CP</span></span>
+                <div class="flex items-center gap-10">
+                    <div class="flex items-center gap-2.5">
+                        <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
+                        <span class="text-xl font-bold tracking-tight text-white font-serif">Law<span class="text-amber-500">CP</span></span>
                     </div>
 
                     <div class="hidden md:flex items-center gap-1">
-                        <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-gray-100 text-slate-900 dark:bg-slate-700 dark:text-white transition-colors">
-                            <LayoutGrid size={18} /> Board
+                        <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-800 text-white shadow-inner">
+                            <LayoutGrid size={16} /> Board
                         </a>
-                        <a href="/calendar" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
-                            <Calendar size={18} /> Kalender
+                        <a href="/calendar" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+                            <Calendar size={16} /> Kalender
                         </a>
-                        <a href="/workflow" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
-                            <GitBranch size={18} /> Workflow
+                        <a href="/workflow" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+                            <GitBranch size={16} /> Workflow
                         </a>
-                        <a href="/resources" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-slate-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-slate-700/50 transition-colors">
-                            <Building2 size={18} /> Ressourcen
+                        <a href="/resources" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+                            <Building2 size={16} /> Ressourcen
                         </a>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <a href="/settings" class="p-2 text-gray-500 hover:text-slate-900 dark:text-gray-400 dark:hover:text-white transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-slate-700" aria-label="Settings" title="Konfiguration">
+                <div class="flex items-center gap-3">
+                    <button onclick={() => store.exportData()} class="hidden sm:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all uppercase tracking-wide">
+                        <Save size={14} /> Export
+                    </button>
+                    <a href="/settings" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
                         <Settings size={20} />
                     </a>
-                    <div class="h-6 w-px bg-gray-200 dark:bg-slate-700 mx-1"></div>
-                    <button onclick={() => store.exportData()} class="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200 dark:hover:bg-slate-600 transition-all active:scale-95">
-                        <Save size={16} /> Export
-                    </button>
                 </div>
             </div>
         </div>
     </nav>
 
-    <main class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
-        <TaskInput />
+    <main class="mx-auto max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto mb-12">
+            <TaskInput />
+        </div>
 
-        <div class="grid grid-cols-1 gap-8 lg:grid-cols-4 items-start">
-            <TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-500 shadow-slate-500/50" />
-            <TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-amber-400 shadow-amber-400/50" />
-            <TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-500 shadow-purple-500/50" />
-            <TaskColumn id="DONE" title="Done" tasks={done} color="bg-emerald-500 shadow-emerald-500/50" />
+        <div class="grid grid-cols-1 lg:grid-cols-4 items-start divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 min-h-[600px]">
+                <TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
+            </div>
+            
+            <div class="p-4 bg-white dark:bg-slate-900 min-h-[600px]">
+                <TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-amber-500" />
+            </div>
+            
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 min-h-[600px]">
+                <TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
+            </div>
+            
+            <div class="p-4 bg-white dark:bg-slate-900 min-h-[600px]">
+                <TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
+            </div>
+
         </div>
     </main>
 </div>

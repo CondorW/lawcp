@@ -1,7 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-svelte';
-    import { formatDate } from '$lib/utils'; // Make sure utils.ts exists!
+    import { ArrowLeft, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
+    import { formatDate } from '$lib/utils';
 
     let currentDate = new Date();
     let year = currentDate.getFullYear();
@@ -33,48 +33,68 @@
     $: offset = getFirstDayOfMonth(year, month);
     $: offsetArray = Array.from({ length: offset }, (_, i) => i);
 
-    // Get Tasks for a specific day
+    // Safer filtering logic
+    $: tasksInMonth = $store.tasks.filter(t => {
+        if (!t.dueDate) return false;
+        const [tYear, tMonth] = t.dueDate.split('-').map(Number);
+        return tYear === year && tMonth === (month + 1);
+    });
+
     function getTasksForDay(d: number) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        return $store.tasks.filter(t => t.dueDate === dateStr);
+        // Create YYYY-MM-DD string to compare
+        const dayStr = String(d).padStart(2, '0');
+        const monthStr = String(month + 1).padStart(2, '0');
+        const dateStr = `${year}-${monthStr}-${dayStr}`;
+        
+        return tasksInMonth.filter(t => t.dueDate === dateStr);
     }
 </script>
 
-<div class="min-h-screen bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-8 font-sans">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-8 font-sans">
     <div class="max-w-[1600px] mx-auto">
         <div class="flex items-center justify-between mb-8">
             <div class="flex items-center gap-4">
-                <a href="/" class="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full"><ArrowLeft /></a>
-                <h1 class="text-3xl font-bold">{monthNames[month]} {year}</h1>
+                <a href="/" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><ArrowLeft /></a>
+                <h1 class="text-3xl font-bold font-serif text-slate-800 dark:text-slate-100 flex items-center gap-3">
+                    <Calendar class="text-amber-600" />
+                    {monthNames[month]} <span class="text-slate-400 font-light">{year}</span>
+                </h1>
             </div>
             <div class="flex gap-2">
-                <button onclick={prevMonth} class="p-2 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded hover:bg-gray-50"><ChevronLeft /></button>
-                <button onclick={nextMonth} class="p-2 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded hover:bg-gray-50"><ChevronRight /></button>
+                <button onclick={prevMonth} class="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"><ChevronLeft /></button>
+                <button onclick={nextMonth} class="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"><ChevronRight /></button>
             </div>
         </div>
 
-        <div class="grid grid-cols-7 gap-px bg-gray-200 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm">
-            {#each ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as day}
-                <div class="bg-gray-100 dark:bg-slate-800 p-2 text-center font-bold text-sm">{day}</div>
-            {/each}
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
+            <div class="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                {#each ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as day}
+                    <div class="py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{day}</div>
+                {/each}
+            </div>
 
-            {#each offsetArray as _}
-                <div class="bg-white dark:bg-slate-900 h-32 md:h-48"></div>
-            {/each}
+            <div class="grid grid-cols-7 auto-rows-fr bg-slate-200 dark:bg-slate-800 gap-px">
+                {#each offsetArray as _}
+                    <div class="bg-slate-50/50 dark:bg-slate-900/50 min-h-[140px]"></div>
+                {/each}
 
-            {#each days as day}
-                <div class="bg-white dark:bg-slate-900 h-32 md:h-48 p-2 border-t border-transparent hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors relative group">
-                    <span class="text-sm font-semibold text-gray-400 group-hover:text-blue-600">{day}</span>
-                    
-                    <div class="mt-2 space-y-1 overflow-y-auto max-h-[calc(100%-24px)] custom-scrollbar">
-                        {#each getTasksForDay(day) as task}
-                            <div class="text-[10px] md:text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 p-1 rounded truncate border-l-2 border-blue-500" title={task.title}>
-                                {task.matterRef ? `${task.matterRef}: ` : ''}{task.title}
-                            </div>
-                        {/each}
+                {#each days as day}
+                    <div class="bg-white dark:bg-slate-900 min-h-[140px] p-2 hover:bg-amber-50/30 dark:hover:bg-slate-800/50 transition-colors relative group">
+                        <span class="text-sm font-semibold text-slate-400 group-hover:text-amber-600">{day}</span>
+                        
+                        <div class="mt-2 space-y-1.5 overflow-y-auto max-h-[100px] custom-scrollbar">
+                            {#each getTasksForDay(day) as task}
+                                <div class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded border-l-4 border-slate-500 hover:border-amber-500 shadow-sm transition-all truncate cursor-default" title={task.title}>
+                                    {#if task.matterRef}
+                                        <span class="font-bold text-[10px] text-slate-400 block mb-0.5">{task.matterRef}</span>
+                                    {/if}
+                                    {task.title}
+                                </div>
+                            {/each}
+                        </div>
                     </div>
-                </div>
-            {/each}
+                {/each}
+            </div>
         </div>
     </div>
 </div>

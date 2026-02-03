@@ -15,7 +15,8 @@ const createStore = () => {
     // Initial State
 	let data: AppData = { 
         tasks: [], 
-        settings: { myShortsign: 'ME', darkMode: false, team: [] },
+        // FIX: Dark Mode Default = true
+        settings: { myShortsign: 'ME', darkMode: true, team: [] },
         resources: []
     };
 	
@@ -125,7 +126,6 @@ const createStore = () => {
                         title, 
                         done: false, 
                         type, 
-                        // Wichtig für Workflow:
                         x, 
                         y, 
                         next: [] 
@@ -137,7 +137,6 @@ const createStore = () => {
                 return newState;
             });
         },
-        
 
         updateSubtaskTitle: (taskId: string, subId: string, title: string) => {
             update(state => {
@@ -169,7 +168,7 @@ const createStore = () => {
             });
         },
 
-        // --- RESOURCES & SETTINGS (Keep existing logic) ---
+        // --- RESOURCES & SETTINGS ---
         addResource: (res: Omit<Resource, 'id'>) => {
             update(s => {
                 const newRes = { ...res, id: uuidv4() };
@@ -240,7 +239,6 @@ const createStore = () => {
                         ...t, 
                         subtasks: t.subtasks.map(sub => {
                             if (sub.id === sourceId) {
-                                // Duplikate vermeiden
                                 if (sub.next.includes(targetId)) return sub;
                                 return { ...sub, next: [...sub.next, targetId] };
                             } 
@@ -272,6 +270,31 @@ const createStore = () => {
                 return ns;
             });
         },
+
+        // --- IMPORT / EXPORT ---
+        importData: (jsonString: string) => {
+            try {
+                const parsed = JSON.parse(jsonString);
+                // Validierung: Wir prüfen grob, ob die Struktur passt
+                if (!parsed.tasks || !parsed.settings) throw new Error("Ungültiges Dateiformat");
+                
+                update(state => {
+                    saveToDisk(parsed); // Speichern in LocalStorage
+                    
+                    // Dark Mode Einstellung sofort anwenden
+                    if (browser) {
+                        if (parsed.settings.darkMode) document.documentElement.classList.add('dark');
+                        else document.documentElement.classList.remove('dark');
+                    }
+                    return parsed;
+                });
+                return true;
+            } catch (e) {
+                console.error("Import Fehler:", e);
+                return false;
+            }
+        },
+
         exportData: () => {
             if (!browser) return;
             const data = localStorage.getItem(STORAGE_KEY);

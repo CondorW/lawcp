@@ -1,6 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2 } from 'lucide-svelte';
+    // FIX: Upload Icon hinzugefügt
+    import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload } from 'lucide-svelte';
     import TaskInput from '$lib/components/TaskInput.svelte';
     import TaskColumn from '$lib/components/TaskColumn.svelte';
 
@@ -10,6 +11,28 @@
     $: waiting = $store.tasks.filter(t => t.status === 'WAITING').sort(byDate);
     $: review = $store.tasks.filter(t => t.status === 'REVIEW').sort(byDate);
     $: done = $store.tasks.filter(t => t.status === 'DONE').sort(byDate);
+
+    // --- Import Logik ---
+    let fileInput: HTMLInputElement;
+
+    function triggerImport() {
+        fileInput.click();
+    }
+
+    async function handleFileSelect(e: Event) {
+        const target = e.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (!file) return;
+
+        const text = await file.text();
+        const success = store.importData(text);
+        if (success) {
+            alert("Daten erfolgreich importiert!");
+        } else {
+            alert("Fehler: Die Datei ist beschädigt oder hat das falsche Format.");
+        }
+        target.value = ''; // Reset
+    }
 </script>
 
 <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans">
@@ -39,9 +62,21 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                    <input 
+                        type="file" 
+                        accept=".json" 
+                        class="hidden" 
+                        bind:this={fileInput} 
+                        onchange={handleFileSelect} 
+                    />
+                    <button onclick={triggerImport} class="hidden sm:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all uppercase tracking-wide">
+                        <Upload size={14} /> Import
+                    </button>
+
                     <button onclick={() => store.exportData()} class="hidden sm:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all uppercase tracking-wide">
                         <Save size={14} /> Export
                     </button>
+                    
                     <a href="/settings" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
                         <Settings size={20} />
                     </a>

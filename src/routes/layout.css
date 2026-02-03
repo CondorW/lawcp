@@ -8,6 +8,11 @@
 /* Professional Typography & Base */
 html, body {
     @apply transition-colors duration-300 font-sans antialiased;
+    /* Aptos (modern, professionell) oder Fallbacks */
+    font-family: "Aptos", "Inter", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+    /* Schrift etwas größer für bessere Lesbarkeit */
+    font-size: 17px; 
+    
     @apply bg-slate-50 text-slate-900;
     @apply dark:bg-slate-950 dark:text-slate-100;
 }

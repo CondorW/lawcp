@@ -6,17 +6,15 @@ import {
     type AppData, type Task, type Subtask, type Settings, type Resource, type SubtaskType 
 } from '$lib/types';
 
-// Re-Export für Komponenten, damit Imports einfach bleiben
 export type { Task, Subtask, Settings, Resource, SubtaskType };
 
 const STORAGE_KEY = 'associate-os-v5';
 
 const createStore = () => {
-    // Initial State
+    // Initial State: Not authenticated by default
 	let data: AppData = { 
         tasks: [], 
-        // FIX: Dark Mode Default = true
-        settings: { myShortsign: 'ME', darkMode: true, team: [] },
+        settings: { myShortsign: 'ME', darkMode: true, isAuthenticated: false, team: [] }, 
         resources: []
     };
 	
@@ -28,7 +26,6 @@ const createStore = () => {
                 if (!Array.isArray(parsed)) {
                      const safe = AppDataSchema.safeParse(parsed);
                      if(safe.success) data = safe.data;
-                     // Defaults auffüllen falls Felder fehlen
                      if(!data.resources) data.resources = [];
                 }
 			} catch (e) { console.error("Store Load Error", e); }
@@ -48,6 +45,29 @@ const createStore = () => {
 	return {
 		subscribe,
         
+        // --- AUTH ACTIONS ---
+        login: (shortsign: string) => {
+            update(state => {
+                const newState = { 
+                    ...state, 
+                    settings: { ...state.settings, isAuthenticated: true, myShortsign: shortsign } 
+                };
+                saveToDisk(newState);
+                return newState;
+            });
+        },
+
+        logout: () => {
+            update(state => {
+                const newState = { 
+                    ...state, 
+                    settings: { ...state.settings, isAuthenticated: false } 
+                };
+                saveToDisk(newState);
+                return newState;
+            });
+        },
+
         // --- CORE TASK ACTIONS ---
 		addTask: (title: string, matterRef: string, dueDate: string) => {
 			update(state => {
@@ -116,19 +136,12 @@ const createStore = () => {
         },
 
         // --- SUBTASK ACTIONS ---
-        
         addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 400, y = 300) => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
                     const newSub: Subtask = { 
-                        id: uuidv4(), 
-                        title, 
-                        done: false, 
-                        type, 
-                        x, 
-                        y, 
-                        next: [] 
+                        id: uuidv4(), title, done: false, type, x, y, next: [] 
                     };
                     return { ...t, subtasks: [...t.subtasks, newSub] };
                 });
@@ -142,10 +155,7 @@ const createStore = () => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { 
-                        ...t, 
-                        subtasks: t.subtasks.map(s => s.id === subId ? { ...s, title } : s) 
-                    };
+                    return { ...t, subtasks: t.subtasks.map(s => s.id === subId ? { ...s, title } : s) };
                 });
                 const newState = { ...state, tasks: newTasks };
                 saveToDisk(newState); 
@@ -157,10 +167,7 @@ const createStore = () => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { 
-                        ...t, 
-                        subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s) 
-                    };
+                    return { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s) };
                 });
                 const newState = { ...state, tasks: newTasks };
                 saveToDisk(newState); 
@@ -221,67 +228,51 @@ const createStore = () => {
             update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { 
-                        ...t, 
-                        subtasks: t.subtasks.map(sub => sub.id === subId ? { ...sub, x, y } : sub) 
-                    };
+                    return { ...t, subtasks: t.subtasks.map(sub => sub.id === subId ? { ...sub, x, y } : sub) };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); 
-                return ns;
+                saveToDisk(ns); return ns;
             });
         },
         connectSubtasks: (taskId: string, sourceId: string, targetId: string) => {
              update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { 
-                        ...t, 
-                        subtasks: t.subtasks.map(sub => {
+                    return { ...t, subtasks: t.subtasks.map(sub => {
                             if (sub.id === sourceId) {
                                 if (sub.next.includes(targetId)) return sub;
                                 return { ...sub, next: [...sub.next, targetId] };
-                            } 
-                            return sub;
+                            } return sub;
                         }) 
                     };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); 
-                return ns;
+                saveToDisk(ns); return ns;
             });
         },
         disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => {
              update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { 
-                        ...t, 
-                        subtasks: t.subtasks.map(sub => {
+                    return { ...t, subtasks: t.subtasks.map(sub => {
                             if (sub.id === sourceId) {
                                 return { ...sub, next: sub.next.filter(n => n !== targetId) };
-                            } 
-                            return sub;
+                            } return sub;
                         }) 
                     };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); 
-                return ns;
+                saveToDisk(ns); return ns;
             });
         },
 
-        // --- IMPORT / EXPORT ---
+        // --- EXPORT/IMPORT ---
         importData: (jsonString: string) => {
             try {
                 const parsed = JSON.parse(jsonString);
-                // Validierung: Wir prüfen grob, ob die Struktur passt
-                if (!parsed.tasks || !parsed.settings) throw new Error("Ungültiges Dateiformat");
-                
+                if (!parsed.tasks || !parsed.settings) throw new Error("Format");
                 update(state => {
-                    saveToDisk(parsed); // Speichern in LocalStorage
-                    
-                    // Dark Mode Einstellung sofort anwenden
+                    saveToDisk(parsed);
                     if (browser) {
                         if (parsed.settings.darkMode) document.documentElement.classList.add('dark');
                         else document.documentElement.classList.remove('dark');
@@ -289,12 +280,8 @@ const createStore = () => {
                     return parsed;
                 });
                 return true;
-            } catch (e) {
-                console.error("Import Fehler:", e);
-                return false;
-            }
+            } catch (e) { return false; }
         },
-
         exportData: () => {
             if (!browser) return;
             const data = localStorage.getItem(STORAGE_KEY);

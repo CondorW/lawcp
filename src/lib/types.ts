@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-// --- ENUMS & SCHEMAS ---
-
 export const SubtaskTypeSchema = z.enum(['GENERIC', 'DOCUMENT', 'RESEARCH', 'EMAIL']);
 
 export const TeamMemberSchema = z.object({
@@ -24,7 +22,8 @@ export const ResourceSchema = z.object({
 
 export const SettingsSchema = z.object({
     myShortsign: z.string().default('ME'),
-    darkMode: z.boolean().default(false),
+    darkMode: z.boolean().default(true),
+    isAuthenticated: z.boolean().default(false), // NEW: Security Flag
     team: z.array(TeamMemberSchema).default([])
 });
 
@@ -59,7 +58,6 @@ export const AppDataSchema = z.object({
     resources: z.array(ResourceSchema).default([])
 });
 
-// --- TYPES EXPORTS ---
 export type SubtaskType = z.infer<typeof SubtaskTypeSchema>;
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
 export type Resource = z.infer<typeof ResourceSchema>;

@@ -41,8 +41,8 @@
             <div class="flex h-16 justify-between items-center">
                 <div class="flex items-center gap-10">
                     <div class="flex items-center gap-2.5">
-                        <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
-                        <span class="text-xl font-bold tracking-tight text-white font-serif">Law<span class="text-amber-500">CP</span></span>
+                        <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-bold text-xl shadow-sm">L</div>
+                        <span class="text-xl font-bold tracking-tight text-white">Lawganized<span class="text-amber-500">LWA</span></span>
                     </div>
 
                     <div class="hidden md:flex items-center gap-1">

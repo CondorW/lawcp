@@ -14,7 +14,7 @@ const createStore = () => {
     // Initial State: Not authenticated by default
 	let data: AppData = { 
         tasks: [], 
-        settings: { myShortsign: 'ME', darkMode: true, isAuthenticated: false, team: [] }, 
+        settings: { myShortsign: 'ME', darkMode: true, isAuthenticated: true, team: [] }, 
         resources: []
     };
 	

@@ -23,7 +23,7 @@ export const ResourceSchema = z.object({
 export const SettingsSchema = z.object({
     myShortsign: z.string().default('ME'),
     darkMode: z.boolean().default(true),
-    isAuthenticated: z.boolean().default(false), // NEW: Security Flag
+    isAuthenticated: z.boolean().default(true), // NEW: Security Flag
     team: z.array(TeamMemberSchema).default([])
 });
 

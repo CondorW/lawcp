@@ -6,6 +6,8 @@
     import { goto } from '$app/navigation';
     import { browser } from '$app/environment';
     
+    // NEU: Importieren der Command Palette
+    import CommandPalette from '$lib/components/CommandPalette.svelte';
 
     let { children } = $props();
 
@@ -27,5 +29,7 @@
         return unsubscribe;
     });
 </script>
+
+<CommandPalette />
 
 {@render children()}

@@ -87,6 +87,20 @@
             });
         }
     }
+    function autosize(node: HTMLTextAreaElement) {
+        const resize = () => {
+            node.style.height = 'auto';
+            node.style.height = node.scrollHeight + 'px';
+        };
+        node.addEventListener('input', resize);
+        
+        // Initialer Resize (Verzögert, damit Value gerendert ist)
+        setTimeout(resize, 0); 
+        
+        return {
+            destroy() { node.removeEventListener('input', resize); }
+        };
+    }
     
     function getFullFilename(subtask: Subtask, variant: string) {
         const date = new Date().toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'}).replace(/\./g, '-');

@@ -154,15 +154,17 @@
         {#if isEditingTitle}
             <textarea
                 id={`edit-${task.id}`}
+                use:autosize
                 bind:value={editTitleBuffer}
                 onblur={saveEdit}
                 onkeydown={(e) => { if(e.key === 'Enter') saveEdit(); }}
-                class="w-full text-base font-medium text-gray-900 bg-gray-50 border border-blue-300 rounded p-1 focus:ring-2 focus:ring-blue-500 outline-none resize-none dark:bg-slate-700 dark:text-white"
-                rows="2"
+                class="w-full text-base font-medium text-gray-900 bg-gray-50 border border-blue-300 rounded p-1 focus:ring-2 focus:ring-blue-500 outline-none resize-none overflow-hidden dark:bg-slate-700 dark:text-white block"
+                rows="1"
+                spellcheck="false"
             ></textarea>
         {:else}
             <div role="button" tabindex="0" onclick={startEdit}
-                class={cn("text-base font-medium text-gray-900 leading-snug cursor-text hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-slate-700 rounded p-1 -m-1", task.status === 'DONE' && "line-through text-gray-500 dark:text-gray-500")}>
+                class={cn("text-base font-medium text-gray-900 leading-snug cursor-text hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-slate-700 rounded p-1 -m-1 break-words", task.status === 'DONE' && "line-through text-gray-500 dark:text-gray-500")}>
                 {@html renderTitleWithTags(task.title)}
             </div>
         {/if}
@@ -171,16 +173,34 @@
     <div class="space-y-3 my-2 border-t border-gray-100 dark:border-slate-700 pt-3">
         {#each task.subtasks || [] as sub (sub.id)}
             <div class="bg-gray-50/80 dark:bg-slate-900/50 rounded-lg p-2 text-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-1 group/sub">
-                <div class="flex items-center gap-2">
-                    <button onclick={() => store.toggleSubtask(task.id, sub.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0">
+                <div class="flex items-start gap-2">
+                    <button onclick={() => store.toggleSubtask(task.id, sub.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0 mt-0.5">
                             {#if sub.done}<CheckSquare size={16} class="text-blue-500" />{:else}<Square size={16} />{/if}
                     </button>
-                    {#if sub.type === 'DOCUMENT'}<span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded text-[10px] font-bold">DOC</span>{/if}
-                    {#if sub.type === 'RESEARCH'}<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 rounded text-[10px] font-bold">RES</span>{/if}
-                    {#if sub.type === 'EMAIL'}<span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200 rounded text-[10px] font-bold">MAIL</span>{/if}
-                    <input type="text" value={sub.title} onchange={(e) => updateSubtask(sub.id, e.currentTarget.value)} class={cn("flex-grow bg-transparent border-0 p-0 text-sm focus:ring-0 text-gray-700 dark:text-gray-300", sub.done && "line-through text-gray-400")} />
-                    {#if sub.type === 'EMAIL'}<button onclick={() => copyEmail(sub)} class="text-gray-300 hover:text-yellow-600 opacity-0 group-hover/sub:opacity-100"><Copy size={14}/></button>{/if}
+                    
+                    <div class="flex flex-wrap gap-1 mt-0.5">
+                        {#if sub.type === 'DOCUMENT'}<span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded text-[10px] font-bold h-fit">DOC</span>{/if}
+                        {#if sub.type === 'RESEARCH'}<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200 rounded text-[10px] font-bold h-fit">RES</span>{/if}
+                        {#if sub.type === 'EMAIL'}<span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200 rounded text-[10px] font-bold h-fit">MAIL</span>{/if}
+                    </div>
+
+                    <textarea 
+                        use:autosize
+                        value={sub.title} 
+                        onchange={(e) => updateSubtask(sub.id, e.currentTarget.value)}
+                        rows="1"
+                        spellcheck="false"
+                        class={cn(
+                            "flex-grow bg-transparent border-0 p-0 text-sm focus:ring-0 text-gray-700 dark:text-gray-300 resize-none overflow-hidden leading-snug block min-h-[20px]", 
+                            sub.done && "line-through text-gray-400"
+                        )}
+                    ></textarea>
+
+                    {#if sub.type === 'EMAIL'}
+                        <button onclick={() => copyEmail(sub)} class="text-gray-300 hover:text-yellow-600 opacity-0 group-hover/sub:opacity-100 mt-0.5"><Copy size={14}/></button>
+                    {/if}
                 </div>
+                
                 {#if !sub.done}
                     {#if sub.type === 'DOCUMENT'}
                         <div class="pl-7 flex gap-3">
@@ -198,6 +218,7 @@
                 {/if}
             </div>
         {/each}
+
         <div class="flex gap-2 items-center mt-3 pt-1 relative z-20">
             <select bind:value={newSubtaskType} class="text-xs bg-gray-100 dark:bg-slate-700 border-0 rounded px-2 py-1 text-gray-600 dark:text-gray-300 cursor-pointer focus:ring-0">
                 <option value="GENERIC">Task</option>
@@ -205,7 +226,13 @@
                 <option value="RESEARCH">Res</option>
                 <option value="EMAIL">Mail</option>
             </select>
-            <input type="text" bind:value={newSubtaskTitle} placeholder="Neuer Subtask... (Enter)" class="flex-grow bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm placeholder:text-gray-400 focus:ring-0 text-gray-700 dark:text-gray-300" onkeydown={onSubtaskKeydown} />
+            <input 
+                type="text" 
+                bind:value={newSubtaskTitle}
+                placeholder="Neuer Subtask... (Enter)" 
+                class="flex-grow bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm placeholder:text-gray-400 focus:ring-0 text-gray-700 dark:text-gray-300"
+                onkeydown={onSubtaskKeydown} 
+            />
         </div>
     </div>
 

@@ -16,14 +16,17 @@ export const ResourceSchema = z.object({
     type: z.enum(['COMPANY', 'PERSON']),
     name: z.string(),
     identifier: z.string().optional(),
-    address: z.string().optional(),
+    address: z.string().optional(), // Legacy Support
+    street: z.string().optional(),  // Neu
+    zip: z.string().optional(),     // Neu
+    city: z.string().optional(),    // Neu
     notes: z.string().optional()
 });
 
 export const SettingsSchema = z.object({
     myShortsign: z.string().default('ME'),
     darkMode: z.boolean().default(true),
-    isAuthenticated: z.boolean().default(true), // NEW: Security Flag
+    isAuthenticated: z.boolean().default(true),
     team: z.array(TeamMemberSchema).default([])
 });
 

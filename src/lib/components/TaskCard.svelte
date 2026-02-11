@@ -1,7 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import type { Task, Subtask, SubtaskType } from '$lib/types';
-    import { Calendar, Trash2, CheckSquare, Square, Mail, ListPlus, CornerDownRight, Copy, Flag, Search, ArrowUpRight, X } from 'lucide-svelte';
+    import { Calendar, Trash2, CheckSquare, Square, Mail, Copy, Flag, Search, ArrowUpRight, X, ListPlus, CornerDownRight, Check } from 'lucide-svelte';
     import { cn, formatDate } from '$lib/utils';
     import { scale, fade } from 'svelte/transition';
 
@@ -16,6 +16,10 @@
     // Reschedule State
     let showReschedule = false;
     let rescheduleDate = task.dueDate;
+
+    // NEW: Sub-Subtask Inline Adding State
+    let addingSubId: string | null = null;
+    let newSubStepTitle = '';
 
     function renderTitleWithTags(title: string) {
         const team = $store.settings.team;
@@ -47,6 +51,27 @@
         newSubtaskTitle = '';
     }
 
+    // FIX: Neue Streamlined Funktion (nur State setzen)
+    function startAddSubStep(subId: string) {
+        addingSubId = subId;
+        newSubStepTitle = '';
+        // Focus wird über die Action 'focusOnMount' gelöst
+    }
+
+    function cancelAddSubStep() {
+        addingSubId = null;
+        newSubStepTitle = '';
+    }
+
+    function confirmAddSubStep(parentSubId: string) {
+        if (newSubStepTitle.trim()) {
+            store.addSubSubtask(task.id, parentSubId, newSubStepTitle);
+        }
+        // Reset und Input schließen
+        addingSubId = null;
+        newSubStepTitle = '';
+    }
+
     function onSubtaskKeydown(e: KeyboardEvent) {
         if (e.key === 'Enter') handleAddSubtask();
     }
@@ -54,12 +79,6 @@
     function updateSubtask(subId: string, newTitle: string) {
         if(newTitle.trim()) store.updateSubtaskTitle(task.id, subId, newTitle);
     }
-    function addSubStep(parentSubId: string) {
-    const title = prompt("Neuer Unterschritt:");
-    if (title && title.trim()) {
-        store.addSubSubtask(task.id, parentSubId, title);
-    }
-}
 
     async function copyEmail(specificSubtask?: Subtask) {
         let recipientName = "Kollegen";
@@ -72,8 +91,8 @@
     }
 
     function onDragStart(e: DragEvent) {
-        // Prevent drag if modal is open or interacting with inputs
-        if ((e.target as HTMLElement).tagName === 'INPUT' || showReschedule) { e.preventDefault(); return; }
+        // Prevent drag on inputs
+        if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA' || showReschedule) { e.preventDefault(); return; }
         if(e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', task.id); dragging = true; }
     }
     
@@ -93,20 +112,6 @@
             });
         }
     }
-    function autosize(node: HTMLTextAreaElement) {
-        const resize = () => {
-            node.style.height = 'auto';
-            node.style.height = node.scrollHeight + 'px';
-        };
-        node.addEventListener('input', resize);
-        
-        // Initialer Resize (Verzögert, damit Value gerendert ist)
-        setTimeout(resize, 0); 
-        
-        return {
-            destroy() { node.removeEventListener('input', resize); }
-        };
-    }
     
     function getFullFilename(subtask: Subtask, variant: string) {
         const date = new Date().toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'}).replace(/\./g, '-');
@@ -120,6 +125,23 @@
             store.updateDate(task.id, rescheduleDate);
         }
         showReschedule = false;
+    }
+
+    function autosize(node: HTMLTextAreaElement) {
+        const resize = () => {
+            node.style.height = 'auto';
+            node.style.height = node.scrollHeight + 'px';
+        };
+        node.addEventListener('input', resize);
+        setTimeout(resize, 0); 
+        return {
+            destroy() { node.removeEventListener('input', resize); }
+        };
+    }
+
+    // Action für automatischen Focus beim Einblenden
+    function focusOnMount(node: HTMLTextAreaElement) {
+        node.focus();
     }
 </script>
 
@@ -169,7 +191,7 @@
                 spellcheck="false"
             ></textarea>
         {:else}
-            <div role="button" tabindex="0" onclick={startEdit}
+            <div role="button" tabindex="0" onclick={startEdit} onkeydown={(e) => e.key === 'Enter' && startEdit()}
                 class={cn("text-base font-medium text-gray-900 leading-snug cursor-text hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-slate-700 rounded p-1 -m-1 break-words", task.status === 'DONE' && "line-through text-gray-500 dark:text-gray-500")}>
                 {@html renderTitleWithTags(task.title)}
             </div>
@@ -203,7 +225,7 @@
                     ></textarea>
 
                     <button 
-                        onclick={() => addSubStep(sub.id)} 
+                        onclick={() => startAddSubStep(sub.id)} 
                         class="text-gray-300 hover:text-amber-600 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity"
                         title="Unterschritt hinzufügen"
                     >
@@ -231,9 +253,9 @@
                     {/if}
                 {/if}
 
-                {#if sub.subtasks && sub.subtasks.length > 0}
+                {#if (sub.subtasks && sub.subtasks.length > 0) || addingSubId === sub.id}
                     <div class="pl-4 mt-1 space-y-1 border-l-2 border-slate-200 dark:border-slate-700 ml-2">
-                        {#each sub.subtasks as child (child.id)}
+                        {#each sub.subtasks || [] as child (child.id)}
                             <div class="flex items-start gap-2 group/child">
                                 <div class="text-slate-300 mt-0.5"><CornerDownRight size={12}/></div>
                                 <button onclick={() => store.toggleSubtask(task.id, child.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0 mt-0.5">
@@ -252,9 +274,31 @@
                                 ></textarea>
                             </div>
                         {/each}
+
+                        {#if addingSubId === sub.id}
+                            <div class="flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div class="text-amber-500 mt-0.5"><CornerDownRight size={12}/></div>
+                                <div class="flex-grow flex gap-2">
+                                    <textarea
+                                        use:autosize
+                                        use:focusOnMount
+                                        bind:value={newSubStepTitle}
+                                        onkeydown={(e) => {
+                                            if (e.key === 'Enter') { e.preventDefault(); confirmAddSubStep(sub.id); }
+                                            if (e.key === 'Escape') cancelAddSubStep();
+                                        }}
+                                        onblur={() => { if(!newSubStepTitle.trim()) cancelAddSubStep(); }}
+                                        rows="1"
+                                        placeholder="Unterschritt..."
+                                        class="flex-grow bg-white dark:bg-slate-800 border-b border-amber-500 p-0 text-xs focus:ring-0 text-gray-900 dark:text-white resize-none overflow-hidden leading-snug block min-h-[18px] placeholder:text-slate-400"
+                                    ></textarea>
+                                    <button onclick={() => confirmAddSubStep(sub.id)} class="text-amber-600 hover:text-amber-700"><Check size={14}/></button>
+                                    <button onclick={cancelAddSubStep} class="text-slate-400 hover:text-slate-600"><X size={14}/></button>
+                                </div>
+                            </div>
+                        {/if}
                     </div>
                 {/if}
-
             </div>
         {/each}
 
@@ -295,6 +339,7 @@
                 <div 
                     class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
                     onclick={() => showReschedule = false} 
+                    onkeydown={(e) => e.key === 'Escape' && (showReschedule = false)}
                     role="button" tabindex="-1"
                 ></div>
                 
@@ -309,8 +354,9 @@
                     </div>
                     
                     <div class="space-y-1">
-                        <label class="text-xs font-bold text-slate-400 uppercase">Neues Datum</label>
+                        <label for={`reschedule-date-${task.id}`} class="text-xs font-bold text-slate-400 uppercase">Neues Datum</label>
                         <input 
+                            id={`reschedule-date-${task.id}`}
                             type="date" 
                             bind:value={rescheduleDate}
                             class="w-full rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-2.5 shadow-sm focus:ring-2 focus:ring-amber-500"

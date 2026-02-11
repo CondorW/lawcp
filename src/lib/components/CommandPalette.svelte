@@ -32,10 +32,7 @@
               id: t.id,
               title: `${t.matterRef ? t.matterRef + ': ' : ''}${t.title}`,
               icon: FileText,
-              action: () => { 
-                  goto('/'); 
-                  // alert(`Springe zu Task: ${t.title}`); 
-              }
+              action: () => { goto('/'); }
           }))
         : [];
 
@@ -56,7 +53,8 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
-        if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        // FIX: Shortcut auf 'J' geändert (statt 'K')
+        if (e.key === 'j' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             toggle();
         }
@@ -87,12 +85,12 @@
     <button 
         onclick={toggle}
         class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-amber-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-transform flex items-center gap-3 font-bold border border-slate-700 dark:border-amber-500 group"
-        title="Befehlspalette öffnen (Strg+K)"
+        title="Befehlspalette öffnen (Strg+J)"
     >
         <Search size={20} />
         <span class="hidden md:inline">Suche / Befehle</span>
         <div class="flex items-center gap-1 text-[10px] bg-white/20 px-1.5 py-0.5 rounded ml-2 font-mono group-hover:bg-white/30 transition-colors">
-            <Command size={10} /> K
+            <Command size={10} /> J
         </div>
     </button>
 {/if}
@@ -145,7 +143,7 @@
             
             <div class="p-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex justify-between px-4">
                 <span><strong>↑↓</strong> zum Wählen</span>
-                <span><strong>LawganizedLWA</strong> Command Center</span>
+                <span><strong>LawCP</strong> Command Center</span>
             </div>
         </div>
     </div>

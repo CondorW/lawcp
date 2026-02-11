@@ -27,7 +27,8 @@ export const SettingsSchema = z.object({
     team: z.array(TeamMemberSchema).default([])
 });
 
-export const SubtaskSchema = z.object({
+// FIX: Lazy Loading für Rekursion
+export const SubtaskSchema: z.ZodType<any> = z.lazy(() => z.object({
     id: z.string(),
     title: z.string(),
     done: z.boolean().default(false),
@@ -35,8 +36,10 @@ export const SubtaskSchema = z.object({
     payload: z.string().optional(),
     x: z.number().default(0),
     y: z.number().default(0),
-    next: z.array(z.string()).default([])
-});
+    next: z.array(z.string()).default([]),
+    // NEU: Nested Subtasks
+    subtasks: z.array(SubtaskSchema).default([])
+}));
 
 export const TaskSchema = z.object({
 	id: z.string(),

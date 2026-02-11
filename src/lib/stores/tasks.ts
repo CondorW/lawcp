@@ -10,6 +10,29 @@ export type { Task, Subtask, Settings, Resource, SubtaskType };
 
 const STORAGE_KEY = 'associate-os-v5';
 
+function recursiveUpdate(subtasks: Subtask[], targetId: string, fn: (s: Subtask) => Subtask): Subtask[] {
+    return subtasks.map(s => {
+        if (s.id === targetId) return fn(s);
+        if (s.subtasks && s.subtasks.length > 0) {
+            return { ...s, subtasks: recursiveUpdate(s.subtasks, targetId, fn) };
+        }
+        return s;
+    });
+}
+
+function recursiveAdd(subtasks: Subtask[], parentId: string, newSub: Subtask): Subtask[] {
+    return subtasks.map(s => {
+        if (s.id === parentId) {
+            return { ...s, subtasks: [...(s.subtasks || []), newSub] };
+        }
+        if (s.subtasks && s.subtasks.length > 0) {
+            return { ...s, subtasks: recursiveAdd(s.subtasks, parentId, newSub) };
+        }
+        return s;
+    });
+}
+
+
 const createStore = () => {
     // Initial State: Not authenticated by default
 	let data: AppData = { 
@@ -135,15 +158,30 @@ const createStore = () => {
             });
         },
 
-        // --- SUBTASK ACTIONS ---
         addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 400, y = 300) => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
                     const newSub: Subtask = { 
-                        id: uuidv4(), title, done: false, type, x, y, next: [] 
+                        id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] 
                     };
                     return { ...t, subtasks: [...t.subtasks, newSub] };
+                });
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
+            });
+        },
+        // NEU: Sub-Subtask hinzufügen
+        addSubSubtask: (taskId: string, parentSubId: string, title: string) => {
+             update(state => {
+                const newTasks = state.tasks.map(t => {
+                    if (t.id !== taskId) return t;
+                    const newSub: Subtask = { 
+                        id: uuidv4(), title, done: false, type: 'GENERIC', x:0, y:0, next: [], subtasks: [] 
+                    };
+                    // Rekursiv einfügen
+                    return { ...t, subtasks: recursiveAdd(t.subtasks, parentSubId, newSub) };
                 });
                 const newState = { ...state, tasks: newTasks };
                 saveToDisk(newState); 
@@ -155,7 +193,8 @@ const createStore = () => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(s => s.id === subId ? { ...s, title } : s) };
+                    // FIX: Rekursives Update
+                    return { ...t, subtasks: recursiveUpdate(t.subtasks, subId, s => ({ ...s, title })) };
                 });
                 const newState = { ...state, tasks: newTasks };
                 saveToDisk(newState); 
@@ -167,7 +206,8 @@ const createStore = () => {
             update(state => {
                 const newTasks = state.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(s => s.id === subtaskId ? { ...s, done: !s.done } : s) };
+                    // FIX: Rekursives Toggle
+                    return { ...t, subtasks: recursiveUpdate(t.subtasks, subtaskId, s => ({ ...s, done: !s.done })) };
                 });
                 const newState = { ...state, tasks: newTasks };
                 saveToDisk(newState); 
@@ -254,17 +294,23 @@ const createStore = () => {
              update(s => {
                 const tasks = s.tasks.map(t => {
                     if (t.id !== taskId) return t;
-                    return { ...t, subtasks: t.subtasks.map(sub => {
+                    return { 
+                        ...t, 
+                        subtasks: t.subtasks.map(sub => {
                             if (sub.id === sourceId) {
-                                return { ...sub, next: sub.next.filter(n => n !== targetId) };
-                            } return sub;
+                                // FIX: Typ für 'n' explizit angeben
+                                return { ...sub, next: sub.next.filter((n: string) => n !== targetId) };
+                            } 
+                            return sub;
                         }) 
                     };
                 });
                 const ns = { ...s, tasks };
-                saveToDisk(ns); return ns;
+                saveToDisk(ns); 
+                return ns;
             });
         },
+        
 
         // --- EXPORT/IMPORT ---
         importData: (jsonString: string) => {

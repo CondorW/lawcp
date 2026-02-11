@@ -1,7 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import type { Task, Subtask, SubtaskType } from '$lib/types';
-    import { Calendar, Trash2, CheckSquare, Square, Mail, Copy, Flag, Search, ArrowUpRight, X } from 'lucide-svelte';
+    import { Calendar, Trash2, CheckSquare, Square, Mail, ListPlus, CornerDownRight, Copy, Flag, Search, ArrowUpRight, X } from 'lucide-svelte';
     import { cn, formatDate } from '$lib/utils';
     import { scale, fade } from 'svelte/transition';
 
@@ -54,6 +54,12 @@
     function updateSubtask(subId: string, newTitle: string) {
         if(newTitle.trim()) store.updateSubtaskTitle(task.id, subId, newTitle);
     }
+    function addSubStep(parentSubId: string) {
+    const title = prompt("Neuer Unterschritt:");
+    if (title && title.trim()) {
+        store.addSubSubtask(task.id, parentSubId, title);
+    }
+}
 
     async function copyEmail(specificSubtask?: Subtask) {
         let recipientName = "Kollegen";
@@ -173,7 +179,7 @@
     <div class="space-y-3 my-2 border-t border-gray-100 dark:border-slate-700 pt-3">
         {#each task.subtasks || [] as sub (sub.id)}
             <div class="bg-gray-50/80 dark:bg-slate-900/50 rounded-lg p-2 text-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-1 group/sub">
-                <div class="flex items-start gap-2">
+                <div class="flex items-start gap-2 relative">
                     <button onclick={() => store.toggleSubtask(task.id, sub.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0 mt-0.5">
                             {#if sub.done}<CheckSquare size={16} class="text-blue-500" />{:else}<Square size={16} />{/if}
                     </button>
@@ -196,6 +202,14 @@
                         )}
                     ></textarea>
 
+                    <button 
+                        onclick={() => addSubStep(sub.id)} 
+                        class="text-gray-300 hover:text-amber-600 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity"
+                        title="Unterschritt hinzufügen"
+                    >
+                        <ListPlus size={14} />
+                    </button>
+
                     {#if sub.type === 'EMAIL'}
                         <button onclick={() => copyEmail(sub)} class="text-gray-300 hover:text-yellow-600 opacity-0 group-hover/sub:opacity-100 mt-0.5"><Copy size={14}/></button>
                     {/if}
@@ -216,6 +230,31 @@
                         </div>
                     {/if}
                 {/if}
+
+                {#if sub.subtasks && sub.subtasks.length > 0}
+                    <div class="pl-4 mt-1 space-y-1 border-l-2 border-slate-200 dark:border-slate-700 ml-2">
+                        {#each sub.subtasks as child (child.id)}
+                            <div class="flex items-start gap-2 group/child">
+                                <div class="text-slate-300 mt-0.5"><CornerDownRight size={12}/></div>
+                                <button onclick={() => store.toggleSubtask(task.id, child.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0 mt-0.5">
+                                    {#if child.done}<CheckSquare size={14} class="text-blue-500" />{:else}<Square size={14} />{/if}
+                                </button>
+                                <textarea 
+                                    use:autosize
+                                    value={child.title} 
+                                    onchange={(e) => updateSubtask(child.id, e.currentTarget.value)}
+                                    rows="1"
+                                    spellcheck="false"
+                                    class={cn(
+                                        "flex-grow bg-transparent border-0 p-0 text-xs focus:ring-0 text-gray-600 dark:text-gray-400 resize-none overflow-hidden leading-snug block min-h-[18px]", 
+                                        child.done && "line-through text-gray-500"
+                                    )}
+                                ></textarea>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
+
             </div>
         {/each}
 

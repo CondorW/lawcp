@@ -1,9 +1,10 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import type { Task, Subtask, SubtaskType } from '$lib/types';
-    import { Calendar, Trash2, CheckSquare, Square, Mail, Copy, Flag, Search, ArrowUpRight, X, ListPlus, CornerDownRight, Check } from 'lucide-svelte';
+    import { Calendar, Trash2, CheckSquare, BrainCircuit, Square, Mail, Copy, Flag, Search, ArrowUpRight, X, ListPlus, CornerDownRight, Check } from 'lucide-svelte';
     import { cn, formatDate } from '$lib/utils';
     import { scale, fade } from 'svelte/transition';
+    
 
     export let task: Task;
 
@@ -195,6 +196,15 @@
             </button>
         {/if}
         <div class="flex gap-1 items-center">
+                {#if task.matterRef}
+                <button 
+                    onclick={() => store.openMatterNotes(task.matterRef!)}
+                    class="p-1 rounded-full text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors ml-1"
+                    title="Akten-Notizen öffnen"
+                >
+                    <BrainCircuit size={16} />
+                </button>
+        {/if}
             <div class="relative w-8 h-8 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-slate-700 rounded-full cursor-pointer group/btn">
                 <Flag size={16} class={task.flaggedDate ? "text-red-500 fill-red-500" : "text-gray-300 hover:text-red-400"} />
                 <input 
@@ -209,7 +219,7 @@
             <button onclick={() => store.deleteTask(task.id)} class="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
         </div>
     </div>
-    
+        
     <div class="min-h-[28px]">
         {#if isEditingTitle}
             <textarea

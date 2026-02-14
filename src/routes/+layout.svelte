@@ -6,8 +6,8 @@
     import { goto } from '$app/navigation';
     import { browser } from '$app/environment';
     
-    // NEU: Importieren der Command Palette
     import CommandPalette from '$lib/components/CommandPalette.svelte';
+    import MatterNotesPanel from '$lib/components/MatterNotesPanel.svelte'; // <--- Import
 
     let { children } = $props();
 
@@ -33,3 +33,5 @@
 <CommandPalette />
 
 {@render children()}
+
+<MatterNotesPanel />

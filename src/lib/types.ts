@@ -58,11 +58,21 @@ export const TaskSchema = z.object({
     dependencies: z.array(z.string()).default([])
 });
 
+export const MatterNoteSchema = z.object({
+    ref: z.string(), // z.B. "M-2024-01"
+    content: z.string().default('')
+});
+
+
 export const AppDataSchema = z.object({
     tasks: z.array(TaskSchema),
     settings: SettingsSchema,
-    resources: z.array(ResourceSchema).default([])
+    resources: z.array(ResourceSchema).default([]),
+    matterNotes: z.array(MatterNoteSchema).default([])
+
 });
+
+
 
 export type SubtaskType = z.infer<typeof SubtaskTypeSchema>;
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
@@ -71,3 +81,4 @@ export type Settings = z.infer<typeof SettingsSchema>;
 export type Subtask = z.infer<typeof SubtaskSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type AppData = z.infer<typeof AppDataSchema>;
+export type MatterNote = z.infer<typeof MatterNoteSchema>;

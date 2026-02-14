@@ -38,7 +38,9 @@ const createStore = () => {
 	let data: AppData = { 
         tasks: [], 
         settings: { myShortsign: 'ME', darkMode: true, isAuthenticated: true, team: [] }, 
-        resources: []
+        resources: [],
+        matterNotes: [] 
+
     };
 	
 	if (browser) {
@@ -64,6 +66,7 @@ const createStore = () => {
             else document.documentElement.classList.remove('dark');
         }
 	};
+    const activeMatterStore = writable<string | null>(null);
 
 	return {
 		subscribe,
@@ -92,6 +95,32 @@ const createStore = () => {
         },
 
         // --- CORE TASK ACTIONS ---
+
+        activeMatter: activeMatterStore, 
+        openMatterNotes: (ref: string) => activeMatterStore.set(ref),
+        closeMatterNotes: () => activeMatterStore.set(null),
+
+        // NEU: Speichern Logik
+        updateMatterNote: (ref: string, content: string) => {
+            update(state => {
+                const notes = state.matterNotes || [];
+                const existingIndex = notes.findIndex(n => n.ref === ref);
+                
+                let newNotes;
+                if (existingIndex >= 0) {
+                    newNotes = notes.map((n, i) => i === existingIndex ? { ...n, content } : n);
+                } else {
+                    newNotes = [...notes, { ref, content }];
+                }
+
+                const newState = { ...state, matterNotes: newNotes };
+                // Hier manuell saveToDisk aufrufen, falls du keinen automatischen Sync hast
+                if (browser) localStorage.setItem('lawcp_data', JSON.stringify(newState));
+                return newState;
+            });
+        },
+
+
 		addTask: (title: string, matterRef: string, dueDate: string) => {
 			update(state => {
 				const newTask: Task = {

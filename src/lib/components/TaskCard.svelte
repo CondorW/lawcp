@@ -12,6 +12,8 @@
     let dragging = false;
     let isEditingTitle = false;
     let editTitleBuffer = task.title;
+    let isEditingRef = false;
+    let editRefBuffer = task.matterRef || '';
 
     // Reschedule State
     let showReschedule = false;
@@ -61,6 +63,20 @@
     function cancelAddSubStep() {
         addingSubId = null;
         newSubStepTitle = '';
+    }
+
+    function startEditRef() {
+        editRefBuffer = task.matterRef || '';
+        isEditingRef = true;
+        setTimeout(() => document.getElementById(`edit-ref-${task.id}`)?.focus(), 10);
+    }
+
+    function saveEditRef() {
+        // Nur speichern, wenn sich was geändert hat
+        if (editRefBuffer !== task.matterRef) {
+            store.updateTaskRef(task.id, editRefBuffer);
+        }
+        isEditingRef = false;
     }
 
     function confirmAddSubStep(parentSubId: string) {
@@ -159,9 +175,25 @@
     ondragend={() => dragging = false}
 >
     <div class="flex justify-between items-start">
-         <span class="text-xs font-bold px-2 py-1 rounded border uppercase tracking-wider text-slate-500 bg-slate-50 border-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 max-w-[120px] truncate">
-            {task.matterRef || 'NO-REF'}
-        </span>
+        {#if isEditingRef}
+            <input
+                id={`edit-ref-${task.id}`}
+                type="text"
+                bind:value={editRefBuffer}
+                onblur={saveEditRef}
+                onkeydown={(e) => e.key === 'Enter' && saveEditRef()}
+                class="text-xs font-bold px-2 py-1 rounded border uppercase tracking-wider text-slate-900 bg-white border-blue-300 dark:bg-slate-800 dark:text-white dark:border-blue-500 max-w-[120px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="REF"
+            />
+        {:else}
+             <button 
+                onclick={startEditRef}
+                class="text-xs font-bold px-2 py-1 rounded border uppercase tracking-wider text-slate-500 bg-slate-50 border-slate-100 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 max-w-[120px] truncate hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors text-left"
+                title="Referenz bearbeiten"
+            >
+                {task.matterRef || 'NO-REF'}
+            </button>
+        {/if}
         <div class="flex gap-1 items-center">
             <div class="relative w-8 h-8 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-slate-700 rounded-full cursor-pointer group/btn">
                 <Flag size={16} class={task.flaggedDate ? "text-red-500 fill-red-500" : "text-gray-300 hover:text-red-400"} />

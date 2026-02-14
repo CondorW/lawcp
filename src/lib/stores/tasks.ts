@@ -122,6 +122,15 @@ const createStore = () => {
             });
         },
 
+        updateTaskRef: (id: string, ref: string) => {
+            update(state => {
+                const newTasks = state.tasks.map(t => t.id === id ? { ...t, matterRef: ref } : t);
+                const newState = { ...state, tasks: newTasks };
+                saveToDisk(newState); 
+                return newState;
+            });
+        },
+
 		deleteTask: (id: string) => {
 			update(state => {
                 const newTasks = state.tasks.filter(t => t.id !== id);

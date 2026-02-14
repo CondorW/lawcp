@@ -1,37 +1,39 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    // FIX: Upload Icon hinzugefügt
-    import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload } from 'lucide-svelte';
+    // NEU: Filter Icon importieren
+    import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter } from 'lucide-svelte';
     import TaskInput from '$lib/components/TaskInput.svelte';
     import TaskColumn from '$lib/components/TaskColumn.svelte';
 
+    // NEU: State für den Referenz-Filter
+    let refFilter = '';
+
     const byDate = (a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 
-    $: todos = $store.tasks.filter(t => t.status === 'TODO').sort(byDate);
-    $: waiting = $store.tasks.filter(t => t.status === 'WAITING').sort(byDate);
-    $: review = $store.tasks.filter(t => t.status === 'REVIEW').sort(byDate);
-    $: done = $store.tasks.filter(t => t.status === 'DONE').sort(byDate);
+    // NEU: Zentrale Filter-Funktion
+    $: matchesFilter = (t: any) => {
+        if (!refFilter.trim()) return true;
+        return t.matterRef && t.matterRef.toLowerCase().includes(refFilter.toLowerCase());
+    };
 
-    // --- Import Logik ---
+    // Listen jetzt zusätzlich nach 'matchesFilter' gefiltert
+    $: todos = $store.tasks.filter(t => t.status === 'TODO' && matchesFilter(t)).sort(byDate);
+    $: waiting = $store.tasks.filter(t => t.status === 'WAITING' && matchesFilter(t)).sort(byDate);
+    $: review = $store.tasks.filter(t => t.status === 'REVIEW' && matchesFilter(t)).sort(byDate);
+    $: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t)).sort(byDate);
+
+    // --- Import Logik (aus vorherigem Schritt beibehalten) ---
     let fileInput: HTMLInputElement;
-
-    function triggerImport() {
-        fileInput.click();
-    }
-
+    function triggerImport() { fileInput.click(); }
     async function handleFileSelect(e: Event) {
         const target = e.target as HTMLInputElement;
         const file = target.files?.[0];
         if (!file) return;
-
         const text = await file.text();
         const success = store.importData(text);
-        if (success) {
-            alert("Daten erfolgreich importiert!");
-        } else {
-            alert("Fehler: Die Datei ist beschädigt oder hat das falsche Format.");
-        }
-        target.value = ''; // Reset
+        if (success) alert("Daten erfolgreich importiert!");
+        else alert("Fehler beim Import.");
+        target.value = '';
     }
 </script>
 
@@ -41,8 +43,8 @@
             <div class="flex h-16 justify-between items-center">
                 <div class="flex items-center gap-10">
                     <div class="flex items-center gap-2.5">
-                        <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-bold text-xl shadow-sm">L</div>
-                        <span class="text-xl font-bold tracking-tight text-white">Lawganized<span class="text-amber-500">LWA</span></span>
+                        <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
+                        <span class="text-xl font-bold tracking-tight text-white font-serif">Law<span class="text-amber-500">CP</span></span>
                     </div>
 
                     <div class="hidden md:flex items-center gap-1">
@@ -62,13 +64,17 @@
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <input 
-                        type="file" 
-                        accept=".json" 
-                        class="hidden" 
-                        bind:this={fileInput} 
-                        onchange={handleFileSelect} 
-                    />
+                    <div class="relative hidden lg:block group">
+                        <Filter class="absolute left-2.5 top-1.5 text-slate-500 group-focus-within:text-amber-500 transition-colors" size={14}/>
+                        <input 
+                            type="text" 
+                            bind:value={refFilter} 
+                            placeholder="Ref-Filter..." 
+                            class="pl-8 pr-3 py-1.5 rounded-md border border-slate-600 bg-slate-800 text-xs text-white placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500 outline-none w-32 focus:w-48 transition-all"
+                        />
+                    </div>
+
+                    <input type="file" accept=".json" class="hidden" bind:this={fileInput} onchange={handleFileSelect} />
                     <button onclick={triggerImport} class="hidden sm:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all uppercase tracking-wide">
                         <Upload size={14} /> Import
                     </button>
@@ -86,6 +92,14 @@
     </nav>
 
     <main class="mx-auto max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
+        {#if refFilter}
+            <div class="mb-6 flex items-center gap-2 text-sm text-slate-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800 w-fit mx-auto">
+                <Filter size={14} class="text-amber-600"/>
+                <span>Gefiltert nach: <strong>{refFilter}</strong></span>
+                <button onclick={() => refFilter = ''} class="ml-2 hover:text-red-500 font-bold">✕</button>
+            </div>
+        {/if}
+
         <div class="max-w-4xl mx-auto mb-12">
             <TaskInput />
         </div>

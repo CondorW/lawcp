@@ -53,7 +53,7 @@
                         <input bind:value={myTag} type="text" class="mt-2 w-full rounded-lg border-gray-300 dark:border-slate-600 dark:bg-slate-700/50 dark:text-white p-3 text-lg shadow-sm focus:border-blue-500 focus:ring-blue-500" />
                     </label>
                 </div>
-                <button onclick={saveMySettings} class="bg-slate-900 dark:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-slate-800 dark:hover:bg-blue-500 transition-colors">Speichern</button>
+                <button onclick={saveMySettings} class="bg-slate-900 dark:bg-blue-600 text-white px-6 py-5 rounded-lg font-semibold hover:bg-slate-800 dark:hover:bg-blue-500 transition-colors">Speichern</button>
             </div>
         </section>
 
@@ -90,8 +90,8 @@
             <div class="bg-blue-50 dark:bg-slate-700/50 p-6 rounded-xl border border-blue-100 dark:border-slate-600">
                 <h3 class="text-md font-bold mb-4 dark:text-white">Neues Mitglied hinzufügen</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <input bind:value={newName} placeholder="Name (z.B. Dr. Müller)" class="rounded-lg border-gray-300 dark:bg-slate-800 dark:border-slate-600 dark:text-white p-2.5" />
-                    <input bind:value={newShort} placeholder="Kürzel (z.B. DM)" class="rounded-lg border-gray-300 dark:bg-slate-800 dark:border-slate-600 dark:text-white p-2.5" />
+                    <input bind:value={newName} placeholder="Name" class="rounded-lg border-gray-300 dark:bg-slate-800 dark:border-slate-600 dark:text-white p-2.5" />
+                    <input bind:value={newShort} placeholder="Kürzel" class="rounded-lg border-gray-300 dark:bg-slate-800 dark:border-slate-600 dark:text-white p-2.5" />
                 </div>
                 <div class="flex gap-3 mb-6">
                     {#each colors as c}

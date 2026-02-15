@@ -130,7 +130,7 @@
                 <a href="/" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><ArrowLeft /></a>
                 <h1 class="text-3xl font-bold font-serif text-slate-800 dark:text-slate-100 flex items-center gap-3">
                     <Calendar class="text-amber-600" />
-                    {monthNames[month]} <span class="text-slate-400 font-light">{year}</span>
+                    {monthNames[month]} <span class="text-slate-400">{year}</span>
                 </h1>
             </div>
             <div class="flex gap-2">

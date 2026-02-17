@@ -58,51 +58,57 @@ const createStore = () => {
     }
         
         try {
-            const records = await pb.collection('tasks').getFullList({ sort: '-created' });
-            const tasks = records.map((r: any) => ({
-                id: r.id,
-                title: r.title,
-                status: r.status,
-                matterRef: r.matterRef,
-                dueDate: r.dueDate,
-                subtasks: r.subtasks || [],
-                flaggedDate: r.flaggedDate || null, // FIX: Feld laden
-                priority: 'MEDIUM',
-                createdAt: r.created,
-                timeTracked: 0,
-                dependencies: []
-            }));
-            update(s => ({ ...s, tasks: tasks as Task[] }));
-        } catch (e) {
-            console.error("PB Load Error:", e);
-        }
+        const records = await pb.collection('tasks').getFullList({ sort: '-created' });
+        const tasks = records.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            status: r.status,
+            matterRef: r.matterRef,
+            
+            // FIX 1: Datum abschneiden (nur die ersten 10 Zeichen: YYYY-MM-DD)
+            dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '',
+            
+            subtasks: r.subtasks || [],
+            flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, // Auch hier sicherheitshalber
+            priority: 'MEDIUM',
+            createdAt: r.created,
+            timeTracked: 0,
+            dependencies: []
+        }));
+        update(s => ({ ...s, tasks: tasks as Task[] }));
+    } catch (e) {
+        console.error("PB Load Error:", e);
+    }
 
         pb.collection('tasks').subscribe('*', (e) => {
-            if (e.action === 'create' || e.action === 'update') {
-                const r = e.record;
-                update(s => {
-                    const exists = s.tasks.find(t => t.id === r.id);
-                    const updatedTask: Task = {
-                        id: r.id,
-                        title: r.title,
-                        status: r.status,
-                        matterRef: r.matterRef,
-                        dueDate: r.dueDate,
-                        subtasks: r.subtasks || [],
-                        flaggedDate: r.flaggedDate || null,
-                        priority: 'MEDIUM',
-                        createdAt: r.created,
-                        timeTracked: 0,
-                        dependencies: []
-                    };
+        if (e.action === 'create' || e.action === 'update') {
+            const r = e.record;
+            update(s => {
+                const exists = s.tasks.find(t => t.id === r.id);
+                const updatedTask: Task = {
+                    id: r.id,
+                    title: r.title,
+                    status: r.status,
+                    matterRef: r.matterRef,
+                    
+                    // FIX 2: Auch beim Realtime-Update abschneiden!
+                    dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '',
+                    
+                    subtasks: r.subtasks || [],
+                    flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null,
+                    priority: 'MEDIUM',
+                    createdAt: r.created,
+                    timeTracked: 0,
+                    dependencies: []
+                };
 
-                    if (exists) {
-                        return { ...s, tasks: s.tasks.map(t => t.id === r.id ? updatedTask : t) };
-                    } else {
-                        return { ...s, tasks: [updatedTask, ...s.tasks] };
-                    }
-                });
-            }
+                if (exists) {
+                    return { ...s, tasks: s.tasks.map(t => t.id === r.id ? updatedTask : t) };
+                } else {
+                    return { ...s, tasks: [updatedTask, ...s.tasks] };
+                }
+            });
+        }
             if (e.action === 'delete') {
                 update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
             }

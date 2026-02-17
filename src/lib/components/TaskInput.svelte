@@ -14,9 +14,15 @@
 
     function handleAdd() {
         if (!inputTitle.trim()) return;
-        store.addTask(inputTitle, inputRef, inputDate);
+
+        // FIX: 'TODO' muss das erste Argument sein!
+        store.addTask('TODO', inputTitle, inputRef, inputDate);
+        
+        // Reset
         inputTitle = '';
         inputRef = '';
+        inputDate = new Date().toISOString().split('T')[0];
+        
         const textarea = document.getElementById('task-input') as HTMLTextAreaElement;
         if(textarea) textarea.style.height = 'auto';
     }
@@ -35,13 +41,13 @@
             <div class="absolute top-3 left-3 pointer-events-none text-amber-700/50 dark:text-amber-500/50">
                 <Plus size={20} />
             </div>
-            <textarea
+            <textarea 
                 id="task-input"
-                bind:value={inputTitle}
-                oninput={resize}
+                bind:value={inputTitle} 
+                oninput={resize} 
                 onkeydown={onKeyDown}
-                rows="1"
-                placeholder="Neue Aufgabe erfassen..."
+                rows="1" 
+                placeholder="Neue Aufgabe erfassen..." 
                 class="w-full rounded-lg border-0 bg-transparent py-2.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-0 text-base font-medium resize-none overflow-hidden dark:text-slate-100"
             ></textarea>
         </div>
@@ -59,10 +65,11 @@
                 class="rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1.5 px-3 text-xs text-slate-600 dark:text-slate-400 focus:bg-white focus:ring-1 focus:ring-amber-500/50" 
             />
             <button 
-                onclick={handleAdd} 
+                onclick={handleAdd}
                 class="flex items-center gap-2 rounded-lg bg-slate-900 dark:bg-amber-600 px-5 py-2 text-sm font-bold text-white shadow-md hover:bg-slate-800 dark:hover:bg-amber-500 transition-all active:scale-95"
             >
-                <span>Add</span> <CornerDownLeft size={14} class="opacity-60"/>
+                <span>Add</span>
+                <CornerDownLeft size={14} class="opacity-60"/>
             </button>
         </div>
     </div>

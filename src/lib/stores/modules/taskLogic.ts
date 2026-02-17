@@ -20,10 +20,17 @@ function recursiveAdd(subtasks: Subtask[], parentId: string, newSub: Subtask): S
 
 // --- LOGIK FUNKTIONEN ---
 
-export const addTask = (state: AppData, columnId: string, title: string) => {
+export const addTask = (state: AppData, columnId: string, title: string, matterRef?: string, dueDate?: string) => {
     const newTask = TaskSchema.parse({
-        id: uuidv4(), title, dueDate: new Date().toISOString(), status: columnId as any,
-        createdAt: new Date().toISOString(), subtasks: []
+        id: uuidv4(),
+        title,
+        // Wenn String leer ist, undefined setzen, sonst den Wert
+        matterRef: matterRef?.trim() || undefined, 
+        // Wenn Datum fehlt, heute nehmen
+        dueDate: dueDate || new Date().toISOString(),
+        status: columnId as any,
+        createdAt: new Date().toISOString(),
+        subtasks: []
     });
     return { ...state, tasks: [...state.tasks, newTask] };
 };

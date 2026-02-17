@@ -61,7 +61,7 @@ const createStore = () => {
         deleteResource: (id: string) => apply(s => AppLogic.deleteResource(s, id)),
 
         // --- TASKS ---
-        addTask: (col: string, t: string) => apply(s => TaskLogic.addTask(s, col, t)),
+        addTask: (col: string, t: string, ref?: string, date?: string) => apply(s => TaskLogic.addTask(s, col, t, ref, date)),
         deleteTask: (id: string) => apply(s => TaskLogic.deleteTask(s, id)),
         moveTask: (id: string, stat: string) => apply(s => TaskLogic.moveTask(s, id, stat)),
         updateTaskTitle: (id: string, t: string) => apply(s => TaskLogic.updateTaskTitle(s, id, t)),

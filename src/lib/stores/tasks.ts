@@ -44,6 +44,19 @@ const createStore = () => {
     const init = async () => {
         if (!browser) return;
 
+        if (pb.authStore.isValid && pb.authStore.model) {
+        const user = pb.authStore.model;
+        update(s => ({
+            ...s,
+            settings: {
+                ...s.settings,
+                // Wenn User ein Kürzel hat, nimm es. Sonst Standard 'ME'.
+                myShortsign: user.shortsign || 'ME', 
+                isAuthenticated: true
+            }
+        }));
+    }
+        
         try {
             const records = await pb.collection('tasks').getFullList({ sort: '-created' });
             const tasks = records.map((r: any) => ({
@@ -109,8 +122,23 @@ const createStore = () => {
         // FIX: Fehlende Settings-Funktionen hinzugefügt
         removeTeamMember: (id: string) => update(s => saveLocal(AppLogic.removeTeamMember(s, id))),
         setTeamLeader: (id: string) => update(s => saveLocal(AppLogic.setTeamLeader(s, id))),
-        updateSettings: (vals: Partial<Settings>) => update(s => saveLocal(AppLogic.updateSettings(s, vals))),
-        
+        updateSettings: async (vals: Partial<Settings>) => {
+            // 1. Lokal aktualisieren (für sofortiges UI Feedback)
+            update(s => saveLocal(AppLogic.updateSettings(s, vals)));
+
+            // 2. Wenn ein User eingeloggt ist -> in DB speichern
+            if (pb.authStore.isValid && pb.authStore.model && vals.myShortsign) {
+                try {
+                    await pb.collection('users').update(pb.authStore.model.id, {
+                        shortsign: vals.myShortsign
+                    });
+                    // Optional: Profil im AuthStore aktualisieren, damit es synchron bleibt
+                    await pb.collection('users').authRefresh();
+                } catch (e) {
+                    console.error("Fehler beim Speichern des Kürzels:", e);
+                }
+            }
+        },        
         // FIX: Fehlende Resource-Funktionen hinzugefügt
         addResource: (res: any) => update(s => saveLocal(AppLogic.addResource(s, res))),
         deleteResource: (id: string) => update(s => saveLocal(AppLogic.deleteResource(s, id))),
@@ -118,10 +146,21 @@ const createStore = () => {
         // --- POCKETBASE ACTIONS (Async) ---
         
         addTask: async (status: string, title: string, ref?: string, date?: string) => {
+            // FIX: Get current user ID
+            const userId = pb.authStore.model?.id;
+            
+            if (!userId) {
+                console.error("User not logged in!");
+                return;
+            }
+
             await pb.collection('tasks').create({
-                title, status, matterRef: ref,
+                title,
+                status,
+                matterRef: ref,
                 dueDate: date || new Date().toISOString(),
-                subtasks: []
+                subtasks: [],
+                owner: userId // <--- THIS IS NEW
             });
         },
 

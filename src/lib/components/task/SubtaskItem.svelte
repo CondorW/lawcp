@@ -1,7 +1,6 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import type { Subtask } from '$lib/types';
-    // FIX: Alle Icons importieren
     import { CheckSquare, Square, Copy, ListPlus, CornerDownRight, Check, X } from 'lucide-svelte';
     import { cn, renderTitleWithTags } from '$lib/utils';
     import { autosize, focusOnMount } from '$lib/actions';
@@ -53,7 +52,7 @@
 </script>
 
 <div class="bg-gray-50/80 dark:bg-slate-900/50 rounded-lg p-2 text-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-1 group/sub">
-    <div class="flex items-start gap-2 relative">
+    <div class="flex items-start gap-2 relative w-full">
         <button onclick={() => store.toggleSubtask(taskId, sub.id)} class="text-gray-400 hover:text-blue-600 flex-shrink-0 mt-0.5">
             {#if sub.done}<CheckSquare size={16} class="text-blue-500" />{:else}<Square size={16} />{/if}
         </button>
@@ -64,18 +63,20 @@
                 onchange={(e) => store.updateSubtaskTitle(taskId, sub.id, e.currentTarget.value)}
                 onblur={stopEdit} onkeydown={handleKeyDown}
                 rows="1" spellcheck="false"
-                class="flex-grow bg-white dark:bg-slate-800 border border-blue-300 rounded p-1 text-sm focus:ring-0 resize-none overflow-hidden leading-snug block min-h-[20px]"
+                class="flex-grow min-w-0 w-full bg-white dark:bg-slate-800 border border-blue-300 rounded p-1 text-sm focus:ring-0 resize-none overflow-hidden leading-snug block min-h-[20px] whitespace-pre-wrap break-words"
             ></textarea>
         {:else}
             <div role="button" tabindex="0" onclick={startEdit} onkeydown={(e) => e.key === 'Enter' && startEdit()}
-                class={cn("flex-grow p-0 text-sm leading-snug min-h-[20px] cursor-text break-words border border-transparent hover:border-slate-200 rounded px-1 -mx-1", sub.done && "line-through text-gray-400")}
+                class={cn("flex-grow min-w-0 w-full p-0 text-sm leading-snug min-h-[20px] cursor-text break-words whitespace-pre-wrap border border-transparent hover:border-slate-200 rounded px-1 -mx-1", sub.done && "line-through text-gray-400")}
             >
                 {@html renderTitleWithTags(sub.title, $store.settings.team)}
             </div>
         {/if}
 
-        <button onclick={startAddChild} class="text-gray-300 hover:text-amber-600 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity"><ListPlus size={14} /></button>
-        {#if sub.type === 'EMAIL'}<button onclick={copyEmail} class="text-gray-300 hover:text-yellow-600 opacity-0 group-hover/sub:opacity-100 mt-0.5"><Copy size={14}/></button>{/if}
+        <div class="flex-shrink-0 flex gap-0.5">
+            <button onclick={startAddChild} class="text-gray-300 hover:text-amber-600 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity"><ListPlus size={14} /></button>
+            {#if sub.type === 'EMAIL'}<button onclick={copyEmail} class="text-gray-300 hover:text-yellow-600 opacity-0 group-hover/sub:opacity-100 mt-0.5"><Copy size={14}/></button>{/if}
+        </div>
     </div>
 
     {#if !sub.done && sub.type === 'DOCUMENT'}
@@ -92,19 +93,21 @@
             {/each}
 
             {#if addingChild}
-                <div class="flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div class="text-amber-500 mt-1.5"><CornerDownRight size={12}/></div>
-                    <div class="flex-grow flex gap-2 items-start">
+                <div class="flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200 w-full">
+                    <div class="text-amber-500 mt-1.5 flex-shrink-0"><CornerDownRight size={12}/></div>
+                    <div class="flex-grow flex gap-2 items-start min-w-0">
                         <textarea
                             use:autosize={newChildTitle} use:focusOnMount
                             bind:value={newChildTitle}
                             onkeydown={(e) => { if(e.key==='Enter'){e.preventDefault(); confirmAddChild();} if(e.key==='Escape') cancelAddChild(); }}
                             onblur={() => { if(!newChildTitle.trim()) cancelAddChild(); }}
                             rows="1" placeholder="Unterschritt..."
-                            class="flex-grow bg-white dark:bg-slate-800 border border-amber-500 rounded p-2 text-xs focus:ring-0 text-gray-900 dark:text-white resize-none overflow-hidden leading-snug block min-h-[32px] shadow-sm"
+                            class="flex-grow min-w-0 w-full bg-white dark:bg-slate-800 border border-amber-500 rounded p-2 text-xs focus:ring-0 text-gray-900 dark:text-white resize-none overflow-hidden leading-snug block min-h-[32px] shadow-sm whitespace-pre-wrap break-words"
                         ></textarea>
-                        <button onclick={confirmAddChild} class="text-amber-600 hover:text-amber-700 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded h-8 w-8 flex items-center justify-center"><Check size={14}/></button>
-                        <button onclick={cancelAddChild} class="text-slate-400 hover:text-slate-600 bg-slate-50 dark:bg-slate-800 p-1.5 rounded h-8 w-8 flex items-center justify-center"><X size={14}/></button>
+                        <div class="flex-shrink-0 flex gap-1">
+                            <button onclick={confirmAddChild} class="text-amber-600 hover:text-amber-700 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded h-8 w-8 flex items-center justify-center"><Check size={14}/></button>
+                            <button onclick={cancelAddChild} class="text-slate-400 hover:text-slate-600 bg-slate-50 dark:bg-slate-800 p-1.5 rounded h-8 w-8 flex items-center justify-center"><X size={14}/></button>
+                        </div>
                     </div>
                 </div>
             {/if}

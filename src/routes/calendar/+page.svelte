@@ -1,5 +1,8 @@
 <script lang="ts">
-    import { store, type Task } from '$lib/stores/tasks';
+    import { store } from '$lib/stores/tasks';
+    // FIX 1: Task Typ kommt jetzt aus types.ts
+    import type { Task } from '$lib/types'; 
+    // FIX 2: Icons müssen importiert werden
     import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Plus, X, Clock } from 'lucide-svelte';
     import { fade, scale } from 'svelte/transition';
 
@@ -44,14 +47,12 @@
     // 2. Reaktivität: Kalenderstruktur bauen
     $: calendarDays = (() => {
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const startDayIndex = (new Date(year, month, 1).getDay() + 6) % 7; 
+        const startDayIndex = (new Date(year, month, 1).getDay() + 6) % 7;
         
         const days: CalendarCell[] = [];
-        
         for (let i = 0; i < startDayIndex; i++) {
             days.push({ type: 'empty', id: `empty-${i}` });
         }
-
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
             const tasks = tasksByDate[dateStr] || [];
@@ -75,7 +76,8 @@
 
     function saveTask() {
         if (!newTaskTitle.trim()) return;
-        store.addTask(newTaskTitle, newTaskRef, newTaskDate);
+        // FIX 3: Aufruf an PocketBase Store angepasst (Status 'TODO' zuerst)
+        store.addTask('TODO', newTaskTitle, newTaskRef, newTaskDate);
         closeModal();
     }
 
@@ -97,25 +99,19 @@
         if (e.dataTransfer) {
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', taskId);
-            // Kleines Geisterbild
             e.dataTransfer.setDragImage(e.target as Element, 0, 0);
         }
     }
 
     function handleDragOver(e: DragEvent, dateStr: string) {
-        e.preventDefault(); // Erlaubt Drop
+        e.preventDefault();
         dragOverDate = dateStr;
-    }
-
-    function handleDragLeave(e: DragEvent) {
-        // Optional: Reset highlight if leaving specific area (handled via dragOverDate usually)
     }
 
     function handleDrop(e: DragEvent, dateStr: string) {
         e.preventDefault();
         dragOverDate = null;
         const taskId = e.dataTransfer?.getData('text/plain');
-        
         if (taskId && taskId === draggingTaskId) {
             store.updateDate(taskId, dateStr);
         }

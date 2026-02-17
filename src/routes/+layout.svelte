@@ -2,36 +2,24 @@
     import "./layout.css"; 
     import { store } from '$lib/stores/tasks';
     import { onMount } from 'svelte';
-    import { page } from '$app/stores';
-    import { goto } from '$app/navigation';
-    import { browser } from '$app/environment';
-    
+    import MatterNotesPanel from '$lib/components/MatterNotesPanel.svelte';
     import CommandPalette from '$lib/components/CommandPalette.svelte';
-    import MatterNotesPanel from '$lib/components/MatterNotesPanel.svelte'; // <--- Import
 
     let { children } = $props();
 
     onMount(() => {
+        // Lädt Daten aus PocketBase & startet Realtime
+        store.init();
+        
+        // Dark Mode Logic
         const unsubscribe = store.subscribe(state => {
-            // Dark Mode Logic
-            if (state.settings.darkMode) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-
-            // Auth Check (DEAKTIVIERT WEGEN PHISHING FILTER)
-            /* if (browser && !state.settings.isAuthenticated && $page.url.pathname !== '/login') {
-                goto('/login');
-            }
-            */
+            if (state.settings.darkMode) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
         });
         return unsubscribe;
     });
 </script>
 
 <CommandPalette />
-
 {@render children()}
-
 <MatterNotesPanel />

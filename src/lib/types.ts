@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+// --- ENUMS & BASIS ---
 export const SubtaskTypeSchema = z.enum(['GENERIC', 'DOCUMENT', 'RESEARCH', 'EMAIL']);
 
 export const TeamMemberSchema = z.object({
@@ -16,31 +17,32 @@ export const ResourceSchema = z.object({
     type: z.enum(['COMPANY', 'PERSON']),
     name: z.string(),
     identifier: z.string().optional(),
-    address: z.string().optional(), // Legacy Support
-    street: z.string().optional(),  // Neu
-    zip: z.string().optional(),     // Neu
-    city: z.string().optional(),    // Neu
+    address: z.string().optional(),
     notes: z.string().optional()
+});
+
+export const MatterNoteSchema = z.object({
+    ref: z.string(),
+    content: z.string().default('')
 });
 
 export const SettingsSchema = z.object({
     myShortsign: z.string().default('ME'),
     darkMode: z.boolean().default(true),
-    isAuthenticated: z.boolean().default(true),
+    isAuthenticated: z.boolean().default(false),
     team: z.array(TeamMemberSchema).default([])
 });
 
-// FIX: Lazy Loading für Rekursion
+// --- TASKS & SUBTASKS ---
+// Wichtig: Lazy loading für Rekursion
 export const SubtaskSchema: z.ZodType<any> = z.lazy(() => z.object({
     id: z.string(),
     title: z.string(),
     done: z.boolean().default(false),
     type: SubtaskTypeSchema.default('GENERIC'),
-    payload: z.string().optional(),
     x: z.number().default(0),
     y: z.number().default(0),
     next: z.array(z.string()).default([]),
-    // NEU: Nested Subtasks
     subtasks: z.array(SubtaskSchema).default([])
 }));
 
@@ -58,27 +60,19 @@ export const TaskSchema = z.object({
     dependencies: z.array(z.string()).default([])
 });
 
-export const MatterNoteSchema = z.object({
-    ref: z.string(), // z.B. "M-2024-01"
-    content: z.string().default('')
-});
-
-
 export const AppDataSchema = z.object({
     tasks: z.array(TaskSchema),
     settings: SettingsSchema,
     resources: z.array(ResourceSchema).default([]),
     matterNotes: z.array(MatterNoteSchema).default([])
-
 });
 
-
-
+// --- TYPES EXPORTS (WICHTIG!) ---
 export type SubtaskType = z.infer<typeof SubtaskTypeSchema>;
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
 export type Resource = z.infer<typeof ResourceSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 export type Subtask = z.infer<typeof SubtaskSchema>;
 export type Task = z.infer<typeof TaskSchema>;
-export type AppData = z.infer<typeof AppDataSchema>;
 export type MatterNote = z.infer<typeof MatterNoteSchema>;
+export type AppData = z.infer<typeof AppDataSchema>;

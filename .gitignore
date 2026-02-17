@@ -1,4 +1,8 @@
+# Dependencies
 node_modules
+
+# Backend (PocketBase binary & data)
+backend/
 
 # Output
 .output
@@ -21,3 +25,7 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Databases (Just in case they are outside backend)
+*.db
+*.db-journal

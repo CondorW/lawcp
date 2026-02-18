@@ -58,7 +58,7 @@ const createStore = () => {
     }
         
         try {
-        const records = await pb.collection('tasks').getFullList({ sort: '-created' });
+        const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
         const tasks = records.map((r: any) => ({
             id: r.id,
             title: r.title,
@@ -73,47 +73,81 @@ const createStore = () => {
             priority: 'MEDIUM',
             createdAt: r.created,
             timeTracked: 0,
-            dependencies: []
+            dependencies: [],
+            assignees: r.assignees || [], 
+            owner: r.owner,               
+            expand: r.expand
         }));
         update(s => ({ ...s, tasks: tasks as Task[] }));
     } catch (e) {
         console.error("PB Load Error:", e);
     }
 
-        pb.collection('tasks').subscribe('*', (e) => {
-        if (e.action === 'create' || e.action === 'update') {
-            const r = e.record;
-            update(s => {
-                const exists = s.tasks.find(t => t.id === r.id);
-                const updatedTask: Task = {
-                    id: r.id,
-                    title: r.title,
-                    status: r.status,
-                    matterRef: r.matterRef,
-                    
-                    // FIX 2: Auch beim Realtime-Update abschneiden!
-                    dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '',
-                    
-                    subtasks: r.subtasks || [],
-                    flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null,
-                    priority: 'MEDIUM',
-                    createdAt: r.created,
-                    timeTracked: 0,
-                    dependencies: []
-                };
+        pb.collection('tasks').subscribe('*', async (e) => {
+        const myId = pb.authStore.model?.id;
 
-                if (exists) {
-                    return { ...s, tasks: s.tasks.map(t => t.id === r.id ? updatedTask : t) };
-                } else {
-                    return { ...s, tasks: [updatedTask, ...s.tasks] };
-                }
-            });
+        // A) DELETE
+        if (e.action === 'delete') {
+            update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
+            return;
         }
-            if (e.action === 'delete') {
+
+        // B) CREATE / UPDATE
+        if (e.action === 'create' || e.action === 'update') {
+            try {
+                // Frisch laden mit allen Details
+                const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
+
+                // Berechtigung prüfen (Client-Side Gatekeeper)
+                const isOwner = r.owner === myId;
+                const isAssignee = r.assignees?.includes(myId);
+                const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
+
+                // Darf ich den Task sehen?
+                if (isOwner || isAssignee || isTeamReview) {
+                    
+                    const updatedTask: Task = {
+                        id: r.id,
+                        title: r.title,
+                        status: r.status as Task['status'],
+                        matterRef: r.matterRef,
+                        dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '',
+                        subtasks: r.subtasks || [],
+                        flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null,
+                        priority: 'MEDIUM',
+                        createdAt: r.created,
+                        timeTracked: 0,
+                        dependencies: [],
+                        assignees: r.assignees || [],
+                        owner: r.owner,
+                        expand: r.expand
+                    };
+
+                    update(s => {
+                        // Prüfen, ob Task schon da ist
+                        const index = s.tasks.findIndex(t => t.id === r.id);
+                        
+                        if (index !== -1) {
+                            // UPDATE: Task existiert -> ersetzen
+                            const newTasks = [...s.tasks];
+                            newTasks[index] = updatedTask;
+                            return { ...s, tasks: newTasks };
+                        } else {
+                            // INSERT: Task ist neu (oder wurde gerade erst sichtbar) -> oben einfügen
+                            return { ...s, tasks: [updatedTask, ...s.tasks] };
+                        }
+                    });
+                } else {
+                    // Ich darf ihn NICHT (mehr) sehen -> Raus damit!
+                    update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== r.id) }));
+                }
+
+            } catch (err) {
+                // Wenn 404 -> Rechte verloren -> Entfernen
                 update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
             }
-        });
-    };
+        }
+    });}
 
     return {
         subscribe,
@@ -151,14 +185,9 @@ const createStore = () => {
 
         // --- POCKETBASE ACTIONS (Async) ---
         
-        addTask: async (status: string, title: string, ref?: string, date?: string) => {
-            // FIX: Get current user ID
+        addTask: async (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => {
             const userId = pb.authStore.model?.id;
-            
-            if (!userId) {
-                console.error("User not logged in!");
-                return;
-            }
+            if (!userId) return;
 
             await pb.collection('tasks').create({
                 title,
@@ -166,12 +195,25 @@ const createStore = () => {
                 matterRef: ref,
                 dueDate: date || new Date().toISOString(),
                 subtasks: [],
-                owner: userId // <--- THIS IS NEW
+                owner: userId,
+                // If 'assignedTo' is passed, use it. Otherwise, assign to self.
+                assignees: assignedTo ? [assignedTo] : [userId] 
             });
         },
 
         deleteTask: async (id: string) => {
-            await pb.collection('tasks').delete(id);
+            // 1. Optimistic Delete (Sofort entfernen)
+            update(s => ({
+                ...s,
+                tasks: s.tasks.filter(t => t.id !== id)
+            }));
+
+            // 2. An Datenbank senden
+            try {
+                await pb.collection('tasks').delete(id);
+            } catch (e) {
+                console.error("Delete failed:", e);
+            }
         },
 
         updateTaskTitle: async (id: string, title: string) => {
@@ -192,7 +234,41 @@ const createStore = () => {
         },
         
         moveTask: async (id: string, status: string) => {
-            await pb.collection('tasks').update(id, { status });
+            const myId = pb.authStore.model?.id || '';
+            // 1. Optimistic Update mit "Self-Cleaning"
+            update(s => {
+                const task = s.tasks.find(t => t.id === id);
+                if (!task) return s;
+
+                // CHECK: Bin ich nur Beobachter (Teamleiter) und verliere gerade die Rechte?
+                // Logik: Ich bin NICHT Owner, NICHT Assignee, aber ich bin der Boss.
+                const isOwner = task.owner === myId;
+                const isAssignee = task.assignees?.includes(myId);
+                const isTeamLeader = task.expand?.owner?.teamLeader === myId;
+
+                // Wenn ich der Boss bin (und nicht Owner/Assignee) und der Task verlässt REVIEW...
+                if (isTeamLeader && !isOwner && !isAssignee && status !== 'REVIEW') {
+                    // ... dann muss er sofort weg!
+                    return { ...s, tasks: s.tasks.filter(t => t.id !== id) };
+                }
+
+                // Normalfall: Status einfach ändern
+                return {
+                    ...s,
+                    tasks: s.tasks.map(t => t.id === id ? { 
+                        ...t, 
+                        status: status as Task['status'] 
+                    } : t)
+                };
+            });
+
+            // 2. DB Update
+            try {
+                await pb.collection('tasks').update(id, { status });
+            } catch (e) {
+                console.error("Move failed:", e);
+                // Hier könnte man einen Reload triggern, falls es schiefgeht
+            }
         },
 
         // --- SUBTASKS ---

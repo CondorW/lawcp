@@ -57,7 +57,16 @@ export const TaskSchema = z.object({
 	createdAt: z.string(),
     timeTracked: z.number().default(0),
     subtasks: z.array(SubtaskSchema).default([]),
-    dependencies: z.array(z.string()).default([])
+    dependencies: z.array(z.string()).default([]),
+    assignees: z.array(z.string()).default([]),
+    owner: z.string().optional(),
+    expand: z.object({
+        owner: z.object({
+            shortsign: z.string().optional(),
+            color: z.string().optional(),
+            teamLeader: z.string().optional()
+        }).optional()
+    }).optional(),
 });
 
 export const AppDataSchema = z.object({

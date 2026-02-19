@@ -19,13 +19,16 @@ export const FirmUserSchema = z.object({
     email: z.string().optional()
 });
 
+// FIX: created und updated hinzugefügt für den Staleness-Check
 export const ResourceSchema = z.object({
     id: z.string(),
     type: z.enum(['COMPANY', 'PERSON']),
     name: z.string(),
     identifier: z.string().optional(),
     address: z.string().optional(),
-    notes: z.string().optional()
+    notes: z.string().optional(),
+    created: z.string().optional(),
+    updated: z.string().optional()
 });
 
 export const MatterNoteSchema = z.object({

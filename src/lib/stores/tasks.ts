@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
-import type { AppData, Task, Subtask, SubtaskType, Settings } from '$lib/types';
+import type { AppData, Task, Subtask, SubtaskType, Settings, Resource } from '$lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 // MODULE IMPORTS
@@ -35,12 +35,11 @@ const createStore = () => {
     const saveLocal = (state: AppData) => {
         if (browser) {
             localStorage.setItem('lawcp_settings', JSON.stringify(state.settings));
-            localStorage.setItem('lawcp_resources', JSON.stringify(state.resources));
         }
         return state;
     };
 
-    // --- 2. POCKETBASE SYNC (Für Tasks) ---
+    // --- 2. POCKETBASE SYNC (Für Tasks & Ressources) ---
     const init = async () => {
         if (!browser) return;
 
@@ -57,12 +56,26 @@ const createStore = () => {
         }
         
         try {
-            // Kanzlei-Mitarbeiter laden (Befüllt die firmUsers)
+            // A. Kanzlei-Mitarbeiter laden
             const users = await pb.collection('users').getFullList({
                 fields: 'id,name,shortsign,email',
                 sort: 'shortsign'
             });
 
+            // B. Ressourcen laden (NEU)
+            const resRecords = await pb.collection('resources').getFullList({ sort: '-created' });
+            const resources = resRecords.map((r: any) => ({
+                id: r.id,
+                type: r.type,
+                name: r.name,
+                identifier: r.identifier,
+                address: r.address,
+                notes: r.notes,
+                created: r.created,
+                updated: r.updated
+            }));
+
+            // C. Tasks laden
             const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
             const tasks = records.map((r: any) => ({
                 id: r.id,
@@ -80,25 +93,24 @@ const createStore = () => {
                 owner: r.owner,               
                 expand: r.expand
             }));
-            update(s => ({ ...s, tasks: tasks as Task[], firmUsers: users }));
+
+            update(s => ({ ...s, tasks: tasks as Task[], firmUsers: users, resources: resources as Resource[] }));
         } catch (e) {
             console.error("PB Load Error:", e);
         }
 
+        // --- REALTIME SUBSCRIPTION: TASKS ---
         pb.collection('tasks').subscribe('*', async (e) => {
             const myId = pb.authStore.model?.id;
 
-            // A) DELETE
             if (e.action === 'delete') {
                 update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
                 return;
             }
 
-            // B) CREATE / UPDATE
             if (e.action === 'create' || e.action === 'update') {
                 try {
                     const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
-
                     const isOwner = r.owner === myId;
                     const isAssignee = r.assignees?.includes(myId);
                     const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
@@ -139,9 +151,42 @@ const createStore = () => {
                     update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
                 }
             }
-        }); // <-- WICHTIG: Subscription endet hier!
+        });
 
-        // Background Verifier (Jetzt korrekt und sicher isoliert)
+        // --- REALTIME SUBSCRIPTION: RESOURCES (NEU) ---
+        pb.collection('resources').subscribe('*', (e) => {
+            if (e.action === 'delete') {
+                update(s => ({ ...s, resources: s.resources.filter(r => r.id !== e.record.id) }));
+                return;
+            }
+
+            if (e.action === 'create' || e.action === 'update') {
+                const r = e.record;
+                const updatedRes: Resource = {
+                    id: r.id,
+                    type: r.type as 'COMPANY' | 'PERSON',
+                    name: r.name,
+                    identifier: r.identifier,
+                    address: r.address,
+                    notes: r.notes,
+                    created: r.created,
+                    updated: r.updated
+                };
+
+                update(s => {
+                    const index = s.resources.findIndex(res => res.id === r.id);
+                    if (index !== -1) {
+                        const newRes = [...s.resources];
+                        newRes[index] = updatedRes;
+                        return { ...s, resources: newRes };
+                    } else {
+                        return { ...s, resources: [updatedRes, ...s.resources] };
+                    }
+                });
+            }
+        });
+
+        // Background Verifier für Tasks
         if (browser) {
             setInterval(async () => {
                 const myId = pb.authStore.model?.id || '';
@@ -153,17 +198,13 @@ const createStore = () => {
                     return s; 
                 });
 
-                // FIX: Der Hausmeister darf keine Ausnahmen mehr machen!
-                // Wir müssen JEDEN Task verifizieren, bei dem wir nicht der Ersteller (Owner) sind.
                 const foreignTasks = currentTasks.filter(t => t.owner !== myId);
 
                 for (const t of foreignTasks) {
                     try {
-                        // Extrem ressourcenschonender Call: "Darf ich die ID noch sehen?"
                         await pb.collection('tasks').getOne(t.id, { fields: 'id' });
                     } catch (err: any) {
                         if (err.status === 404) {
-                            // Rechte verloren -> Weg damit!
                             update(s => ({ ...s, tasks: s.tasks.filter(task => task.id !== t.id) }));
                         }
                     }
@@ -172,40 +213,65 @@ const createStore = () => {
         }
     };
 
+    // --- 3. RETURN STATEMENT (API SURFACE DES STORES) ---
+    // Hier definieren wir alle Funktionen, die das UI aufrufen darf.
+    // Prinzip: Erst lokaler Store-Update (Optimistic UI für Null-Latenz),
+    //          danach asynchroner Sync mit PocketBase.
     return {
         subscribe,
         activeMatter: activeMatterStore,
         init,
 
-        // --- APP LOGIC (Lokal via Module) ---
+        // --- LOKALE APP LOGIC ---
+        // Steuert UI-Zustände, die nicht in die Cloud müssen
         toggleDarkMode: () => update(s => saveLocal(AppLogic.toggleDarkMode(s))),
         login: (sign: string) => update(s => saveLocal(AppLogic.login(s, sign))),
         addTeamMember: (n: string, s: string, c: string) => update(st => saveLocal(AppLogic.addTeamMember(st, n, s, c))),
         removeTeamMember: (id: string) => update(s => saveLocal(AppLogic.removeTeamMember(s, id))),
         setTeamLeader: (id: string) => update(s => saveLocal(AppLogic.setTeamLeader(s, id))),
+        
+        // --- SETTINGS ---
         updateSettings: async (vals: Partial<Settings>) => {
-            // 1. Lokal aktualisieren (für sofortiges UI Feedback)
+            // 1. Sofortiges UI Feedback (lokal)
             update(s => saveLocal(AppLogic.updateSettings(s, vals)));
-
-            // 2. Wenn ein User eingeloggt ist -> in DB speichern
+            // 2. Kanzlei-Kürzel in der Datenbank sichern, falls sich der User ändert
             if (pb.authStore.isValid && pb.authStore.model && vals.myShortsign) {
                 try {
                     await pb.collection('users').update(pb.authStore.model.id, { shortsign: vals.myShortsign });
-                    // Optional: Profil im AuthStore aktualisieren, damit es synchron bleibt
                     await pb.collection('users').authRefresh();
                 } catch (e) {
                     console.error("Fehler beim Speichern des Kürzels:", e);
                 }
             }
         },
-        addResource: (res: any) => update(s => saveLocal(AppLogic.addResource(s, res))),
-        deleteResource: (id: string) => update(s => saveLocal(AppLogic.deleteResource(s, id))),
 
-        // --- POCKETBASE ACTIONS (Async) ---
+        // --- POCKETBASE ACTIONS: RESOURCES ---
+        // Zentralisierte Wissensdatenbank der Kanzlei
+        addResource: async (resData: Omit<Resource, 'id' | 'created' | 'updated'>) => {
+            try {
+                // Keine Optimistic UI hier nötig: Die Realtime-Subscription (oben) 
+                // fängt das 'create' Event ab und befüllt das Array inkl. korrekter ID/Datum von der DB.
+                await pb.collection('resources').create(resData);
+            } catch (e) {
+                console.error("Failed to add resource:", e);
+            }
+        },
+        deleteResource: async (id: string) => {
+            // Optimistic Delete: Sofort aus der Liste entfernen, damit das UI nicht hängt
+            update(s => ({ ...s, resources: s.resources.filter(r => r.id !== id) }));
+            try {
+                await pb.collection('resources').delete(id);
+            } catch (e) {
+                console.error("Failed to delete resource:", e);
+            }
+        },
+
+        // --- POCKETBASE ACTIONS: TASKS ---
         addTask: async (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => {
             const userId = pb.authStore.model?.id;
             if (!userId) return;
 
+            // Erstellt den Task. Die Realtime-Subscription sorgt für die Anzeige.
             await pb.collection('tasks').create({
                 title,
                 status,
@@ -213,14 +279,12 @@ const createStore = () => {
                 dueDate: date || new Date().toISOString(),
                 subtasks: [],
                 owner: userId,
-                // If 'assignedTo' is passed, use it. Otherwise, assign to self.
+                // Wenn kein Assignee übergeben wurde, gehört der Task exklusiv mir (Privater Sandkasten)
                 assignees: assignedTo ? [assignedTo] : [userId]
             });
         },
-        
-        // NEU: Zuweisungs-Funktion (Delegation)
         assignTask: async (taskId: string, assigneeId: string) => {
-            // Optimistic UI Update
+            // Optimistic UI: Delegations-Kürzel sofort im UI aktualisieren
             update(s => ({
                 ...s,
                 tasks: s.tasks.map(t => t.id === taskId ? { 
@@ -228,21 +292,16 @@ const createStore = () => {
                     assignees: assigneeId ? [assigneeId] : [] 
                 } : t)
             }));
-            
-            // Datenbank Update
+            // DB Update: Überträgt die Sichtbarkeitsrechte an den Mitarbeiter
             try {
-                await pb.collection('tasks').update(taskId, { 
-                    assignees: assigneeId ? [assigneeId] : [] 
-                });
+                await pb.collection('tasks').update(taskId, { assignees: assigneeId ? [assigneeId] : [] });
             } catch (e) {
                 console.error("Assignment failed:", e);
             }
         },
-
         deleteTask: async (id: string) => {
-            // 1. Optimistic Delete (Sofort entfernen)
+            // Optimistic Delete
             update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== id) }));
-            // 2. An Datenbank senden
             try {
                 await pb.collection('tasks').delete(id);
             } catch (e) {
@@ -264,28 +323,27 @@ const createStore = () => {
         moveTask: async (id: string, status: string) => {
             const myId = pb.authStore.model?.id || '';
 
-            // 1. Optimistic Update mit "Self-Cleaning"
+            // Optimistic Move mit "Self-Cleaning" Mechanismus
             update(s => {
                 const task = s.tasks.find(t => t.id === id);
                 if (!task) return s;
 
-                // CHECK: Bin ich nur Beobachter (Teamleiter) und verliere gerade die Rechte?
-                // Logik: Ich bin NICHT Owner, NICHT Assignee, aber ich bin der Boss.
                 const isOwner = task.owner === myId;
                 const isAssignee = task.assignees?.includes(myId);
                 const isTeamLeader = task.expand?.owner?.teamLeader === myId;
 
-                // Wenn ich der Boss bin (und nicht Owner/Assignee) und der Task verlässt REVIEW...
+                // PRIVACY GUARD: Wenn ich als Teamleiter einen Task aus dem "REVIEW" ziehe, 
+                // verliere ich gem. API Rules die Leserechte. Ich werfe den Task daher 
+                // proaktiv aus meinem lokalen Array, bevor mich die DB aussperrt.
                 if (isTeamLeader && !isOwner && !isAssignee && status !== 'REVIEW') {
-                    // ... dann muss er sofort weg!
                     return { ...s, tasks: s.tasks.filter(t => t.id !== id) };
                 }
-
-                // Normalfall: Status einfach ändern
+                
+                // Normales Update: Status für das Drag & Drop aktualisieren
                 return { ...s, tasks: s.tasks.map(t => t.id === id ? { ...t, status: status as Task['status'] } : t) };
             });
 
-            // 2. DB Update
+            // Status an die Datenbank funken
             try {
                 await pb.collection('tasks').update(id, { status });
             } catch (e) {
@@ -293,7 +351,9 @@ const createStore = () => {
             }
         },
 
-        // --- SUBTASKS ---
+        // --- SUBTASKS (Private Checklisten) ---
+        // Alle Subtask-Funktionen laden erst den aktuellen Zustand, pushen die neue
+        // Information in das Array und überschreiben dann das gesamte Subtask-Feld in PB.
         addSubtask: async (taskId: string, title: string, type: SubtaskType = 'GENERIC') => {
             const state = get({ subscribe });
             const task = state.tasks.find(t => t.id === taskId);
@@ -336,7 +396,7 @@ const createStore = () => {
         updateMatterNote: async (ref: string, content: string) => {
             console.log("Note Update:", ref);
         },
-        exportData: () => { /* ... */ },
+        exportData: () => { /* Placeholder für zukünftige Kanzlei-Exporte */ },
         importData: () => {
             alert("Import disabled");
             return false;

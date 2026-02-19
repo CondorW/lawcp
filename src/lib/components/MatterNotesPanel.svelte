@@ -27,6 +27,7 @@
         <div 
             class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity"
             onclick={() => { save(); close(); }}
+            onkeydown={(e) => e.key === 'Enter' && close()}
             role="button" tabindex="-1"
             transition:fly={{ duration: 200, opacity: 0 }}
         ></div>

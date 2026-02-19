@@ -147,6 +147,35 @@ const createStore = () => {
                 update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
             }
         }
+        if (browser) {
+        setInterval(async () => {
+            const myId = pb.authStore.model?.id || '';
+            if (!myId) return;
+
+            let currentTasks: Task[] = [];
+            // Kurzer Trick, um den aktuellen State zu lesen
+            update(s => { 
+                currentTasks = s.tasks; 
+                return s; 
+            });
+
+            // Wir filtern nur Tasks heraus, die uns nicht selbst gehören (also Team-Reviews)
+            const foreignTasks = currentTasks.filter(t => t.owner !== myId && !t.assignees.includes(myId));
+
+            for (const t of foreignTasks) {
+                try {
+                    // Extrem ressourcenschonender Call: "Darf ich die ID noch sehen?"
+                    await pb.collection('tasks').getOne(t.id, { fields: 'id' });
+                } catch (err: any) {
+                    // Wenn PocketBase 404 sagt, haben wir die Rechte verloren (Task hat REVIEW verlassen)
+                    if (err.status === 404) {
+                        update(s => ({ ...s, tasks: s.tasks.filter(task => task.id !== t.id) }));
+                    }
+                }
+            }
+        }, 5000); // Alle 5 Sekunden
+    }
+
     });}
 
     return {

@@ -75,17 +75,18 @@ export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id
 };
 
 // --- SUBTASKS ---
-export const addSubtask = async (get: () => AppData, taskId: string, title: string, type: SubtaskType = 'GENERIC') => {
+export const addSubtask = async (get: () => AppData, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const newSub: Subtask = { id: uuidv4(), title, done: false, type, x:0, y:0, next: [], subtasks: [] };
+    const newSub: Subtask = { id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] };
     const newSubtasks = [...task.subtasks, newSub];
     await pb.collection('tasks').update(taskId, { subtasks: newSubtasks });
 };
 
 export const toggleSubtask = async (get: () => AppData, taskId: string, subId: string) => {
+    // ... (unverändert) ...
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -95,6 +96,7 @@ export const toggleSubtask = async (get: () => AppData, taskId: string, subId: s
 };
 
 export const updateSubtaskTitle = async (get: () => AppData, taskId: string, subId: string, title: string) => {
+    // ... (unverändert) ...
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -108,7 +110,57 @@ export const addSubSubtask = async (get: () => AppData, taskId: string, parentSu
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x:0, y:0, next: [], subtasks: [] };
+    // FIX: Auch Sub-Subtasks bekommen einen zentrierten Standard-Spawnpunkt
+    const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
     const newSubtasks = recursiveAdd(task.subtasks, parentSubId, newSub);
     await pb.collection('tasks').update(taskId, { subtasks: newSubtasks });
+};
+let moveTimer: ReturnType<typeof setTimeout>;
+
+export const updateSubtaskPos = async (update: any, get: any, taskId: string, subId: string, x: number, y: number) => {
+    // 1. Optimistic Update für flüssiges 60 FPS Dragging
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, subId, sub => ({ ...sub, x, y }))
+        } : t)
+    }));
+
+    // 2. Debounce: Erst wenn die Maus 800ms stillsteht, an die Datenbank senden
+    clearTimeout(moveTimer);
+    moveTimer = setTimeout(async () => {
+        const task = get().tasks.find((t: Task) => t.id === taskId);
+        if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
+    }, 800);
+};
+
+export const connectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, sourceId, sub => ({
+                ...sub,
+                next: [...new Set([...sub.next, targetId])]
+            }))
+        } : t)
+    }));
+    const task = get().tasks.find((t: Task) => t.id === taskId);
+    if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
+};
+
+export const disconnectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, sourceId, sub => ({
+                ...sub,
+                next: sub.next.filter((id: string) => id !== targetId)
+            }))
+        } : t)
+    }));
+    const task = get().tasks.find((t: Task) => t.id === taskId);
+    if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
 };

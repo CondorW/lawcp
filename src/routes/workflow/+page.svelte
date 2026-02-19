@@ -1,6 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { ArrowLeft, Plus, Move } from 'lucide-svelte';
+    import type { Subtask } from '$lib/types';
+    import { ArrowLeft, Plus, Move, CornerDownRight } from 'lucide-svelte';
 
     let selectedTaskId: string | null = null;
     let container: HTMLDivElement;
@@ -12,6 +13,24 @@
     let mouseY = 0;
 
     $: selectedTask = $store.tasks.find(t => t.id === selectedTaskId);
+
+    // --- REKURSIVES FLATTENING ---
+    // Drückt den verschachtelten Baum in ein 2D Array für das Canvas
+    type FlatSubtask = Subtask & { level: number };
+
+    function flattenSubtasks(subs: Subtask[] | undefined, level = 0): FlatSubtask[] {
+        if (!subs) return [];
+        return subs.reduce((acc: FlatSubtask[], sub) => {
+            return [
+                ...acc, 
+                { ...sub, level }, 
+                ...flattenSubtasks(sub.subtasks, level + 1)
+            ];
+        }, []);
+    }
+
+    // Die reaktive Liste ALLER Knoten (Haupt und Sub-Subs) auf dem Canvas
+    $: flattenedSubs = selectedTask ? flattenSubtasks(selectedTask.subtasks) : [];
 
     // --- Helpers ---
     function getCurve(x1: number, y1: number, x2: number, y2: number) {
@@ -25,13 +44,17 @@
     // --- Logic ---
     function addStep() {
         if (!selectedTaskId || !container) return;
-        // Mitte des Canvas berechnen
         const rect = container.getBoundingClientRect();
-        const centerX = rect.width / 2 - 110; // Minus halbe Kartenbreite
-        const centerY = rect.height / 2 - 40; // Minus halbe Kartenhöhe
-        // Kleiner Random Offset
-        const x = centerX + (Math.random() * 40 - 20);
-        const y = centerY + (Math.random() * 40 - 20);
+        
+        // Exakte Mitte des Canvas berechnen
+        let x = Math.round((rect.width / 2) - 110);
+        let y = Math.round((rect.height / 2) - 45);
+
+        // Kaskadierender Offset: Neue Karten leicht versetzt stapeln
+        // Damit sie sich nicht exakt überdecken, wenn man 5x klickt
+        const stepCount = flattenedSubs.length;
+        x += (stepCount * 25) % 150;
+        y += (stepCount * 25) % 150;
         
         store.addSubtask(selectedTaskId, 'Neuer Schritt', 'GENERIC', x, y);
     }
@@ -43,7 +66,6 @@
         mouseY = e.clientY - rect.top;
 
         if (draggingSubId && selectedTaskId) {
-            // Drag Position (Grid Snap 20px)
             const x = Math.round((mouseX - 110) / 20) * 20;
             const y = Math.round((mouseY - 20) / 20) * 20;
             store.updateSubtaskPos(selectedTaskId, draggingSubId, x, y);
@@ -106,7 +128,6 @@
         onmousemove={onCanvasMouseMove}
         onmouseup={() => { draggingSubId = null; }}
         onclick={() => { linkingSourceId = null; }} 
-        role="application"
         tabindex="-1"
         onkeydown={handleKeyDown}
     >
@@ -136,13 +157,32 @@
                     </marker>
                 </defs>
 
-                {#each selectedTask.subtasks as source}
+                {#each flattenedSubs as source}
                     {#each source.next as targetId}
-                        {@const target = selectedTask.subtasks.find(s => s.id === targetId)}
+                        {@const target = flattenedSubs.find(s => s.id === targetId)}
                         {#if target}
                             {@const pathData = getCurve(source.x + 220, source.y + 40, target.x, target.y + 40)}
-                            <path d={pathData} stroke="transparent" stroke-width="15" fill="none" class="pointer-events-auto cursor-pointer" onclick={(e) => { e.stopPropagation(); if(selectedTaskId) store.disconnectSubtasks(selectedTaskId, source.id, targetId); }}>
-                                <title>Klick zum Löschen</title>
+                            <path 
+                                role="button"
+                                tabindex="0"
+                                d={pathData} 
+                                stroke="transparent" 
+                                stroke-width="15" 
+                                fill="none" 
+                                class="pointer-events-auto cursor-pointer focus:outline-none focus:stroke-red-500/30" 
+                                onclick={(e) => { 
+                                    e.stopPropagation(); 
+                                    if(selectedTaskId) store.disconnectSubtasks(selectedTaskId, source.id, targetId); 
+                                }}
+                                onkeydown={(e) => {
+                                    if(e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if(selectedTaskId) store.disconnectSubtasks(selectedTaskId, source.id, targetId);
+                                    }
+                                }}
+                            >
+                                <title>Klick oder Enter zum Löschen</title>
                             </path>
                             <path d={pathData} stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arrow)" />
                         {/if}
@@ -150,21 +190,33 @@
                 {/each}
 
                 {#if linkingSourceId}
-                    {@const src = selectedTask.subtasks.find(s => s.id === linkingSourceId)}
+                    {@const src = flattenedSubs.find(s => s.id === linkingSourceId)}
                     {#if src}
                         <path d={getCurve(src.x + 220, src.y + 40, mouseX, mouseY)} stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" fill="none" marker-end="url(#arrow-active)" />
                     {/if}
                 {/if}
             </svg>
 
-            {#each selectedTask.subtasks as sub (sub.id)}
+            {#each flattenedSubs as sub (sub.id)}
                 <div 
-                    class={`absolute w-[220px] bg-white dark:bg-slate-800 rounded-xl shadow-lg border-2 transition-all z-10 group ${linkingSourceId === sub.id ? 'border-blue-500 ring-4 ring-blue-500/20' : 'border-slate-200 dark:border-slate-700 hover:border-amber-400'}`}
+                    class={`absolute w-[220px] bg-white dark:bg-slate-800 shadow-lg transition-all z-10 group
+                        ${linkingSourceId === sub.id ? 'border-blue-500 ring-4 ring-blue-500/20' : 'hover:border-amber-400'}
+                        ${sub.level > 0 ? 'border-dashed border-2 rounded-lg border-slate-300 dark:border-slate-600 opacity-90' : 'border-2 rounded-xl border-slate-200 dark:border-slate-700'}
+                    `}
                     style="left: {sub.x}px; top: {sub.y}px;"
                     onmousedown={(e) => startDrag(e, sub.id)}
                 >
-                    <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 rounded-t-xl cursor-move">
-                        <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">{sub.type}</span>
+                    <div class={`px-3 py-2 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center cursor-move
+                        ${sub.level > 0 ? 'bg-slate-100/50 dark:bg-slate-800/80 rounded-t-lg' : 'bg-slate-50 dark:bg-slate-800/50 rounded-t-xl'}
+                    `}>
+                        <div class="flex items-center gap-1.5">
+                            {#if sub.level > 0}
+                                <CornerDownRight size={12} class="text-slate-400"/>
+                            {/if}
+                            <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                                {sub.type}
+                            </span>
+                        </div>
                         <Move size={14} class="text-slate-300" />
                     </div>
 

@@ -76,10 +76,13 @@ const createStore = () => {
         moveTask: (id: string, status: string) => DBLogic.moveTask(update, id, status),
 
         // --- SUBTASKS ---
-        addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC') => DBLogic.addSubtask(() => get({ subscribe }), taskId, title, type),
+        addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 0, y = 0) => DBLogic.addSubtask(() => get({ subscribe }), taskId, title, type, x, y),
         toggleSubtask: (taskId: string, subId: string) => DBLogic.toggleSubtask(() => get({ subscribe }), taskId, subId),
         updateSubtaskTitle: (taskId: string, subId: string, title: string) => DBLogic.updateSubtaskTitle(() => get({ subscribe }), taskId, subId, title),
         addSubSubtask: (taskId: string, parentSubId: string, title: string) => DBLogic.addSubSubtask(() => get({ subscribe }), taskId, parentSubId, title),
+        updateSubtaskPos: (taskId: string, subId: string, x: number, y: number) => DBLogic.updateSubtaskPos(update, () => get({ subscribe }), taskId, subId, x, y),
+        connectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.connectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
+        disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.disconnectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
 
         // --- EXTRAS ---
         openMatterNotes: (ref: string) => activeMatterStore.set(ref),

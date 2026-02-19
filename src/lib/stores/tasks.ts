@@ -70,9 +70,14 @@ const createStore = () => {
                 name: r.name,
                 identifier: r.identifier,
                 address: r.address,
+                street: r.street,
+                zip: r.zip,       
+                city: r.city,     
                 notes: r.notes,
                 created: r.created,
-                updated: r.updated
+                updated: r.updated,
+                owner: r.owner,    
+                expand: r.expand   
             }));
 
             // C. Tasks laden
@@ -153,36 +158,46 @@ const createStore = () => {
             }
         });
 
-        // --- REALTIME SUBSCRIPTION: RESOURCES (NEU) ---
-        pb.collection('resources').subscribe('*', (e) => {
+        // --- REALTIME SUBSCRIPTION: RESOURCES ---
+        pb.collection('resources').subscribe('*', async (e) => {
             if (e.action === 'delete') {
                 update(s => ({ ...s, resources: s.resources.filter(r => r.id !== e.record.id) }));
                 return;
             }
 
             if (e.action === 'create' || e.action === 'update') {
-                const r = e.record;
-                const updatedRes: Resource = {
-                    id: r.id,
-                    type: r.type as 'COMPANY' | 'PERSON',
-                    name: r.name,
-                    identifier: r.identifier,
-                    address: r.address,
-                    notes: r.notes,
-                    created: r.created,
-                    updated: r.updated
-                };
+                try {
+                    const r = await pb.collection('resources').getOne(e.record.id, { expand: 'owner' });
+                    
+                    const updatedRes: Resource = {
+                        id: r.id,
+                        type: r.type as 'COMPANY' | 'PERSON',
+                        name: r.name,
+                        identifier: r.identifier,
+                        address: r.address,
+                        street: r.street, // <-- NEU
+                        zip: r.zip,       // <-- NEU
+                        city: r.city,     // <-- NEU
+                        notes: r.notes,
+                        created: r.created,
+                        updated: r.updated,
+                        owner: r.owner,
+                        expand: r.expand
+                    };
 
-                update(s => {
-                    const index = s.resources.findIndex(res => res.id === r.id);
-                    if (index !== -1) {
-                        const newRes = [...s.resources];
-                        newRes[index] = updatedRes;
-                        return { ...s, resources: newRes };
-                    } else {
-                        return { ...s, resources: [updatedRes, ...s.resources] };
-                    }
-                });
+                    update(s => {
+                        const index = s.resources.findIndex(res => res.id === r.id);
+                        if (index !== -1) {
+                            const newRes = [...s.resources];
+                            newRes[index] = updatedRes;
+                            return { ...s, resources: newRes };
+                        } else {
+                            return { ...s, resources: [updatedRes, ...s.resources] };
+                        }
+                    });
+                } catch (err) {
+                    update(s => ({ ...s, resources: s.resources.filter(r => r.id !== e.record.id) }));
+                }
             }
         });
 
@@ -247,11 +262,13 @@ const createStore = () => {
 
         // --- POCKETBASE ACTIONS: RESOURCES ---
         // Zentralisierte Wissensdatenbank der Kanzlei
-        addResource: async (resData: Omit<Resource, 'id' | 'created' | 'updated'>) => {
+        addResource: async (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => {
+            const userId = pb.authStore.model?.id;
+            if (!userId) return;
+
             try {
-                // Keine Optimistic UI hier nötig: Die Realtime-Subscription (oben) 
-                // fängt das 'create' Event ab und befüllt das Array inkl. korrekter ID/Datum von der DB.
-                await pb.collection('resources').create(resData);
+                // Wir fügen den aktuellen User als 'owner' hinzu
+                await pb.collection('resources').create({ ...resData, owner: userId });
             } catch (e) {
                 console.error("Failed to add resource:", e);
             }

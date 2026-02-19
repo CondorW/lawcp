@@ -26,9 +26,18 @@ export const ResourceSchema = z.object({
     name: z.string(),
     identifier: z.string().optional(),
     address: z.string().optional(),
+    street: z.string().optional(),
+    zip: z.string().optional(),
+    city: z.string().optional(),
     notes: z.string().optional(),
     created: z.string().optional(),
-    updated: z.string().optional()
+    updated: z.string().optional(),
+    owner: z.string().optional(),
+    expand: z.object({
+        owner: z.object({
+            shortsign: z.string().optional()
+        }).optional()
+    }).optional()
 });
 
 export const MatterNoteSchema = z.object({

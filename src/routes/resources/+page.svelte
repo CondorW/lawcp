@@ -22,10 +22,12 @@
             type: resType, 
             name: resName, 
             identifier: resId, 
+            // Hinweis: Falls street, zip und city als EIGENE Felder in der Datenbank 
+            // gespeichert werden sollen, müssen sie auch im PocketBase Admin-Panel 
+            // und in der types.ts angelegt werden. Ansonsten nutzt PB den 'address' Fallback.
             street: resStreet,
             zip: resZip,
             city: resCity,
-            // Fallback für alte Logik, falls nötig, aber wir nutzen jetzt die neuen Felder
             address: `${resStreet}, ${resZip} ${resCity}` 
         });
         
@@ -37,7 +39,6 @@
         window.open(`https://www.handelsregister.li/cr-portal/suche/suche.xhtml?query=${encodeURIComponent(name)}`, '_blank');
     }
 
-    // NEU: Copy mit strukturierter Adresse
     async function copyForContract(res: any) {
         // Adresse zusammenbauen (Priorität auf neue Felder)
         let addressPart = '';
@@ -62,6 +63,12 @@
         }
     }
 
+    // Hilfsfunktion für ein sauberes Datum
+    function formatDate(dateString: string | undefined) {
+        if (!dateString) return 'Unbekannt';
+        return new Date(dateString).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
     $: list = $store.resources.filter(r => r.name.toLowerCase().includes(filter.toLowerCase()));
 </script>
 
@@ -81,43 +88,60 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div class="lg:col-span-2 space-y-4">
                 {#each list as res (res.id)}
-                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 flex items-start justify-between shadow-sm hover:shadow-md transition-shadow group">
-                        <div class="flex gap-4">
-                            <div class={`p-3 rounded-lg ${res.type === 'COMPANY' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'}`}>
-                                {#if res.type === 'COMPANY'}<Building2 size={24}/>{:else}<User size={24}/>{/if}
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-lg">{res.name}</h3>
-                                {#if res.identifier}<div class="text-sm text-gray-500 font-mono">{res.identifier}</div>{/if}
-                                
-                                <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                    {#if res.street || res.city}
-                                        <div>{res.street || ''}</div>
-                                        <div>{res.zip || ''} {res.city || ''}</div>
-                                    {:else if res.address}
-                                        <div class="whitespace-pre-line">{res.address}</div>
-                                    {/if}
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow group">
+                        
+                        <div class="flex items-start justify-between w-full">
+                            <div class="flex gap-4">
+                                <div class={`p-3 rounded-lg ${res.type === 'COMPANY' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'}`}>
+                                    {#if res.type === 'COMPANY'}<Building2 size={24}/>{:else}<User size={24}/>{/if}
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-lg">{res.name}</h3>
+                                    {#if res.identifier}<div class="text-sm text-gray-500 font-mono">{res.identifier}</div>{/if}
+                                    
+                                    <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                        {#if res.street || res.city}
+                                            <div>{res.street || ''}</div>
+                                            <div>{res.zip || ''} {res.city || ''}</div>
+                                        {:else if res.address}
+                                            <div class="whitespace-pre-line">{res.address}</div>
+                                        {/if}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            <button 
-                                onclick={() => copyForContract(res)} 
-                                title="Für Vertrag kopieren" 
-                                class={`p-2 rounded-lg border transition-all flex items-center gap-2 ${copiedId === res.id ? 'bg-green-100 text-green-700 border-green-200' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50 border-transparent hover:border-amber-100'}`}
-                            >
-                                {#if copiedId === res.id}
-                                    <Check size={18} />
-                                {:else}
-                                    <Copy size={18}/>
-                                {/if}
-                            </button>
+                            
+                            <div class="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onclick={() => copyForContract(res)} 
+                                    title="Für Vertrag kopieren" 
+                                    class={`p-2 rounded-lg border transition-all flex items-center gap-2 ${copiedId === res.id ? 'bg-green-100 text-green-700 border-green-200' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50 border-transparent hover:border-amber-100'}`}
+                                >
+                                    {#if copiedId === res.id}
+                                        <Check size={18} />
+                                    {:else}
+                                        <Copy size={18}/>
+                                    {/if}
+                                </button>
 
-                            {#if res.type === 'COMPANY'}
-                                <button onclick={() => searchHR(res.name)} title="Im HR suchen" class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-100"><ExternalLink size={18}/></button>
-                            {/if}
-                            <button onclick={() => store.deleteResource(res.id)} class="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"><Trash2 size={18}/></button>
+                                {#if res.type === 'COMPANY'}
+                                    <button onclick={() => searchHR(res.name)} title="Im HR suchen" class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-100"><ExternalLink size={18}/></button>
+                                {/if}
+                                <button onclick={() => store.deleteResource(res.id)} class="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"><Trash2 size={18}/></button>
+                            </div>
                         </div>
+
+                        <div class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-slate-700 w-full">
+                            <span 
+                                class="bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 uppercase tracking-wide" 
+                                title="Erstellt von"
+                            >
+                                {res.expand?.owner?.shortsign || 'System'}
+                            </span>
+                            <span class="text-[11px] text-gray-400 dark:text-gray-500">
+                                hinzugefügt am {formatDate(res.created)}
+                            </span>
+                        </div>
+
                     </div>
                 {:else}
                     <div class="text-center py-10 text-gray-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700">Keine Einträge gefunden.</div>

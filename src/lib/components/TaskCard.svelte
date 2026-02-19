@@ -1,6 +1,6 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { pb } from '$lib/pocketbase'; // <--- NEU 1: Import für Auth Check
+    import { pb } from '$lib/pocketbase';
     import type { Task, SubtaskType } from '$lib/types';
     import { cn } from '$lib/utils';
     
@@ -12,11 +12,17 @@
 
     export let task: Task;
 
-    // Prüfen: Gehört der Task mir?
-    const myId = pb.authStore.model?.id;
+    const myId = pb.authStore.model?.id || '';
     const isOwner = task.owner === myId;
-    // Kürzel holen (falls vorhanden, sonst '?')
     const ownerShortsign = task.expand?.owner?.shortsign || '?';
+    
+    // AUTHORIZATION GATE: Is the current user a Team Leader?
+    // Based on DB structure: TMs have a 'teamLeader' relation. TLs do not.
+    // (If you use a specific boolean instead, change this to: pb.authStore.model?.isLeader)
+    const isTeamLeader = !pb.authStore.model?.teamLeader;
+    
+    // Finde heraus, wer aktuell zugewiesen ist
+    $: currentAssignee = task.assignees && task.assignees.length > 0 ? task.assignees[0] : '';
 
     let dragging = false;
     let newSubtaskTitle = '';
@@ -28,9 +34,16 @@
         newSubtaskTitle = '';
     }
 
+    // Direkte Zuweisung über Button-Klick
+    function assignTo(userId: string) {
+        if (currentAssignee === userId) return;
+        store.assignTask(task.id, userId);
+    }
+
     function onDragStart(e: DragEvent) {
         const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') { 
+        // Buttons (Kürzel) vom Dragging ausschließen
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') { 
             e.preventDefault(); 
             return; 
         }
@@ -45,7 +58,6 @@
         "group relative flex flex-col gap-3 rounded-xl border p-5 shadow-sm transition-all cursor-move bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-md",
         task.status === 'DONE' && "bg-gray-50 dark:bg-slate-800/50 opacity-60 grayscale",
         dragging && "opacity-50",
-        // NEU: Zarter gelber Rand, wenn es nicht mein eigener Task ist (optional, sieht aber gut aus)
         !isOwner && "border-amber-200 dark:border-amber-900/30"
     )}
     draggable="true"
@@ -63,6 +75,46 @@
     <TaskTitle {task} />
 
     <div class="space-y-3 my-2 border-t border-gray-100 dark:border-slate-700 pt-3">
+        
+        {#if isOwner && isTeamLeader}
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
+                <div class="flex flex-wrap gap-1.5">
+                    
+                    <button 
+                        onclick={() => assignTo('')}
+                        class={cn(
+                            "px-2 py-0.5 text-xs font-bold rounded border transition-all shadow-sm", 
+                            currentAssignee === '' 
+                                ? "bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700" 
+                                : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                        )}
+                        title="Privat (Nur für mich sichtbar)"
+                    >
+                        ME
+                    </button>
+
+                    {#each $store.firmUsers as user}
+                        {#if user.id !== myId && user.shortsign}
+                            <button 
+                                onclick={() => assignTo(user.id)}
+                                class={cn(
+                                    "px-2 py-0.5 text-xs font-bold rounded border transition-all shadow-sm uppercase tracking-wider", 
+                                    currentAssignee === user.id 
+                                        ? "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border-blue-300 dark:border-blue-700" 
+                                        : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                                )}
+                                title={user.name || user.email}
+                            >
+                                {user.shortsign}
+                            </button>
+                        {/if}
+                    {/each}
+
+                </div>
+            </div>
+        {/if}
+
         {#each task.subtasks || [] as sub (sub.id)}
             <SubtaskItem taskId={task.id} {sub} />
         {/each}

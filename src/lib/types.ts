@@ -12,6 +12,13 @@ export const TeamMemberSchema = z.object({
     isLeader: z.boolean().default(false)
 });
 
+export const FirmUserSchema = z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    shortsign: z.string().optional(),
+    email: z.string().optional()
+});
+
 export const ResourceSchema = z.object({
     id: z.string(),
     type: z.enum(['COMPANY', 'PERSON']),
@@ -73,7 +80,8 @@ export const AppDataSchema = z.object({
     tasks: z.array(TaskSchema),
     settings: SettingsSchema,
     resources: z.array(ResourceSchema).default([]),
-    matterNotes: z.array(MatterNoteSchema).default([])
+    matterNotes: z.array(MatterNoteSchema).default([]),
+    firmUsers: z.array(FirmUserSchema).default([])
 });
 
 // --- TYPES EXPORTS (WICHTIG!) ---
@@ -85,3 +93,4 @@ export type Subtask = z.infer<typeof SubtaskSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type MatterNote = z.infer<typeof MatterNoteSchema>;
 export type AppData = z.infer<typeof AppDataSchema>;
+export type FirmUser = z.infer<typeof FirmUserSchema>;

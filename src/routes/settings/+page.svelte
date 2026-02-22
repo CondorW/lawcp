@@ -1,6 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    import { Trash2, ArrowLeft, Moon, Sun, Crown, Plus } from 'lucide-svelte'; // Added Plus import
+    import { Trash2, ArrowLeft, Moon, Sun, Crown, Plus, LogOut } from 'lucide-svelte';
+
 
     let myTag = $store.settings.myShortsign;
     let newName = '';
@@ -107,5 +108,11 @@
                 </button>
             </div>
         </section>
+        <button 
+            onclick={() => store.logout}
+            class="mt-12 w-full flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/20 py-3 rounded-lg font-bold hover:bg-red-600 hover:text-white transition-all"
+        >
+            <LogOut size={18} /> Abmelden
+        </button>
     </div>
 </div>

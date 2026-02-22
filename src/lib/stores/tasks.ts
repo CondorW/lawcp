@@ -61,6 +61,35 @@ const createStore = () => {
             }
         },
 
+        logout: () => {
+            // 1. PocketBase Session killen
+            pb.authStore.clear();
+
+            // 2. LocalStorage hart bereinigen (verhindert Auto-Login beim Redirect)
+            if (browser) {
+                localStorage.removeItem('lawcp_settings');
+                localStorage.removeItem('lawcp_resources');
+            }
+
+            // 3. Store State zurücksetzen
+            update(s => ({
+                ...s,
+                tasks: [],
+                resources: [],
+                settings: { 
+                    myShortsign: 'ME', 
+                    darkMode: s.settings.darkMode, // DarkMode behalten wir meistens
+                    isAuthenticated: false, 
+                    team: [] 
+                }
+            }));
+
+            // 4. Redirect zum Login
+            if (browser) {
+                window.location.href = '/login';
+            }
+        },
+
         // --- POCKETBASE ACTIONS: RESOURCES ---
         addResource: (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => DBLogic.addResource(resData),
         deleteResource: (id: string) => DBLogic.deleteResource(update, id),
@@ -88,7 +117,7 @@ const createStore = () => {
         openMatterNotes: (ref: string) => activeMatterStore.set(ref),
         closeMatterNotes: () => activeMatterStore.set(null),
         updateMatterNote: async (ref: string, content: string) => console.log("Note Update:", ref),
-        exportData: () => {},
+        exportData: () => { alert("Import disabled"); return false; },
         importData: () => { alert("Import disabled"); return false; }
     };
 };

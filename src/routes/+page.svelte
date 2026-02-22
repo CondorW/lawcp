@@ -30,7 +30,7 @@
         const file = target.files?.[0];
         if (!file) return;
         const text = await file.text();
-        const success = store.importData(text);
+        const success = store.importData();
         if (success) alert("Daten erfolgreich importiert!");
         else alert("Fehler beim Import.");
         target.value = '';

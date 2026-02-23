@@ -70,7 +70,7 @@
                     <div>
                         <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Rolle</p>
                         <p class="font-bold text-lg text-amber-600 dark:text-amber-400">
-                            {!currentUser?.teamLeader ? 'Teamleiter (Partner)' : 'Teammitglied'}
+                            {!currentUser?.teamLeader ? 'Teamleiter' : 'Teammitglied'}
                         </p>
                     </div>
                 </div>
@@ -82,7 +82,7 @@
                 <Users size={20} class="text-purple-500" /> Kanzlei-Team
             </h2>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                Die Mitarbeiter- und Rollenverwaltung erfolgt zentral durch die Administration (PocketBase).
+                Die Mitarbeiter- und Rollenverwaltung erfolgt zentral durch die Administration.
             </p>
 
             <div class="space-y-3 mb-8">

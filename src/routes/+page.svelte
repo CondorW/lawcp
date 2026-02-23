@@ -22,19 +22,6 @@
     $: review = $store.tasks.filter(t => t.status === 'REVIEW' && matchesFilter(t)).sort(byDate);
     $: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t)).sort(byDate);
 
-    // --- Import Logik (aus vorherigem Schritt beibehalten) ---
-    let fileInput: HTMLInputElement;
-    function triggerImport() { fileInput.click(); }
-    async function handleFileSelect(e: Event) {
-        const target = e.target as HTMLInputElement;
-        const file = target.files?.[0];
-        if (!file) return;
-        const text = await file.text();
-        const success = store.importData();
-        if (success) alert("Daten erfolgreich importiert!");
-        else alert("Fehler beim Import.");
-        target.value = '';
-    }
 </script>
 
 <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans">
@@ -44,7 +31,7 @@
                 <div class="flex items-center gap-10">
                     <div class="flex items-center gap-2.5">
                         <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
-                        <span class="text-xl font-bold tracking-tight text-white font-serif">Law<span class="text-amber-500">CP</span></span>
+                        <span class="text-xl font-bold tracking-tight text-white font-serif">Lawganized<span class="text-amber-500">LWA</span></span>
                     </div>
 
                     <div class="hidden md:flex items-center gap-1">
@@ -74,15 +61,6 @@
                         />
                     </div>
 
-                    <input type="file" accept=".json" class="hidden" bind:this={fileInput} onchange={handleFileSelect} />
-                    <button onclick={triggerImport} class="hidden sm:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all uppercase tracking-wide">
-                        <Upload size={14} /> Import
-                    </button>
-
-                    <button onclick={() => store.exportData()} class="hidden sm:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all uppercase tracking-wide">
-                        <Save size={14} /> Export
-                    </button>
-                    
                     <a href="/settings" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
                         <Settings size={20} />
                     </a>

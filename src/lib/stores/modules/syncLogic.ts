@@ -15,7 +15,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 
     try {
         const users = await pb.collection('users').getFullList({
-            fields: 'id,name,shortsign,email',
+            fields: 'id,name,shortsign,email,teamLeader',
             sort: 'shortsign'
         });
 

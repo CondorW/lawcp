@@ -1,10 +1,28 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import { pb } from '$lib/pocketbase';
-    import { ArrowLeft, Moon, Sun, LogOut, User, Users } from 'lucide-svelte';
+    import { ArrowLeft, Moon, Sun, LogOut, User, Users, Crown } from 'lucide-svelte';
 
-    // Wir holen uns die aktuellen Nutzerdaten direkt aus dem PocketBase Auth-Token
     $: currentUser = pb.authStore.model;
+
+    // Hilfsfunktion: Erkennt zuverlässig, ob jemand der Boss ist (egal welches Format PB schickt)
+    function checkIsLeader(tlField: any) {
+        if (!tlField) return true; // undefined oder null
+        if (tlField === '') return true; // leerer String
+        if (Array.isArray(tlField) && tlField.length === 0) return true; // leeres Array
+        return false; // Ein Wert ist vorhanden -> Hat einen Chef
+    }
+
+    // Reaktive Sortierung
+    $: sortedTeam = [...$store.firmUsers].sort((a, b) => {
+        const aIsLeader = checkIsLeader(a.teamLeader);
+        const bIsLeader = checkIsLeader(b.teamLeader);
+        
+        if (aIsLeader && !bIsLeader) return -1;
+        if (!aIsLeader && bIsLeader) return 1;
+        
+        return (a.shortsign || '').localeCompare(b.shortsign || '');
+    });
 </script>
 
 <div class="min-h-screen bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-8 font-sans transition-colors">
@@ -64,22 +82,33 @@
                 <Users size={20} class="text-purple-500" /> Kanzlei-Team
             </h2>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                Die Mitarbeiter- und Rollenverwaltung erfolgt zentral.
+                Die Mitarbeiter- und Rollenverwaltung erfolgt zentral durch die Administration (PocketBase).
             </p>
 
             <div class="space-y-3 mb-8">
-                {#each $store.firmUsers as user}
+                {#each sortedTeam as user}
+                    {@const isLeader = !user.teamLeader || user.teamLeader === ''}
                     <div class={`flex items-center justify-between p-4 rounded-xl border transition-colors ${currentUser?.id === user.id ? 'bg-blue-50/50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-800/50' : 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-600'}`}>
                         <div class="flex items-center gap-4">
-                            <span class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 px-3 py-1.5 rounded text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 shadow-sm">
-                                {user.shortsign || '?'}
-                            </span>
+                            <div class="relative">
+                                {#if isLeader}
+                                    <div class="absolute -top-3 -right-2 text-amber-500 drop-shadow-sm rotate-12" title="Teamleiter">
+                                        <Crown size={16} fill="currentColor" />
+                                    </div>
+                                {/if}
+                                <span class={`border px-3 py-1.5 rounded text-sm font-bold uppercase tracking-wide shadow-sm ${isLeader ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-400' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}>
+                                    {user.shortsign || '?'}
+                                </span>
+                            </div>
                             
                             <div>
                                 <div class="font-bold text-lg dark:text-white flex items-center gap-2">
                                     {user.name || user.email?.split('@')[0] || 'Unbekannt'}
                                     {#if currentUser?.id === user.id}
                                         <span class="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-0.5 rounded-full uppercase tracking-wider">Du</span>
+                                    {/if}
+                                    {#if isLeader}
+                                        <span class="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 px-2 py-0.5 rounded-full uppercase tracking-wider">Leader</span>
                                     {/if}
                                 </div>
                                 {#if user.email}

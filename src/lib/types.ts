@@ -16,7 +16,8 @@ export const FirmUserSchema = z.object({
     id: z.string(),
     name: z.string().optional(),
     shortsign: z.string().optional(),
-    email: z.string().optional()
+    email: z.string().optional(),
+    teamLeader: z.string().optional()
 });
 
 // FIX: created und updated hinzugefügt für den Staleness-Check

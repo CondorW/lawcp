@@ -1,6 +1,7 @@
 import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { pb } from '$lib/pocketbase';
+import { goto } from '$app/navigation';
 import type { AppData, Settings, Resource, SubtaskType } from '$lib/types';
 
 // --- MODULE IMPORTS ---
@@ -61,32 +62,30 @@ const createStore = () => {
             }
         },
 
-        logout: () => {
-            // 1. PocketBase Session killen
+        logout: async () => {
+            // 1. Session in der Datenbank / SDK killen
             pb.authStore.clear();
 
-            // 2. LocalStorage hart bereinigen (verhindert Auto-Login beim Redirect)
             if (browser) {
+                // 2. Physischen Speicher hart bereinigen
                 localStorage.removeItem('lawcp_settings');
                 localStorage.removeItem('lawcp_resources');
-            }
 
-            // 3. Store State zurücksetzen
-            update(s => ({
-                ...s,
-                tasks: [],
-                resources: [],
-                settings: { 
-                    myShortsign: 'ME', 
-                    darkMode: s.settings.darkMode, // DarkMode behalten wir meistens
-                    isAuthenticated: false, 
-                    team: [] 
-                }
-            }));
+                // 3. Den laufenden Store leeren (verhindert Daten-Lecks im RAM)
+                update(s => ({
+                    ...s,
+                    tasks: [],
+                    resources: [],
+                    settings: { 
+                        myShortsign: 'ME', 
+                        darkMode: s.settings.darkMode, 
+                        isAuthenticated: false, 
+                        team: [] 
+                    }
+                }));
 
-            // 4. Redirect zum Login
-            if (browser) {
-                window.location.href = '/login';
+                // 4. SvelteKit-interner Router für den Redirect (kein harter Page-Reload nötig)
+                await goto('/login');
             }
         },
 

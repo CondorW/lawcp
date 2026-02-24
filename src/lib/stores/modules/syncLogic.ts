@@ -116,26 +116,115 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
         }
     });
 
-    // Background Verifier
+    // --- ADAPTIVE HEARTBEAT SYNC (Firewall-Buster) ---
+    // Simuliert Echtzeit durch aggressives Polling (1s) bei Aktivität
     if (browser) {
-        setInterval(async () => {
-            const myId = pb.authStore.model?.id || '';
+        let lastSync = new Date().toISOString();
+        let pollInterval: any;
+        let isFastPolling = false;
+        let idleTimer: any;
+
+        // Die Sync-Funktion (Kernlogik inkl. Ghost-Buster)
+        const runSync = async () => {
+            const myId = pb.authStore.model?.id;
             if (!myId) return;
 
-            let currentTasks: Task[] = [];
-            update(s => { currentTasks = s.tasks; return s; });
+            try {
+                // 1. Ghost-Buster: Nur die IDs laden, um gelöschte Tasks aus dem UI zu werfen (extrem leichtgewichtig)
+                const serverIdsRecord = await pb.collection('tasks').getFullList({ fields: 'id' });
+                const serverIds = new Set(serverIdsRecord.map((t: any) => t.id));
 
-            const foreignTasks = currentTasks.filter(t => t.owner !== myId);
+                // 2. Updates: Nur Tasks laden, die sich wirklich verändert haben
+                const missedTasks = await pb.collection('tasks').getFullList({
+                    filter: `updated > "${lastSync}"`,
+                    expand: 'owner'
+                });
 
-            for (const t of foreignTasks) {
-                try {
-                    await pb.collection('tasks').getOne(t.id, { fields: 'id' });
-                } catch (err: any) {
-                    if (err.status === 404) {
-                        update(s => ({ ...s, tasks: s.tasks.filter(task => task.id !== t.id) }));
-                    }
+                if (missedTasks.length > 0) {
+                    lastSync = new Date().toISOString(); // Zeitstempel aktualisieren
                 }
+
+                // 3. Store updaten
+                update(s => {
+                    // Geister-Tasks entfernen (Tasks, deren ID auf dem Server nicht mehr existiert)
+                    let newTasks = s.tasks.filter(t => serverIds.has(t.id));
+                    let hasChanges = s.tasks.length !== newTasks.length;
+
+                    if (missedTasks.length > 0) {
+                        missedTasks.forEach((mt: any) => {
+                            const index = newTasks.findIndex(t => t.id === mt.id);
+                            
+                            // Berechtigungs-Check
+                            const isOwner = mt.owner === myId;
+                            const isAssignee = mt.assignees?.includes(myId);
+                            const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
+
+                            if (isOwner || isAssignee || isTeamReview) {
+                                const taskObj: Task = {
+                                    id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef,
+                                    dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: mt.subtasks || [],
+                                    flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM',
+                                    createdAt: mt.created, timeTracked: 0, dependencies: [], assignees: mt.assignees || [],
+                                    owner: mt.owner, expand: mt.expand
+                                };
+
+                                if (index !== -1) {
+                                    // Nur updaten, wenn sich intern etwas geändert hat
+                                    if (JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) {
+                                        newTasks[index] = taskObj;
+                                        hasChanges = true;
+                                    }
+                                } else {
+                                    newTasks.unshift(taskObj); // Neu hinzufügen
+                                    hasChanges = true;
+                                }
+                            } else if (index !== -1) {
+                                // Rechte verloren (z.B. Task wurde jemand anderem zugewiesen) -> Ausblenden
+                                newTasks.splice(index, 1);
+                                hasChanges = true;
+                            }
+                        });
+                    }
+
+                    return hasChanges ? { ...s, tasks: newTasks } : s;
+                });
+            } catch (e) {
+                // Silent Error (verhindert Spam in der Konsole bei Netzwerk-Rucklern)
             }
-        }, 5000);
+        };
+
+        // Polling-Geschwindigkeit steuern
+        const setPolling = (fast: boolean) => {
+            if (isFastPolling === fast) return;
+            isFastPolling = fast;
+            
+            clearInterval(pollInterval);
+            // Fast: 1000ms (Fühlt sich wie Realtime an) | Slow: 10000ms (Hintergrund)
+            pollInterval = setInterval(runSync, fast ? 1000 : 10000);
+        };
+
+        // Aktivitäts-Tracker
+        const onUserActivity = () => {
+            setPolling(true); // Sofort auf schnell schalten
+            clearTimeout(idleTimer);
+            // Nach 30 Sekunden Inaktivität wieder runterfahren
+            idleTimer = setTimeout(() => setPolling(false), 30000);
+        };
+
+        // Event Listeners für "Aufwachen"
+        window.addEventListener('mousemove', onUserActivity);
+        window.addEventListener('keydown', onUserActivity);
+        window.addEventListener('click', onUserActivity);
+        
+        // Wenn Tab gewechselt wird: Sofort-Sync
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                runSync();
+                onUserActivity();
+            }
+        });
+
+        // Start initial
+        onUserActivity();
     }
 };

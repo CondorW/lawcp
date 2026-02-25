@@ -1,17 +1,52 @@
 <script lang="ts">
-    import { goto } from '$app/navigation';
+    import { goto, afterNavigate } from '$app/navigation';
     import { page } from '$app/stores';
     import { store } from '$lib/stores/tasks';
-    import { Search, Calendar, LayoutGrid, GitBranch, Building2, Moon, Sun, Command, FileText } from 'lucide-svelte';
+    import { Search, Calendar, LayoutGrid, GitBranch, Building2, Moon, Sun, Command, FileText, PlusCircle } from 'lucide-svelte';
     import { fade, scale } from 'svelte/transition';
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte'; // NEU: tick importiert
 
     let open = false;
     let query = '';
     let selectedIndex = 0;
     let inputEl: HTMLInputElement;
+    let pendingFocus = false;
+
+    // OPTIMIERT: Deterministisches Warten ohne feste Zeiten
+    afterNavigate(async () => {
+        if (pendingFocus) {
+            pendingFocus = false;
+            
+            // 1. Warten, bis Svelte das HTML im DOM aufgebaut hat
+            await tick(); 
+            
+            // 2. Den nächsten Browser-Paint-Zyklus abpassen (hebelt den SvelteKit-Router aus)
+            requestAnimationFrame(() => {
+                const input = document.getElementById('task-input');
+                if (input) input.focus();
+            });
+        }
+    });
 
     $: actions = [
+        { 
+            id: 'new-task', 
+            title: 'Neue Aufgabe erfassen', 
+            icon: PlusCircle, 
+            action: async () => {
+                open = false; 
+                
+                if ($page.url.pathname !== '/') {
+                    pendingFocus = true; 
+                    await goto('/'); // Warten, bis die Navigation durch ist
+                } else {
+                    // OPTIMIERT: Wenn wir schon auf der Seite sind, feuern wir ohne Verzögerung
+                    await tick();
+                    const input = document.getElementById('task-input');
+                    if (input) input.focus();
+                }
+            } 
+        },
         { id: 'board', title: 'Board öffnen', icon: LayoutGrid, action: () => goto('/') },
         { id: 'calendar', title: 'Kalender öffnen', icon: Calendar, action: () => goto('/calendar') },
         { id: 'workflow', title: 'Workflow Designer', icon: GitBranch, action: () => goto('/workflow') },
@@ -28,12 +63,12 @@
         ? $store.tasks.filter(t => 
             t.title.toLowerCase().includes(query.toLowerCase()) || 
             (t.matterRef && t.matterRef.toLowerCase().includes(query.toLowerCase()))
-          ).slice(0, 5).map(t => ({
-              id: t.id,
-              title: `${t.matterRef ? t.matterRef + ': ' : ''}${t.title}`,
-              icon: FileText,
-              action: () => { goto('/'); }
-          }))
+        ).slice(0, 5).map(t => ({ 
+            id: t.id, 
+            title: `${t.matterRef ? t.matterRef + ': ' : ''}${t.title}`, 
+            icon: FileText, 
+            action: () => { goto('/'); } 
+        })) 
         : [];
 
     $: filtered = [...actions.filter(a => a.title.toLowerCase().includes(query.toLowerCase())), ...taskResults];
@@ -43,7 +78,10 @@
         if (open) {
             query = '';
             selectedIndex = 0;
-            setTimeout(() => inputEl?.focus(), 50);
+            // Hier nutzen wir ausnahmsweise noch einen Mini-Timeout, da das inputEl 
+            // durch Sveltes #if-Block erst eine Millisekunde später existiert.
+            // Alternativ könnte man hier auch 'await tick()' nutzen, wenn 'toggle' async wäre.
+            setTimeout(() => inputEl?.focus(), 10);
         }
     }
 
@@ -53,7 +91,6 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
-        // FIX: Shortcut auf 'J' geändert (statt 'K')
         if (e.key === 'j' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             toggle();
@@ -83,8 +120,8 @@
 
 {#if ($page.url.pathname as string) !== '/login'}
     <button 
-        onclick={toggle}
-        class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-amber-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-transform flex items-center gap-3 font-bold border border-slate-700 dark:border-amber-500 group"
+        onclick={toggle} 
+        class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-amber-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-transform flex items-center gap-3 font-bold border border-slate-700 dark:border-amber-500 group" 
         title="Befehlspalette öffnen (Strg+J)"
     >
         <Search size={20} />
@@ -100,23 +137,22 @@
         <div 
             class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
             onclick={() => open = false} 
-            onkeydown={(e) => { if(e.key === 'Escape') open = false; }}
+            onkeydown={(e) => { if(e.key === 'Escape') open = false; }} 
             role="button" 
             tabindex="-1"
         ></div>
-
         <div 
-            class="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[60vh]"
+            class="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[60vh]" 
             transition:scale={{ duration: 150, start: 0.95 }}
         >
             <div class="flex items-center gap-3 p-4 border-b border-slate-100 dark:border-slate-800">
                 <Search class="text-slate-400" size={20} />
                 <input 
-                    bind:this={inputEl}
-                    bind:value={query}
+                    bind:this={inputEl} 
+                    bind:value={query} 
                     type="text" 
                     placeholder="Wonach suchen Sie?" 
-                    class="flex-1 bg-transparent border-none focus:ring-0 text-lg text-slate-900 dark:text-white placeholder:text-slate-400 p-0"
+                    class="flex-1 bg-transparent border-none focus:ring-0 text-lg text-slate-900 dark:text-white placeholder:text-slate-400 p-0 outline-none" 
                 />
                 <button onclick={() => open = false} class="text-xs font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">ESC</button>
             </div>
@@ -140,7 +176,7 @@
                     {/each}
                 {/if}
             </div>
-            
+
             <div class="p-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex justify-between px-4">
                 <span><strong>↑↓</strong> zum Wählen</span>
                 <span><strong>LawCP</strong> Command Center</span>

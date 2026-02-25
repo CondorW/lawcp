@@ -23,14 +23,50 @@ export const deleteResource = async (update: (fn: (s: AppData) => AppData) => vo
     }
 };
 
-// --- TASKS ---
-export const addTask = async (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => {
+export const addTask = async (update: any, status: string, title: string, ref?: string, date?: string, assignedTo?: string) => {
     const userId = pb.authStore.model?.id;
     if (!userId) return;
-    await pb.collection('tasks').create({
-        title, status, matterRef: ref, dueDate: date || new Date().toISOString(),
-        subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId]
+
+    const dueDate = date || new Date().toISOString();
+    const tempId = 'temp-' + Date.now(); // Temporäre ID, bis PB die echte liefert
+
+    // 1. OPTIMISTIC UI: Sofort in den lokalen Store pushen (0ms Latenz)
+    update((s: AppData) => {
+        const newTask: Task = {
+            id: tempId,
+            title,
+            status: status as Task['status'],
+            matterRef: ref,
+            dueDate: dueDate.substring(0, 10),
+            subtasks: [],
+            flaggedDate: null,
+            priority: 'MEDIUM',
+            createdAt: new Date().toISOString(),
+            timeTracked: 0,
+            dependencies: [],
+            assignees: assignedTo ? [assignedTo] : [userId],
+            owner: userId
+        };
+        return { ...s, tasks: [newTask, ...s.tasks] };
     });
+
+    // 2. Im Hintergrund an die Datenbank senden
+    try {
+        const record = await pb.collection('tasks').create({
+            title, status, matterRef: ref, dueDate,
+            subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId]
+        });
+
+        // 3. Temporäre ID mit der echten Datenbank-ID überschreiben
+        update((s: AppData) => ({
+            ...s,
+            tasks: s.tasks.map(t => t.id === tempId ? { ...t, id: record.id } : t)
+        }));
+    } catch (e) {
+        console.error("Task creation failed:", e);
+        // Bei Fehler den Task wieder aus dem UI löschen (Rollback)
+        update((s: AppData) => ({ ...s, tasks: s.tasks.filter(t => t.id !== tempId) }));
+    }
 };
 
 export const assignTask = async (update: (fn: (s: AppData) => AppData) => void, taskId: string, assigneeId: string) => {

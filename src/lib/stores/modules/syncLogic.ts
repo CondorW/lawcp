@@ -119,7 +119,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
     // --- ADAPTIVE HEARTBEAT SYNC (Firewall-Buster) ---
     // Simuliert Echtzeit durch aggressives Polling (1s) bei Aktivität
     if (browser) {
-        let lastSync = new Date().toISOString();
+        let lastServerTime = ""; // Wir vertrauen NICHT mehr der lokalen Browser-Uhr!
         let pollInterval: any;
         let isFastPolling = false;
         let idleTimer: any;
@@ -130,31 +130,50 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
             if (!myId) return;
 
             try {
-                // 1. Ghost-Buster: Nur die IDs laden, um gelöschte Tasks aus dem UI zu werfen (extrem leichtgewichtig)
-                const serverIdsRecord = await pb.collection('tasks').getFullList({ fields: 'id' });
-                const serverIds = new Set(serverIdsRecord.map((t: any) => t.id));
-
-                // 2. Updates: Nur Tasks laden, die sich wirklich verändert haben
-                const missedTasks = await pb.collection('tasks').getFullList({
-                    filter: `updated > "${lastSync}"`,
-                    expand: 'owner'
+                // 1. Ghost-Buster & Zeit-Sync: Wir holen alle IDs und das neueste Update-Datum vom Server
+                const serverMeta = await pb.collection('tasks').getFullList({ 
+                    fields: 'id,updated', 
+                    sort: '-updated',
+                    requestKey: null, // Verhindert Auto-Cancel durch das SDK bei schnellem Polling
+                    headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } // Proxy-Cache sprengen
                 });
+                
+                const serverIds = new Set(serverMeta.map((t: any) => t.id));
+
+                // Beim allerersten Tick kalibrieren wir unsere "Uhr" auf die Serverzeit
+                if (!lastServerTime && serverMeta.length > 0) {
+                    lastServerTime = serverMeta[0].updated;
+                    return; 
+                }
+
+                // 2. Updates: Nur Tasks laden, die nach der exakten Server-Zeit verändert wurden
+                let missedTasks: any[] = [];
+                if (lastServerTime) {
+                    missedTasks = await pb.collection('tasks').getFullList({
+                        filter: `updated > "${lastServerTime}"`,
+                        expand: 'owner',
+                        sort: '-updated', // Neueste zuerst
+                        requestKey: null,
+                        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+                    });
+                }
 
                 if (missedTasks.length > 0) {
-                    lastSync = new Date().toISOString(); // Zeitstempel aktualisieren
+                    lastServerTime = missedTasks[0].updated; // Uhr sofort auf den neuesten Stand setzen
                 }
 
                 // 3. Store updaten
                 update(s => {
-                    // Geister-Tasks entfernen (Tasks, deren ID auf dem Server nicht mehr existiert)
-                    let newTasks = s.tasks.filter(t => serverIds.has(t.id));
+                    // 3.1 Ghost-Buster inkl. Schutzschild für Optimistic UI
+                    // (Wir behalten Tasks, die eine 'temp-' ID haben oder vom Server bestätigt sind)
+                    let newTasks = s.tasks.filter(t => t.id.startsWith('temp-') || serverIds.has(t.id));
                     let hasChanges = s.tasks.length !== newTasks.length;
 
+                    // 3.2 Updates & Rechte-Entzug verarbeiten
                     if (missedTasks.length > 0) {
                         missedTasks.forEach((mt: any) => {
                             const index = newTasks.findIndex(t => t.id === mt.id);
                             
-                            // Berechtigungs-Check
                             const isOwner = mt.owner === myId;
                             const isAssignee = mt.assignees?.includes(myId);
                             const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
@@ -169,23 +188,23 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
                                 };
 
                                 if (index !== -1) {
-                                    // Nur updaten, wenn sich intern etwas geändert hat
+                                    // Update eines bestehenden Tasks
                                     if (JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) {
                                         newTasks[index] = taskObj;
                                         hasChanges = true;
                                     }
                                 } else {
-                                    newTasks.unshift(taskObj); // Neu hinzufügen
+                                    // Neuer Task von außen
+                                    newTasks.unshift(taskObj);
                                     hasChanges = true;
                                 }
                             } else if (index !== -1) {
-                                // Rechte verloren (z.B. Task wurde jemand anderem zugewiesen) -> Ausblenden
-                                newTasks.splice(index, 1);
+                                // HAUPT-FIX: Rechte verloren (z.B. TL hat TM entzogen) -> Sofort ausblenden
+                                newTasks = newTasks.filter(t => t.id !== mt.id); // Sicherer als splice()
                                 hasChanges = true;
                             }
                         });
                     }
-
                     return hasChanges ? { ...s, tasks: newTasks } : s;
                 });
             } catch (e) {
@@ -227,4 +246,4 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
         // Start initial
         onUserActivity();
     }
-};
+}

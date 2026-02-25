@@ -94,8 +94,7 @@ const createStore = () => {
         deleteResource: (id: string) => DBLogic.deleteResource(update, id),
 
         // --- POCKETBASE ACTIONS: TASKS ---
-        addTask: (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => DBLogic.addTask(status, title, ref, date, assignedTo),
-        assignTask: (taskId: string, assigneeId: string) => DBLogic.assignTask(update, taskId, assigneeId),
+        addTask: (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => DBLogic.addTask(update, status, title, ref, date, assignedTo),        assignTask: (taskId: string, assigneeId: string) => DBLogic.assignTask(update, taskId, assigneeId),
         deleteTask: (id: string) => DBLogic.deleteTask(update, id),
         updateTaskTitle: (id: string, title: string) => DBLogic.updateTaskTitle(id, title),
         updateTaskRef: (id: string, ref: string) => DBLogic.updateTaskRef(id, ref),

@@ -1,27 +1,22 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    // NEU: Filter Icon importieren
     import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter } from 'lucide-svelte';
     import TaskInput from '$lib/components/TaskInput.svelte';
     import TaskColumn from '$lib/components/TaskColumn.svelte';
 
-    // NEU: State für den Referenz-Filter
     let refFilter = '';
 
     const byDate = (a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 
-    // NEU: Zentrale Filter-Funktion
     $: matchesFilter = (t: any) => {
         if (!refFilter.trim()) return true;
         return t.matterRef && t.matterRef.toLowerCase().includes(refFilter.toLowerCase());
     };
 
-    // Listen jetzt zusätzlich nach 'matchesFilter' gefiltert
     $: todos = $store.tasks.filter(t => t.status === 'TODO' && matchesFilter(t)).sort(byDate);
     $: waiting = $store.tasks.filter(t => t.status === 'WAITING' && matchesFilter(t)).sort(byDate);
     $: review = $store.tasks.filter(t => t.status === 'REVIEW' && matchesFilter(t)).sort(byDate);
     $: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t)).sort(byDate);
-
 </script>
 
 <div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans">
@@ -33,7 +28,7 @@
                         <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
                         <span class="text-xl font-bold tracking-tight text-white font-serif">Lawganized<span class="text-amber-500">LWA</span></span>
                     </div>
-
+                    
                     <div class="hidden md:flex items-center gap-1">
                         <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-800 text-white shadow-inner">
                             <LayoutGrid size={16} /> Board
@@ -60,7 +55,7 @@
                             class="pl-8 pr-3 py-1.5 rounded-md border border-slate-600 bg-slate-800 text-xs text-white placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500 outline-none w-32 focus:w-48 transition-all"
                         />
                     </div>
-
+                    
                     <a href="/settings" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
                         <Settings size={20} />
                     </a>
@@ -82,24 +77,19 @@
             <TaskInput />
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 items-start divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            
-            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 min-h-[600px]">
+        <div class="grid grid-cols-1 lg:grid-cols-4 items-stretch divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[600px]">
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full">
                 <TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
             </div>
-            
-            <div class="p-4 bg-white dark:bg-slate-900 min-h-[600px]">
+            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full">
                 <TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-amber-500" />
             </div>
-            
-            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 min-h-[600px]">
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full">
                 <TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
             </div>
-            
-            <div class="p-4 bg-white dark:bg-slate-900 min-h-[600px]">
+            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full">
                 <TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
             </div>
-
         </div>
     </main>
 </div>

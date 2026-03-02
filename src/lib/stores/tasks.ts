@@ -110,7 +110,7 @@ const createStore = () => {
         updateSubtaskPos: (taskId: string, subId: string, x: number, y: number) => DBLogic.updateSubtaskPos(update, () => get({ subscribe }), taskId, subId, x, y),
         connectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.connectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
         disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.disconnectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
-
+        deleteSubtask: (taskId: string, subtaskIdToDelete: string) => DBLogic.deleteSubtask(update, get, taskId, subtaskIdToDelete),
         // --- EXTRAS ---
         openMatterNotes: (ref: string) => activeMatterStore.set(ref),
         closeMatterNotes: () => activeMatterStore.set(null),

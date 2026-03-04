@@ -8,6 +8,8 @@
     export let id: Task['status'];
     export let tasks: Task[];
     export let color = 'bg-gray-400';
+    import { flip } from 'svelte/animate';
+    import { fade, fly } from 'svelte/transition';
 
     function onDragOver(e: DragEvent) {
         e.preventDefault();
@@ -41,7 +43,9 @@
 
     <div class="space-y-4 flex-1 pb-10">
         {#each tasks as task (task.id)}
-            <TaskCard {task} />
+            <div animate:flip={{ duration: 250 }} in:fly={{ y: 20, duration: 300 }} out:fade={{ duration: 150 }}>
+                <TaskCard {task} />
+            </div>
         {/each}
     </div>
 </div>

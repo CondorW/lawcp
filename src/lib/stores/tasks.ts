@@ -90,7 +90,7 @@ const createStore = () => {
         },
 
         // --- POCKETBASE ACTIONS: RESOURCES ---
-        addResource: (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => DBLogic.addResource(resData),
+        addResource: (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => DBLogic.addResource(update, resData),
         deleteResource: (id: string) => DBLogic.deleteResource(update, id),
 
         // --- POCKETBASE ACTIONS: TASKS ---

@@ -4,13 +4,37 @@ import type { AppData, Task, SubtaskType, Resource, Subtask } from '$lib/types';
 import { recursiveAdd, recursiveUpdate } from '$lib/utils';
 
 // --- RESOURCES ---
-export const addResource = async (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => {
+export const addResource = async (update: any, resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => {
     const userId = pb.authStore.model?.id;
     if (!userId) return;
+
+    const tempId = 'temp-res-' + Date.now();
+    
+    // 1. Optimistic UI: Sofort in den Store pushen (0ms Latenz)
+    update((s: AppData) => {
+        const newRes: Resource = {
+            ...resData,
+            id: tempId,
+            owner: userId,
+            created: new Date().toISOString(),
+            updated: new Date().toISOString()
+        };
+        return { ...s, resources: [newRes, ...s.resources] };
+    });
+
     try {
-        await pb.collection('resources').create({ ...resData, owner: userId });
+        // 2. Im Hintergrund an PocketBase senden
+        const record = await pb.collection('resources').create({ ...resData, owner: userId });
+        
+        // 3. Temporäre ID mit der echten Datenbank-ID austauschen
+        update((s: AppData) => ({
+            ...s,
+            resources: s.resources.map(r => r.id === tempId ? { ...r, id: record.id } : r)
+        }));
     } catch (e) {
         console.error("Failed to add resource:", e);
+        // Bei einem Fehler das temporäre Element wieder entfernen
+        update((s: AppData) => ({ ...s, resources: s.resources.filter(r => r.id !== tempId) }));
     }
 };
 

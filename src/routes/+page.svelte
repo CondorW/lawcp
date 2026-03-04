@@ -19,7 +19,7 @@
     $: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t)).sort(byDate);
 </script>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans overflow-x-hidden">
     <nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800">
         <div class="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between items-center">
@@ -28,7 +28,6 @@
                         <div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
                         <span class="text-xl font-bold tracking-tight text-white font-serif">Lawganized<span class="text-amber-500">LWA</span></span>
                     </div>
-                    
                     <div class="hidden md:flex items-center gap-1">
                         <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-800 text-white shadow-inner">
                             <LayoutGrid size={16} /> Board
@@ -44,18 +43,11 @@
                         </a>
                     </div>
                 </div>
-
                 <div class="flex items-center gap-3">
                     <div class="relative hidden lg:block group">
                         <Filter class="absolute left-2.5 top-1.5 text-slate-500 group-focus-within:text-amber-500 transition-colors" size={14}/>
-                        <input 
-                            type="text" 
-                            bind:value={refFilter} 
-                            placeholder="Ref-Filter..." 
-                            class="pl-8 pr-3 py-1.5 rounded-md border border-slate-600 bg-slate-800 text-xs text-white placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500 outline-none w-32 focus:w-48 transition-all"
-                        />
+                        <input type="text" bind:value={refFilter} placeholder="Ref-Filter..." class="pl-8 pr-3 py-1.5 rounded-md border border-slate-600 bg-slate-800 text-xs text-white placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500 outline-none w-32 focus:w-48 transition-all" />
                     </div>
-                    
                     <a href="/settings" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
                         <Settings size={20} />
                     </a>
@@ -77,19 +69,24 @@
             <TaskInput />
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 items-stretch divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[600px]">
-            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full">
+        <div class="flex flex-col lg:flex-row items-stretch divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto min-h-[600px] custom-scrollbar">
+            
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
                 <TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
             </div>
-            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full">
+            
+            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
                 <TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-amber-500" />
             </div>
-            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full">
+            
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
                 <TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
             </div>
-            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full">
+            
+            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
                 <TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
             </div>
+            
         </div>
     </main>
 </div>

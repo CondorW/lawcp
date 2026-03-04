@@ -231,3 +231,34 @@ export const disconnectSubtasks = async (update: any, get: any, taskId: string, 
     const task = get().tasks.find((t: Task) => t.id === taskId);
     if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
 };
+
+// --- NEU: MATTER CONTEXT LOGIC ---
+export const fetchContext = async (matterRef: string) => {
+    const userId = pb.authStore.model?.id;
+    if (!userId || !matterRef) return null;
+    try {
+        // Sucht den spezifischen Kontext für diesen Nutzer und dieses Aktenzeichen
+        const record = await pb.collection('contexts').getFirstListItem(`matterRef="${matterRef}" && owner="${userId}"`);
+        return record;
+    } catch (e) {
+        // ClientResponseError 404 ist hier völlig normal, wenn noch kein Kontext existiert
+        return null;
+    }
+};
+
+export const saveContext = async (matterRef: string, content: string, contextId?: string) => {
+    const userId = pb.authStore.model?.id;
+    if (!userId || !matterRef) return null;
+    try {
+        if (contextId) {
+            // Existierenden Kontext updaten
+            return await pb.collection('contexts').update(contextId, { content });
+        } else {
+            // Neuen Kontext anlegen
+            return await pb.collection('contexts').create({ matterRef, owner: userId, content });
+        }
+    } catch (e) {
+        console.error("Failed to save context:", e);
+        return null;
+    }
+};

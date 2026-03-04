@@ -115,8 +115,8 @@ const createStore = () => {
         openMatterNotes: (ref: string) => activeMatterStore.set(ref),
         closeMatterNotes: () => activeMatterStore.set(null),
         updateMatterNote: async (ref: string, content: string) => console.log("Note Update:", ref),
-        exportData: () => { alert("Import disabled"); return false; },
-        importData: () => { alert("Import disabled"); return false; }
+        fetchContext: async (ref: string) => DBLogic.fetchContext(ref),
+        saveContext: async (ref: string, content: string, contextId?: string) => DBLogic.saveContext(ref, content, contextId),
     };
 };
 

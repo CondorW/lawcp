@@ -1,15 +1,14 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    // FIX 1: Der Typ 'Task' kommt aus deiner zentralen Typendatei, nicht aus dem Store
-    import type { Task } from '$lib/types'; 
+    import type { Task } from '$lib/types';
     import TaskCard from './TaskCard.svelte';
+    import { flip } from 'svelte/animate';
+    import { fade, fly } from 'svelte/transition';
 
     export let title: string;
     export let id: Task['status'];
     export let tasks: Task[];
     export let color = 'bg-gray-400';
-    import { flip } from 'svelte/animate';
-    import { fade, fly } from 'svelte/transition';
 
     function onDragOver(e: DragEvent) {
         e.preventDefault();
@@ -26,12 +25,12 @@
 </script>
 
 <div 
-    class="flex flex-col h-full flex-1 gap-4 min-h-[500px]" 
+    class="flex flex-col h-full w-full" 
     role="list" 
     ondragover={onDragOver} 
     ondrop={onDrop}
 >
-    <div class="flex items-center justify-between px-2 py-1 shrink-0">
+    <div class="flex items-center justify-between px-2 py-1 shrink-0 mb-3">
         <h3 class="text-base font-bold text-gray-900 dark:text-slate-100 flex items-center gap-3">
             <div class={`w-3 h-3 rounded-full shadow-sm ${color}`}></div>
             {title}
@@ -41,11 +40,18 @@
         </span>
     </div>
 
-    <div class="space-y-4 flex-1 pb-10">
+    <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pr-1 pb-4 flex flex-col space-y-4">
         {#each tasks as task (task.id)}
-            <div animate:flip={{ duration: 250 }} in:fly={{ y: 20, duration: 300 }} out:fade={{ duration: 150 }}>
+            <div animate:flip={{ duration: 250 }} in:fly={{ y: 20, duration: 300 }} out:fade={{ duration: 150 }} class="shrink-0">
                 <TaskCard {task} />
             </div>
         {/each}
+        
+        <div 
+            class="flex-1 min-h-[4rem] border-2 border-transparent border-dashed rounded-lg transition-colors opacity-50 shrink-0"
+            ondragenter={(e) => e.currentTarget.classList.add('border-slate-300', 'dark:border-slate-700')}
+            ondragleave={(e) => e.currentTarget.classList.remove('border-slate-300', 'dark:border-slate-700')}
+            ondrop={(e) => e.currentTarget.classList.remove('border-slate-300', 'dark:border-slate-700')}
+        ></div>
     </div>
 </div>

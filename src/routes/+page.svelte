@@ -69,21 +69,21 @@
             <TaskInput />
         </div>
 
-        <div class="flex flex-col lg:flex-row items-stretch divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto min-h-[600px] custom-scrollbar">
+        <div class="flex flex-col lg:flex-row items-stretch divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto h-[calc(100vh-14rem)] min-h-[500px] custom-scrollbar">
             
-            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px] overflow-hidden">
                 <TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
             </div>
             
-            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
+            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px] overflow-hidden">
                 <TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-amber-500" />
             </div>
             
-            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
+            <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px] overflow-hidden">
                 <TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
             </div>
             
-            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px]">
+            <div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full flex-1 lg:min-w-[320px] lg:max-w-[450px] overflow-hidden">
                 <TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
             </div>
             

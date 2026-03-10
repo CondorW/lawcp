@@ -5,35 +5,46 @@ import { recursiveAdd, recursiveUpdate } from '$lib/utils';
 
 // --- RESOURCES ---
 export const addResource = async (update: any, resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => {
-    const userId = pb.authStore.model?.id;
-    if (!userId) return;
+    const userModel = pb.authStore.model;
+    const userId = userModel?.id;
+    
+    if (!userId || !userModel) return;
 
     const tempId = 'temp-res-' + Date.now();
-    
-    // 1. Optimistic UI: Sofort in den Store pushen (0ms Latenz)
+
     update((s: AppData) => {
         const newRes: Resource = {
             ...resData,
             id: tempId,
             owner: userId,
             created: new Date().toISOString(),
-            updated: new Date().toISOString()
+            updated: new Date().toISOString(),
+            // FIX: Wir matchen das Objekt exakt auf die Erwartung des Linters
+            expand: {
+                owner: {
+                    shortsign: userModel.shortsign || 'ME'
+                } as any 
+            }
         };
         return { ...s, resources: [newRes, ...s.resources] };
     });
 
     try {
-        // 2. Im Hintergrund an PocketBase senden
-        const record = await pb.collection('resources').create({ ...resData, owner: userId });
-        
-        // 3. Temporäre ID mit der echten Datenbank-ID austauschen
+        const record = await pb.collection('resources').create(
+            { ...resData, owner: userId },
+            { expand: 'owner' } 
+        );
+
         update((s: AppData) => ({
             ...s,
-            resources: s.resources.map(r => r.id === tempId ? { ...r, id: record.id } : r)
+            resources: s.resources.map(r => r.id === tempId ? { 
+                ...r, 
+                id: record.id,
+                expand: record.expand 
+            } : r)
         }));
     } catch (e) {
         console.error("Failed to add resource:", e);
-        // Bei einem Fehler das temporäre Element wieder entfernen
         update((s: AppData) => ({ ...s, resources: s.resources.filter(r => r.id !== tempId) }));
     }
 };

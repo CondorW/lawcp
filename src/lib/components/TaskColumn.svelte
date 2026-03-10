@@ -48,6 +48,8 @@
         {/each}
         
         <div 
+            role="region"
+            aria-label="Drop-Zone Puffer"
             class="flex-1 min-h-[4rem] border-2 border-transparent border-dashed rounded-lg transition-colors opacity-50 shrink-0"
             ondragenter={(e) => e.currentTarget.classList.add('border-slate-300', 'dark:border-slate-700')}
             ondragleave={(e) => e.currentTarget.classList.remove('border-slate-300', 'dark:border-slate-700')}

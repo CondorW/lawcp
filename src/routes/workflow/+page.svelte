@@ -2,6 +2,7 @@
     import { store } from '$lib/stores/tasks';
     import type { Subtask } from '$lib/types';
     import { ArrowLeft, Plus, Move, CornerDownRight, CheckCircle2, CheckSquare } from 'lucide-svelte';
+    import { autosize } from '$lib/actions'; // NEU: Importiere deine Autosize-Action
 
     let selectedTaskId: string | null = null;
     let container: HTMLDivElement;
@@ -14,7 +15,6 @@
 
     $: selectedTask = $store.tasks.find(t => t.id === selectedTaskId);
 
-    // --- REKURSIVES FLATTENING ---
     type FlatSubtask = Subtask & { level: number };
     function flattenSubtasks(subs: Subtask[] | undefined, level = 0): FlatSubtask[] {
         if (!subs) return [];
@@ -29,7 +29,6 @@
 
     $: flattenedSubs = selectedTask ? flattenSubtasks(selectedTask.subtasks) : [];
 
-    // --- DIE EINMALIGE AUTO-ZENTRIERUNG ---
     function autoCenterUnplaced(taskId: string) {
         if (!container) return;
         const task = $store.tasks.find(t => t.id === taskId);
@@ -51,7 +50,6 @@
         }
     }
 
-    // --- Helpers ---
     function getCurve(x1: number, y1: number, x2: number, y2: number) {
         const c1x = x1 + (x2 - x1) / 2;
         const c1y = y1;
@@ -60,7 +58,6 @@
         return `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`;
     }
 
-    // --- Logic ---
     function addStep() {
         if (!selectedTaskId || !container) return;
         const rect = container.getBoundingClientRect();
@@ -103,7 +100,7 @@
 
     function startDrag(e: MouseEvent, subId: string) {
         const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') return;
         e.stopPropagation();
         draggingSubId = subId;
     }
@@ -117,7 +114,7 @@
 </script>
 
 <div class="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-hidden font-sans">
-    <div class="w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-xl">
+    <div class="w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-xl shrink-0">
         <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3 bg-slate-50 dark:bg-slate-900">
             <a href="/" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><ArrowLeft size={20}/></a>
             <h1 class="font-bold text-lg">Prozess Designer</h1>
@@ -148,7 +145,6 @@
         onmousemove={onCanvasMouseMove}
         onmouseup={() => { draggingSubId = null; }}
         onclick={() => { linkingSourceId = null; }}
-        tabindex="-1"
         onkeydown={handleKeyDown}
     >
         <div class="absolute inset-0 opacity-10 dark:opacity-20 pointer-events-none" style="background-image: radial-gradient(#64748b 1px, transparent 1px); background-size: 20px 20px;"></div>
@@ -245,13 +241,16 @@
                     </div>
 
                     <div class="p-3">
-                        <input 
+                        <textarea 
+                            use:autosize
                             value={sub.title} 
                             onchange={(e) => store.updateSubtaskTitle(selectedTaskId!, sub.id, e.currentTarget.value)} 
-                            class={`w-full text-sm font-bold bg-transparent border-0 p-0 focus:ring-0 transition-colors
+                            rows="1"
+                            spellcheck="false"
+                            class={`w-full text-sm font-bold bg-transparent border-0 p-0 focus:ring-0 transition-colors resize-none overflow-hidden block whitespace-pre-wrap break-words min-h-[20px]
                                 ${sub.done ? 'text-slate-400 line-through' : 'text-slate-800 dark:text-slate-200'}
                             `}
-                        />
+                        ></textarea>
                     </div>
 
                     <button 

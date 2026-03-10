@@ -2,7 +2,7 @@
     import { store } from '$lib/stores/tasks';
     import type { Subtask } from '$lib/types';
     import { ArrowLeft, Plus, Move, CornerDownRight, CheckCircle2, CheckSquare } from 'lucide-svelte';
-    import { autosize } from '$lib/actions'; // NEU: Importiere deine Autosize-Action
+    import { autosize } from '$lib/actions';
 
     let selectedTaskId: string | null = null;
     let container: HTMLDivElement;
@@ -140,11 +140,13 @@
     </div>
 
     <div 
+        role="application"
         class="flex-1 relative bg-slate-100 dark:bg-slate-950 overflow-hidden cursor-crosshair"
         bind:this={container}
         onmousemove={onCanvasMouseMove}
         onmouseup={() => { draggingSubId = null; }}
         onclick={() => { linkingSourceId = null; }}
+        tabindex="0"
         onkeydown={handleKeyDown}
     >
         <div class="absolute inset-0 opacity-10 dark:opacity-20 pointer-events-none" style="background-image: radial-gradient(#64748b 1px, transparent 1px); background-size: 20px 20px;"></div>
@@ -206,6 +208,8 @@
 
             {#each flattenedSubs as sub (sub.id)}
                 <div 
+                    role="button"
+                    tabindex="0"
                     class={`absolute w-[220px] shadow-lg z-10 group transition-colors duration-200
                         ${linkingSourceId === sub.id ? 'border-blue-500 ring-4 ring-blue-500/20' : 'hover:border-amber-400'}
                         ${sub.level > 0 ? 'border-dashed border-2 rounded-tl-3xl rounded-br-3xl rounded-tr-sm rounded-bl-sm' : 'border-2 rounded-xl'}
@@ -225,7 +229,7 @@
                                 <CornerDownRight size={12} class="text-slate-400"/>
                             {/if}
                             <span class={`text-[10px] font-bold uppercase tracking-wider ${sub.done ? 'text-green-600 dark:text-green-500' : 'text-slate-400'}`}>
-                                {sub.type === 'GENERIC' ? (sub.level > 0 ? 'Unterschritt' : 'Schritt') : sub.type}
+                                {sub.type === 'GENERIC' ? (sub.level > 0 ? 'SUBTASK' : 'TASK') : sub.type}
                             </span>
                         </div>
                         <div class="flex items-center gap-2">
@@ -254,14 +258,14 @@
                     </div>
 
                     <button 
-                        class="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-100 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-500 rounded-full hover:scale-125 hover:border-green-500 transition-all flex items-center justify-center z-20 cursor-pointer shadow-sm"
+                        class="absolute -left-3 top-10 -translate-y-1/2 w-6 h-6 bg-slate-100 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-500 rounded-full hover:scale-125 hover:border-green-500 transition-all flex items-center justify-center z-20 cursor-pointer shadow-sm"
                         onclick={(e) => finishLink(e, sub.id)}
                         title="Eingang (Ziel)"
                     >
                         <div class="w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
                     </button>
                     <button 
-                        class={`absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 border-2 rounded-full hover:scale-125 transition-all flex items-center justify-center z-20 cursor-pointer shadow-sm
+                        class={`absolute -right-3 top-10 -translate-y-1/2 w-6 h-6 border-2 rounded-full hover:scale-125 transition-all flex items-center justify-center z-20 cursor-pointer shadow-sm
                         ${linkingSourceId === sub.id ? 'bg-blue-500 border-blue-600' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-500 hover:border-blue-500'}`}
                         onclick={(e) => startLink(e, sub.id)}
                         title="Ausgang (Start)"

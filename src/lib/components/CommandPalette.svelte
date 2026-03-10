@@ -4,7 +4,7 @@
     import { store } from '$lib/stores/tasks';
     import { Search, Calendar, LayoutGrid, GitBranch, Building2, Moon, Sun, Command, FileText, PlusCircle } from 'lucide-svelte';
     import { fade, scale } from 'svelte/transition';
-    import { onMount, tick } from 'svelte'; // NEU: tick importiert
+    import { onMount, tick } from 'svelte';
 
     let open = false;
     let query = '';
@@ -12,15 +12,10 @@
     let inputEl: HTMLInputElement;
     let pendingFocus = false;
 
-    // OPTIMIERT: Deterministisches Warten ohne feste Zeiten
     afterNavigate(async () => {
         if (pendingFocus) {
             pendingFocus = false;
-            
-            // 1. Warten, bis Svelte das HTML im DOM aufgebaut hat
-            await tick(); 
-            
-            // 2. Den nächsten Browser-Paint-Zyklus abpassen (hebelt den SvelteKit-Router aus)
+            await tick();
             requestAnimationFrame(() => {
                 const input = document.getElementById('task-input');
                 if (input) input.focus();
@@ -30,17 +25,13 @@
 
     $: actions = [
         { 
-            id: 'new-task', 
-            title: 'Neue Aufgabe erfassen', 
-            icon: PlusCircle, 
+            id: 'new-task', title: 'Neue Aufgabe erfassen', icon: PlusCircle, 
             action: async () => {
-                open = false; 
-                
+                open = false;
                 if ($page.url.pathname !== '/') {
-                    pendingFocus = true; 
-                    await goto('/'); // Warten, bis die Navigation durch ist
+                    pendingFocus = true;
+                    await goto('/');
                 } else {
-                    // OPTIMIERT: Wenn wir schon auf der Seite sind, feuern wir ohne Verzögerung
                     await tick();
                     const input = document.getElementById('task-input');
                     if (input) input.focus();
@@ -51,25 +42,18 @@
         { id: 'calendar', title: 'Kalender öffnen', icon: Calendar, action: () => goto('/calendar') },
         { id: 'workflow', title: 'Workflow Designer', icon: GitBranch, action: () => goto('/workflow') },
         { id: 'resources', title: 'Ressourcen & Kontakte', icon: Building2, action: () => goto('/resources') },
-        { 
-            id: 'theme', 
-            title: $store.settings.darkMode ? 'Light Mode aktivieren' : 'Dark Mode aktivieren', 
-            icon: $store.settings.darkMode ? Sun : Moon, 
-            action: () => store.toggleDarkMode() 
-        }
+        { id: 'theme', title: $store.settings.darkMode ? 'Light Mode aktivieren' : 'Dark Mode aktivieren', icon: $store.settings.darkMode ? Sun : Moon, action: () => store.toggleDarkMode() },
     ];
 
-    $: taskResults = query.trim().length > 0 
-        ? $store.tasks.filter(t => 
-            t.title.toLowerCase().includes(query.toLowerCase()) || 
-            (t.matterRef && t.matterRef.toLowerCase().includes(query.toLowerCase()))
-        ).slice(0, 5).map(t => ({ 
-            id: t.id, 
-            title: `${t.matterRef ? t.matterRef + ': ' : ''}${t.title}`, 
-            icon: FileText, 
-            action: () => { goto('/'); } 
-        })) 
-        : [];
+    $: taskResults = query.trim().length > 0 ? $store.tasks.filter(t => 
+        t.title.toLowerCase().includes(query.toLowerCase()) || 
+        (t.matterRef && t.matterRef.toLowerCase().includes(query.toLowerCase()))
+    ).slice(0, 5).map(t => ({
+        id: t.id, 
+        title: `${t.matterRef ? t.matterRef + ': ' : ''}${t.title}`, 
+        icon: FileText, 
+        action: () => { goto('/'); }
+    })) : [];
 
     $: filtered = [...actions.filter(a => a.title.toLowerCase().includes(query.toLowerCase())), ...taskResults];
 
@@ -78,9 +62,6 @@
         if (open) {
             query = '';
             selectedIndex = 0;
-            // Hier nutzen wir ausnahmsweise noch einen Mini-Timeout, da das inputEl 
-            // durch Sveltes #if-Block erst eine Millisekunde später existiert.
-            // Alternativ könnte man hier auch 'await tick()' nutzen, wenn 'toggle' async wäre.
             setTimeout(() => inputEl?.focus(), 10);
         }
     }
@@ -95,7 +76,6 @@
             e.preventDefault();
             toggle();
         }
-
         if (!open) return;
 
         if (e.key === 'ArrowDown') {
@@ -121,7 +101,7 @@
 {#if ($page.url.pathname as string) !== '/login'}
     <button 
         onclick={toggle} 
-        class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-amber-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-transform flex items-center gap-3 font-bold border border-slate-700 dark:border-amber-500 group" 
+        class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-amber-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-transform flex items-center gap-3 font-bold border border-slate-700 dark:border-amber-500 group print:hidden" 
         title="Befehlspalette öffnen (Strg+J)"
     >
         <Search size={20} />
@@ -133,7 +113,7 @@
 {/if}
 
 {#if open}
-    <div class="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] p-4 font-sans" transition:fade={{ duration: 100 }}>
+    <div class="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] p-4 font-sans print:hidden" transition:fade={{ duration: 100 }}>
         <div 
             class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
             onclick={() => open = false} 
@@ -141,6 +121,7 @@
             role="button" 
             tabindex="-1"
         ></div>
+        
         <div 
             class="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[60vh]" 
             transition:scale={{ duration: 150, start: 0.95 }}
@@ -156,15 +137,15 @@
                 />
                 <button onclick={() => open = false} class="text-xs font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">ESC</button>
             </div>
-
+            
             <div class="overflow-y-auto p-2">
                 {#if filtered.length === 0}
                     <div class="p-4 text-center text-slate-500 text-sm">Keine Ergebnisse gefunden.</div>
                 {:else}
                     {#each filtered as item, i}
                         <button 
-                            class={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${i === selectedIndex ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                            onclick={() => execute(item)}
+                            class={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${i === selectedIndex ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`} 
+                            onclick={() => execute(item)} 
                             onmouseenter={() => selectedIndex = i}
                         >
                             <svelte:component this={item.icon} size={18} class={i === selectedIndex ? 'text-amber-600' : 'text-slate-400'} />
@@ -176,7 +157,7 @@
                     {/each}
                 {/if}
             </div>
-
+            
             <div class="p-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex justify-between px-4">
                 <span><strong>↑↓</strong> zum Wählen</span>
                 <span><strong>LawCP</strong> Command Center</span>

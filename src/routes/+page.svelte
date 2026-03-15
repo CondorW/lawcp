@@ -8,32 +8,54 @@
 
     let refFilter = '';
 
-    const byDate = (a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    // FIX 2: Die Sortierfunktion ist jetzt strikt typisiert, um den DateConstructor-Fehler zu blockieren
+    const byDateAndPriority = (a: any, b: any): number => {
+        const aIsCourtDeadline = a.flaggedDate !== null;
+        const bIsCourtDeadline = b.flaggedDate !== null;
+
+        // Ebene 1: Gerichtsfristen IMMER vor normalen Fristen
+        if (aIsCourtDeadline && !bIsCourtDeadline) return -1;
+        if (!aIsCourtDeadline && bIsCourtDeadline) return 1;
+
+        // Ebene 2: Wenn BEIDES Gerichtsfristen sind -> nach der Gerichtsfrist (flaggedDate) sortieren
+        if (aIsCourtDeadline && bIsCourtDeadline) {
+            return new Date(a.flaggedDate).getTime() - new Date(b.flaggedDate).getTime();
+        }
+
+        // Ebene 3: Wenn BEIDES normale Aufgaben sind -> nach der normalen Frist (dueDate) sortieren
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    };
 
     $: matchesFilter = (t: any) => {
         if (!refFilter.trim()) return true;
         return t.matterRef && t.matterRef.toLowerCase().includes(refFilter.toLowerCase());
     };
 
-    $: todos = $store.tasks.filter(t => t.status === 'TODO' && matchesFilter(t)).sort(byDate);
-    $: waiting = $store.tasks.filter(t => t.status === 'WAITING' && matchesFilter(t)).sort(byDate);
-    $: review = $store.tasks.filter(t => t.status === 'REVIEW' && matchesFilter(t)).sort(byDate);
-    $: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t)).sort(byDate);
-
     $: currentUserId = pb.authStore.model?.id || '';
+    
+    // FIX 1: Die verschwundene Variable ist wieder da
     $: currentUserSign = pb.authStore.model?.shortsign || 'ME';
+
+    $: isMyTask = (t: any) => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
+    $: showOnMainBoard = (t: any) => isMyTask(t) || t.status === 'REVIEW';
+
+    $: todos = $store.tasks.filter(t => t.status === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+    $: waiting = $store.tasks.filter(t => t.status === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+    $: review = $store.tasks.filter(t => t.status === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+    $: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
 
     $: myActiveTasks = $store.tasks.filter(t => 
         ['TODO', 'WAITING', 'REVIEW'].includes(t.status) && 
         (t.assignees?.includes(currentUserId) || t.owner === currentUserId)
-    ).sort(byDate);
+    ).sort(byDateAndPriority);
 
     const printAgenda = () => window.print();
     const today = new Intl.DateTimeFormat('de-CH', { dateStyle: 'full' }).format(new Date());
 </script>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-20 font-sans overflow-x-hidden print:bg-white print:text-black print:pb-0">
-    <nav class="sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden">
+<div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black print:h-auto print:overflow-visible">
+    
+    <nav class="shrink-0 sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden">
         <div class="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 justify-between items-center">
                 <div class="flex items-center gap-10">
@@ -72,20 +94,21 @@
         </div>
     </nav>
 
-    <main class="mx-auto max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8 print:hidden">
+    <main class="flex-1 overflow-hidden flex flex-col w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 print:hidden">
+        
         {#if refFilter}
-            <div class="mb-6 flex items-center gap-2 text-sm text-slate-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800 w-fit mx-auto">
+            <div class="shrink-0 flex items-center gap-2 text-sm text-slate-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800 w-fit mx-auto">
                 <Filter size={14} class="text-amber-600"/>
                 <span>Gefiltert nach: <strong>{refFilter}</strong></span>
                 <button onclick={() => refFilter = ''} class="ml-2 hover:text-red-500 font-bold">✕</button>
             </div>
         {/if}
 
-        <div class="max-w-4xl mx-auto mb-12">
+        <div class="shrink-0 max-w-4xl mx-auto w-full">
             <TaskInput />
         </div>
 
-        <div class="grid grid-cols-[repeat(4,minmax(320px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto h-[calc(100vh-14rem)] min-h-[500px] custom-scrollbar">
+        <div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(320px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto custom-scrollbar">
             
             <div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full overflow-hidden">
                 <TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />

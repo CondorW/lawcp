@@ -160,7 +160,7 @@
             
             <div class="p-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex justify-between px-4">
                 <span><strong>↑↓</strong> zum Wählen</span>
-                <span><strong>LawCP</strong> Command Center</span>
+                <span><strong>LawGanized</strong> Command Center</span>
             </div>
         </div>
     </div>

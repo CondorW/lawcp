@@ -102,8 +102,27 @@ export const deleteTask = async (update: (fn: (s: AppData) => AppData) => void, 
 
 export const updateTaskTitle = async (id: string, title: string) => pb.collection('tasks').update(id, { title });
 export const updateTaskRef = async (id: string, ref: string) => pb.collection('tasks').update(id, { matterRef: ref });
-export const updateDate = async (id: string, date: string) => pb.collection('tasks').update(id, { dueDate: date });
-export const toggleFlag = async (id: string, date: string | null) => pb.collection('tasks').update(id, { flaggedDate: date });
+export const updateDate = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string) => {
+    // 1. Optimistic UI: Sofortiges Update im lokalen RAM
+    update(s => ({ 
+        ...s, 
+        tasks: s.tasks.map(t => t.id === id ? { ...t, dueDate: date } : t) 
+    }));
+    
+    // 2. Fire-and-Forget an die Datenbank
+    pb.collection('tasks').update(id, { dueDate: date }).catch(e => console.error("Sync Error:", e));
+};
+
+export const toggleFlag = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string | null) => {
+    // 1. Optimistic UI: Sofortiges Update im lokalen RAM (Triggert sofortiges Neusortieren)
+    update(s => ({ 
+        ...s, 
+        tasks: s.tasks.map(t => t.id === id ? { ...t, flaggedDate: date } : t) 
+    }));
+    
+    // 2. Fire-and-Forget an die Datenbank
+    pb.collection('tasks').update(id, { flaggedDate: date }).catch(e => console.error("Sync Error:", e));
+};
 
 export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id: string, status: string) => {
     const myId = pb.authStore.model?.id || '';

@@ -98,8 +98,8 @@ const createStore = () => {
         deleteTask: (id: string) => DBLogic.deleteTask(update, id),
         updateTaskTitle: (id: string, title: string) => DBLogic.updateTaskTitle(id, title),
         updateTaskRef: (id: string, ref: string) => DBLogic.updateTaskRef(id, ref),
-        updateDate: (id: string, date: string) => DBLogic.updateDate(id, date),
-        toggleFlag: (id: string, date: string | null) => DBLogic.toggleFlag(id, date),
+        updateDate: (id: string, date: string) => DBLogic.updateDate(update, id, date),
+        toggleFlag: (id: string, date: string | null) => DBLogic.toggleFlag(update, id, date),
         moveTask: (id: string, status: string) => DBLogic.moveTask(update, id, status),
 
         // --- SUBTASKS ---

@@ -1,5 +1,6 @@
 import { pb } from '$lib/pocketbase';
 import { browser } from '$app/environment';
+import { isDraggingLock } from './dbLogic';
 import type { AppData, Task, Resource } from '$lib/types';
 
 export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) => void) => {
@@ -41,48 +42,61 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
     }
 
     // --- REALTIME SUBSCRIPTION: TASKS ---
-    pb.collection('tasks').subscribe('*', async (e) => {
-        const myId = pb.authStore.model?.id;
+pb.collection('tasks').subscribe('*', async (e) => {
+    const myId = pb.authStore.model?.id;
+    if (e.action === 'delete') {
+        update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
+        return;
+    }
+    if (e.action === 'create' || e.action === 'update') {
+        try {
+            const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
+            const isOwner = r.owner === myId;
+            const isAssignee = r.assignees?.includes(myId);
+            const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
 
-        if (e.action === 'delete') {
-            update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
-            return;
-        }
+            if (isOwner || isAssignee || isTeamReview) {
+                update(s => {
+                    const index = s.tasks.findIndex(t => t.id === r.id);
+                    const currentLocalTask = index !== -1 ? s.tasks[index] : null;
+                    
+                    // HIER IST DAS SCHUTZSCHILD FÜR DEN WEBSOCKET
+                    // Wenn wir ziehen, behalten wir zwingend unsere lokalen Subtasks!
+                    const subtasksToUse = (isDraggingLock && currentLocalTask) ? currentLocalTask.subtasks : (r.subtasks || []);
 
-        if (e.action === 'create' || e.action === 'update') {
-            try {
-                const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
-                const isOwner = r.owner === myId;
-                const isAssignee = r.assignees?.includes(myId);
-                const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
-
-                if (isOwner || isAssignee || isTeamReview) {
                     const updatedTask: Task = {
-                        id: r.id, title: r.title, status: r.status as Task['status'], matterRef: r.matterRef,
-                        dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: r.subtasks || [],
-                        flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM',
-                        createdAt: r.created, timeTracked: 0, dependencies: [], assignees: r.assignees || [],
-                        owner: r.owner, expand: r.expand
+                        id: r.id,
+                        title: r.title,
+                        status: r.status as Task['status'],
+                        matterRef: r.matterRef,
+                        dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '',
+                        subtasks: subtasksToUse, // <-- Der abgewehrte Rubberbanding-Versuch
+                        flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null,
+                        priority: 'MEDIUM',
+                        createdAt: r.created,
+                        timeTracked: 0,
+                        dependencies: [],
+                        assignees: r.assignees || [],
+                        owner: r.owner,
+                        expand: r.expand
                     };
 
-                    update(s => {
-                        const index = s.tasks.findIndex(t => t.id === r.id);
-                        if (index !== -1) {
-                            const newTasks = [...s.tasks];
-                            newTasks[index] = updatedTask;
-                            return { ...s, tasks: newTasks };
-                        } else {
-                            return { ...s, tasks: [updatedTask, ...s.tasks] };
-                        }
-                    });
-                } else {
-                    update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== r.id) }));
-                }
-            } catch (err) {
-                update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
+                    if (index !== -1) {
+                        const newTasks = [...s.tasks];
+                        newTasks[index] = updatedTask;
+                        return { ...s, tasks: newTasks };
+                    } else {
+                        return { ...s, tasks: [updatedTask, ...s.tasks] };
+                    }
+                });
+            } else {
+                update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== r.id) }));
             }
+        } catch (err) {
+            update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
         }
-    });
+    }
+});
 
     // --- REALTIME SUBSCRIPTION: RESOURCES ---
     pb.collection('resources').subscribe('*', async (e) => {
@@ -179,13 +193,28 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
                             const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
 
                             if (isOwner || isAssignee || isTeamReview) {
-                                const taskObj: Task = {
-                                    id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef,
-                                    dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: mt.subtasks || [],
-                                    flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM',
-                                    createdAt: mt.created, timeTracked: 0, dependencies: [], assignees: mt.assignees || [],
-                                    owner: mt.owner, expand: mt.expand
-                                };
+    // FIX: Wenn wir gerade ziehen, übernehmen wir NICHT die Subtasks vom Server, 
+    // sondern behalten unseren lokalen, manipulierten Zustand (s.tasks[index].subtasks).
+    // Ansonsten überschreibt der Server unsere Mausbewegung.
+    const currentLocalTask = s.tasks[index];
+    const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : (mt.subtasks || []);
+
+    const taskObj: Task = {
+        id: mt.id,
+        title: mt.title,
+        status: mt.status,
+        matterRef: mt.matterRef,
+        dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '',
+        subtasks: subtasksToUse, // HIER WIRKT DAS SCHUTZSCHILD
+        flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null,
+        priority: 'MEDIUM',
+        createdAt: mt.created,
+        timeTracked: 0,
+        dependencies: [],
+        assignees: mt.assignees || [],
+        owner: mt.owner,
+        expand: mt.expand
+    };
 
                                 if (index !== -1) {
                                     // Update eines bestehenden Tasks

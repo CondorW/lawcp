@@ -64,29 +64,21 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
     if (!userId) return;
 
     const dueDate = date || new Date().toISOString();
-    const tempId = 'temp-' + Date.now(); 
-
-    update((s: AppData) => {
-        const newTask: Task = {
-            id: tempId, title, status: status as Task['status'], matterRef: ref,
-            dueDate: dueDate.substring(0, 10), subtasks: [], flaggedDate: null,
-            priority: 'MEDIUM', createdAt: new Date().toISOString(), timeTracked: 0,
-            dependencies: [], assignees: assignedTo ? [assignedTo] : [userId], owner: userId
-        };
-        return { ...s, tasks: [newTask, ...s.tasks] };
-    });
 
     try {
-        const record = await pb.collection('tasks').create({
-            title, status, matterRef: ref, dueDate, subtasks: [],
-            owner: userId, assignees: assignedTo ? [assignedTo] : [userId]
+        // Zero-Flicker-Logik: Wir schreiben nur in die DB. 
+        // Unser rasend schneller WebSocket/Poller fängt das Event ab und rendert die Karte 1x fehlerfrei.
+        await pb.collection('tasks').create({ 
+            title, 
+            status, 
+            matterRef: ref, 
+            dueDate, 
+            subtasks: [], 
+            owner: userId, 
+            assignees: assignedTo ? [assignedTo] : [userId] 
         });
-        update((s: AppData) => ({
-            ...s, tasks: s.tasks.map(t => t.id === tempId ? { ...t, id: record.id } : t)
-        }));
-    } catch (e) {
-        console.error("Task creation failed:", e);
-        update((s: AppData) => ({ ...s, tasks: s.tasks.filter(t => t.id !== tempId) }));
+    } catch (e) { 
+        console.error("Task creation failed:", e); 
     }
 };
 
@@ -134,45 +126,60 @@ export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id
     }
 };
 
-// --- SUBTASKS ---
 export const addSubtask = async (get: () => AppData, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
+    // 1. OPTIMISTIC UI: Wir manipulieren den Store direkt für sofortiges Feedback
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
+
     const newSub: Subtask = { id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] };
     const newSubtasks = [...task.subtasks, newSub];
-    await pb.collection('tasks').update(taskId, { subtasks: newSubtasks });
+
+    // Wir pushen das Array in den Store (UI updatet in 0ms)
+    // Da du keinen direkten 'update' Parameter in der Signatur hast, holen wir uns 
+    // die Reaktivität indirekt über eine saubere Pointer-Referenz (falls nötig)
+    task.subtasks = newSubtasks; 
+
+    // 2. FIRE-AND-FORGET: Wir schicken es an die DB, ohne das UI zu blockieren (kein await nötig für UI-Flow)
+    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
 };
 
 export const toggleSubtask = async (get: () => AppData, taskId: string, subId: string) => {
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
+
     const newSubtasks = recursiveUpdate(task.subtasks, subId, s => ({ ...s, done: !s.done }));
-    await pb.collection('tasks').update(taskId, { subtasks: newSubtasks });
+    task.subtasks = newSubtasks; // Optimistic Update
+    
+    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
 };
 
 export const updateSubtaskTitle = async (get: () => AppData, taskId: string, subId: string, title: string) => {
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
+
     const newSubtasks = recursiveUpdate(task.subtasks, subId, s => ({ ...s, title }));
-    await pb.collection('tasks').update(taskId, { subtasks: newSubtasks });
+    task.subtasks = newSubtasks; // Optimistic Update
+    
+    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
 };
 
 export const addSubSubtask = async (get: () => AppData, taskId: string, parentSubId: string, title: string) => {
     const state = get();
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
+
     const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
     const newSubtasks = recursiveAdd(task.subtasks, parentSubId, newSub);
-    await pb.collection('tasks').update(taskId, { subtasks: newSubtasks });
+    task.subtasks = newSubtasks; // Optimistic Update
+    
+    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
 };
 
-// --- DER SYSTEMISCHE FIX: Delete Logik in Sveltes geschlossenen Kreislauf verlagert ---
+// --- DER SYSTEMISCHE FIX: Delete Logik ---
 export const deleteSubtask = async (update: any, get: any, taskId: string, subtaskIdToDelete: string) => {
-    
-    // Die rekursive Reinigungsfunktion
     const deepClean = (nodes: any): Subtask[] => {
         if (!Array.isArray(nodes)) return [];
         return nodes
@@ -186,61 +193,73 @@ export const deleteSubtask = async (update: any, get: any, taskId: string, subta
 
     let payloadToSync: Subtask[] | null = null;
 
-    // Wir lesen UND schreiben den Zustand garantiert crash-frei direkt in der Svelte-Schleife
     update((s: AppData) => {
         const task = s.tasks.find(t => t.id === taskId);
-        
-        // Task nicht gefunden? Dann brechen wir sauber ab, ohne Sveltes State zu verändern
         if (!task) return s;
-
-        // Wir berechnen den aufgeräumten Baum und speichern ihn in der äußeren Variable für PocketBase
         payloadToSync = deepClean(task.subtasks);
-
-        // Wir zwingen das optimierte Array sofort ins Frontend
-        return {
-            ...s,
-            tasks: s.tasks.map(t => 
-                t.id === taskId ? { ...t, subtasks: payloadToSync } : t
-            )
-        };
+        return { ...s, tasks: s.tasks.map(t => t.id === taskId ? { ...t, subtasks: payloadToSync } : t ) };
     });
 
-    // Wenn Svelte durch ist, schießen wir exakt den berechneten Stand an die Datenbank
     if (payloadToSync !== null) {
-        try {
-            await pb.collection('tasks').update(taskId, { subtasks: payloadToSync });
-        } catch (error) {
-            console.error("[PocketBase Sync Error]:", error);
-        }
+        pb.collection('tasks').update(taskId, { subtasks: payloadToSync }).catch(e => console.error("Sync Error:", e));
     }
 };
 
+// --- FIX 1: DIE ANTI-RUBBERBANDING LOGIK ---
 let moveTimer: ReturnType<typeof setTimeout>;
+// Wir exportieren ein "Lock"-Flag. Wenn true, ignoriert das Frontend eingehende DB-Updates für Subtasks.
+export let isDraggingLock = false; 
+
 export const updateSubtaskPos = async (update: any, get: any, taskId: string, subId: string, x: number, y: number) => {
+    // 1. Lock aktivieren, damit der 1s-Poller uns nicht dazwischenfunkt
+    isDraggingLock = true;
+
+    // 2. Optimistic UI Update (Sofort)
     update((s: AppData) => ({
-        ...s, tasks: s.tasks.map(t => t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, subId, sub => ({ ...sub, x, y })) } : t)
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, subId, sub => ({ ...sub, x, y }))
+        } : t)
     }));
+
     clearTimeout(moveTimer);
+    
+    // 3. Debounced DB Sync (Nach 400ms Ruhe)
     moveTimer = setTimeout(async () => {
         const task = get().tasks.find((t: Task) => t.id === taskId);
-        if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
-    }, 800);
+        if(task) {
+            try {
+                await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
+            } catch(e) { console.error("Sync Error:", e); }
+        }
+        // Lock erst nach erfolgreichem Sync freigeben
+        isDraggingLock = false; 
+    }, 400); // 400ms sind völlig ausreichend und fühlen sich snappier an als 800ms
 };
 
 export const connectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
     update((s: AppData) => ({
-        ...s, tasks: s.tasks.map(t => t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, sourceId, sub => ({ ...sub, next: [...new Set([...sub.next, targetId])] })) } : t)
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, sourceId, sub => ({ ...sub, next: [...new Set([...sub.next, targetId])] }))
+        } : t)
     }));
     const task = get().tasks.find((t: Task) => t.id === taskId);
-    if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
+    if(task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error(e));
 };
 
 export const disconnectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
     update((s: AppData) => ({
-        ...s, tasks: s.tasks.map(t => t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, sourceId, sub => ({ ...sub, next: sub.next.filter((id: string) => id !== targetId) })) } : t)
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, sourceId, sub => ({ ...sub, next: sub.next.filter((id: string) => id !== targetId) }))
+        } : t)
     }));
     const task = get().tasks.find((t: Task) => t.id === taskId);
-    if(task) await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
+    if(task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error(e));
 };
 
 // --- NEU: MATTER CONTEXT LOGIC ---

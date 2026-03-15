@@ -141,6 +141,16 @@
         window.print();
     }
 </script>
+<svelte:head>
+    <style>
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+        }
+    </style>
+</svelte:head>
 
 <div class="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-hidden font-sans print:bg-white print:text-black">
     
@@ -321,11 +331,3 @@
         {/if}
     </div>
 </div>
-<style>
-    @media print {
-        @page {
-            size: A4 landscape;
-            margin: 10mm;
-        }
-    }
-</style>

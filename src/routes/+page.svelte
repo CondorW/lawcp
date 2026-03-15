@@ -51,7 +51,18 @@
 
     const printAgenda = () => window.print();
     const today = new Intl.DateTimeFormat('de-CH', { dateStyle: 'full' }).format(new Date());
+    
 </script>
+<svelte:head>
+    <style>
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+        }
+    </style>
+</svelte:head>
 
 <div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black print:h-auto print:overflow-visible">
     

@@ -86,8 +86,11 @@ const createStore = () => {
         addTask: (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => DBLogic.addTask(update, status, title, ref, date, assignedTo),
         assignTask: (taskId: string, assigneeId: string) => DBLogic.assignTask(update, taskId, assigneeId),
         deleteTask: (id: string) => DBLogic.deleteTask(update, id),
-        updateTaskTitle: (id: string, title: string) => DBLogic.updateTaskTitle(id, title),
-        updateTaskRef: (id: string, ref: string) => DBLogic.updateTaskRef(id, ref),
+        
+        // REFACTOR: update-Parameter durchschleifen für Optimistic UI
+        updateTaskTitle: (id: string, title: string) => DBLogic.updateTaskTitle(update, id, title),
+        updateTaskRef: (id: string, ref: string) => DBLogic.updateTaskRef(update, id, ref),
+        
         updateDate: (id: string, date: string) => DBLogic.updateDate(update, id, date),
         toggleFlag: (id: string, date: string | null) => DBLogic.toggleFlag(update, id, date),
         moveTask: (id: string, status: string) => DBLogic.moveTask(update, id, status),

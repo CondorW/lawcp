@@ -63,9 +63,31 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
     if (!userId) return;
 
     const dueDate = date || new Date().toISOString();
+    const tempId = 'temp-task-' + Date.now();
+
+    // 1. Optimistic UI: Task mit temporärer ID sofort im Svelte-Store rendern (verhindert Mehrfachklicks)
+    update((s: AppData) => {
+        const newTask: Task = {
+            id: tempId,
+            title,
+            status: status as Task['status'],
+            matterRef: ref,
+            dueDate,
+            subtasks: [],
+            owner: userId,
+            assignees: assignedTo ? [assignedTo] : [userId],
+            priority: 'MEDIUM',
+            createdAt: new Date().toISOString(),
+            timeTracked: 0,
+            dependencies: [],
+            flaggedDate: null
+        };
+        // Fügt den Task ganz oben in die Liste ein
+        return { ...s, tasks: [newTask, ...s.tasks] };
+    });
 
     try {
-        await pb.collection('tasks').create({ 
+        const record = await pb.collection('tasks').create({ 
             title, 
             status, 
             matterRef: ref, 
@@ -74,8 +96,16 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
             owner: userId, 
             assignees: assignedTo ? [assignedTo] : [userId] 
         });
+
+        // 2. ID-Swap: Tausche die tempId unsichtbar gegen die echte DB-ID aus
+        update((s: AppData) => ({
+            ...s,
+            tasks: s.tasks.map(t => t.id === tempId ? { ...t, id: record.id, expand: record.expand } : t)
+        }));
     } catch (e) { 
         console.error("Task creation failed:", e); 
+        // 3. Rollback bei Netzwerkfehler
+        update((s: AppData) => ({ ...s, tasks: s.tasks.filter(t => t.id !== tempId) }));
     }
 };
 
@@ -97,8 +127,20 @@ export const deleteTask = async (update: (fn: (s: AppData) => AppData) => void, 
     }
 };
 
-export const updateTaskTitle = async (id: string, title: string) => pb.collection('tasks').update(id, { title });
-export const updateTaskRef = async (id: string, ref: string) => pb.collection('tasks').update(id, { matterRef: ref });
+export const updateTaskTitle = async (update: any, id: string, title: string) => {
+    // 1. Optimistic UI
+    update((s: AppData) => ({ ...s, tasks: s.tasks.map(t => t.id === id ? { ...t, title } : t) }));
+    // 2. Fire-and-Forget
+    pb.collection('tasks').update(id, { title }).catch(e => console.error("Sync Error:", e));
+};
+
+export const updateTaskRef = async (update: any, id: string, ref: string) => {
+    // 1. Optimistic UI
+    update((s: AppData) => ({ ...s, tasks: s.tasks.map(t => t.id === id ? { ...t, matterRef: ref } : t) }));
+    // 2. Fire-and-Forget
+    pb.collection('tasks').update(id, { matterRef: ref }).catch(e => console.error("Sync Error:", e));
+};
+
 export const updateDate = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string) => {
     update(s => ({ 
         ...s, 
@@ -136,20 +178,9 @@ export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id
     }
 };
 
-// ============================================================================
-// --- REFACTORED SUBTASK FUNCTIONS ---
-// Implemented declarative array mapping within Svelte's `update` function 
-// to guarantee Optimistic UI re-rendering without page refresh.
-// ============================================================================
-
-/**
- * Fügt einen neuen Subtask hinzu.
- * REFACTOR: Nutzt Sveltes update() zur immutablen Array-Erweiterung statt Pointer-Mutation.
- */
 export const addSubtask = async (update: any, get: any, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
     const newSub: Subtask = { id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] };
     
-    // 1. Optimistic UI: Sofortiges Neuschreiben des State-Objekts für Svelte
     update((s: AppData) => ({
         ...s,
         tasks: s.tasks.map(t => t.id === taskId ? {
@@ -158,19 +189,13 @@ export const addSubtask = async (update: any, get: any, taskId: string, title: s
         } : t)
     }));
 
-    // 2. Fire-and-Forget DB Sync (ohne die UI zu blockieren)
     const task = get().tasks.find((t: Task) => t.id === taskId);
     if (task) {
         pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
     }
 };
 
-/**
- * Schaltet den "Erledigt"-Status eines Subtasks um.
- * REFACTOR: Nutzt Sveltes update() + recursiveUpdate, um den Status tief im Array immutabel zu flippen.
- */
 export const toggleSubtask = async (update: any, get: any, taskId: string, subId: string) => {
-    // 1. Optimistic UI
     update((s: AppData) => ({
         ...s,
         tasks: s.tasks.map(t => t.id === taskId ? {
@@ -179,19 +204,13 @@ export const toggleSubtask = async (update: any, get: any, taskId: string, subId
         } : t)
     }));
 
-    // 2. Fire-and-Forget DB Sync
     const task = get().tasks.find((t: Task) => t.id === taskId);
     if (task) {
         pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
     }
 };
 
-/**
- * Aktualisiert den Text/Titel eines Subtasks.
- * REFACTOR: Nutzt Sveltes update() + recursiveUpdate, um den String immutabel auszutauschen.
- */
 export const updateSubtaskTitle = async (update: any, get: any, taskId: string, subId: string, title: string) => {
-    // 1. Optimistic UI
     update((s: AppData) => ({
         ...s,
         tasks: s.tasks.map(t => t.id === taskId ? {
@@ -200,21 +219,15 @@ export const updateSubtaskTitle = async (update: any, get: any, taskId: string, 
         } : t)
     }));
 
-    // 2. Fire-and-Forget DB Sync
     const task = get().tasks.find((t: Task) => t.id === taskId);
     if (task) {
         pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
     }
 };
 
-/**
- * Fügt einem bestehenden Subtask ein Kind-Element (Sub-Subtask) hinzu.
- * REFACTOR: Nutzt Sveltes update() + recursiveAdd, um die verschachtelte Struktur korrekt aufzubauen.
- */
 export const addSubSubtask = async (update: any, get: any, taskId: string, parentSubId: string, title: string) => {
     const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
     
-    // 1. Optimistic UI
     update((s: AppData) => ({
         ...s,
         tasks: s.tasks.map(t => t.id === taskId ? {
@@ -223,7 +236,6 @@ export const addSubSubtask = async (update: any, get: any, taskId: string, paren
         } : t)
     }));
 
-    // 2. Fire-and-Forget DB Sync
     const task = get().tasks.find((t: Task) => t.id === taskId);
     if (task) {
         pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));

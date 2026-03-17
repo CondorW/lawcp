@@ -58,17 +58,25 @@ export const deleteResource = async (update: (fn: (s: AppData) => AppData) => vo
 };
 
 // --- TASKS ---
+// Hilfsfunktion: Erstellt sofort eine gültige PocketBase-ID (15 Zeichen)
+const generatePbId = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 15; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+    return result;
+};
+
 export const addTask = async (update: any, status: string, title: string, ref?: string, date?: string, assignedTo?: string) => {
     const userId = pb.authStore.model?.id;
     if (!userId) return;
 
     const dueDate = date || new Date().toISOString();
-    const tempId = 'temp-task-' + Date.now();
+    const finalId = generatePbId(); // Wir erzeugen die finale ID sofort selbst!
 
-    // 1. Optimistic UI: Task mit temporärer ID sofort im Svelte-Store rendern (verhindert Mehrfachklicks)
+    // 1. Task sofort auf dem Bildschirm anzeigen (ohne Fake-ID)
     update((s: AppData) => {
         const newTask: Task = {
-            id: tempId,
+            id: finalId,
             title,
             status: status as Task['status'],
             matterRef: ref,
@@ -82,12 +90,13 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
             dependencies: [],
             flaggedDate: null
         };
-        // Fügt den Task ganz oben in die Liste ein
         return { ...s, tasks: [newTask, ...s.tasks] };
     });
 
     try {
+        // 2. An die Datenbank senden (wir zwingen die DB, unsere ID zu nutzen)
         const record = await pb.collection('tasks').create({ 
+            id: finalId,
             title, 
             status, 
             matterRef: ref, 
@@ -95,17 +104,17 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
             subtasks: [], 
             owner: userId, 
             assignees: assignedTo ? [assignedTo] : [userId] 
-        });
+        }, { expand: 'owner' });
 
-        // 2. ID-Swap: Tausche die tempId unsichtbar gegen die echte DB-ID aus
+        // Wir fügen nur noch unsichtbar die Besitzer-Details (expand) hinzu. Kein Flackern mehr!
         update((s: AppData) => ({
             ...s,
-            tasks: s.tasks.map(t => t.id === tempId ? { ...t, id: record.id, expand: record.expand } : t)
+            tasks: s.tasks.map(t => t.id === finalId ? { ...t, expand: record.expand } : t)
         }));
     } catch (e) { 
         console.error("Task creation failed:", e); 
-        // 3. Rollback bei Netzwerkfehler
-        update((s: AppData) => ({ ...s, tasks: s.tasks.filter(t => t.id !== tempId) }));
+        // Bei einem echten Netzwerkfehler wird der Task wieder entfernt
+        update((s: AppData) => ({ ...s, tasks: s.tasks.filter(t => t.id !== finalId) }));
     }
 };
 

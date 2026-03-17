@@ -56,13 +56,13 @@
                 bind:value={inputRef} 
                 type="text" 
                 placeholder="Ref-Nr." 
-                class="w-28 rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1.5 px-3 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-white focus:ring-1 focus:ring-amber-500/50" 
+                class="w-28 rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1.5 px-3 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-slate-800 focus:ring-1 focus:ring-amber-500/50" 
             />
             
             <input 
                 bind:value={inputDate} 
                 type="date" 
-                class="rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1.5 px-3 text-sm font-medium text-slate-700 dark:text-slate-300 focus:bg-white focus:ring-1 focus:ring-amber-500/50" 
+                class="rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1.5 px-3 text-sm font-medium text-slate-700 dark:text-slate-300 focus:bg-slate-800 focus:ring-1 focus:ring-amber-500/50" 
             />
             
             <button 

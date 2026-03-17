@@ -19,7 +19,6 @@ export const addResource = async (update: any, resData: Omit<Resource, 'id' | 'c
             owner: userId,
             created: new Date().toISOString(),
             updated: new Date().toISOString(),
-            // FIX: Wir matchen das Objekt exakt auf die Erwartung des Linters
             expand: {
                 owner: {
                     shortsign: userModel.shortsign || 'ME'
@@ -66,8 +65,6 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
     const dueDate = date || new Date().toISOString();
 
     try {
-        // Zero-Flicker-Logik: Wir schreiben nur in die DB. 
-        // Unser rasend schneller WebSocket/Poller fängt das Event ab und rendert die Karte 1x fehlerfrei.
         await pb.collection('tasks').create({ 
             title, 
             status, 
@@ -103,24 +100,18 @@ export const deleteTask = async (update: (fn: (s: AppData) => AppData) => void, 
 export const updateTaskTitle = async (id: string, title: string) => pb.collection('tasks').update(id, { title });
 export const updateTaskRef = async (id: string, ref: string) => pb.collection('tasks').update(id, { matterRef: ref });
 export const updateDate = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string) => {
-    // 1. Optimistic UI: Sofortiges Update im lokalen RAM
     update(s => ({ 
         ...s, 
         tasks: s.tasks.map(t => t.id === id ? { ...t, dueDate: date } : t) 
     }));
-    
-    // 2. Fire-and-Forget an die Datenbank
     pb.collection('tasks').update(id, { dueDate: date }).catch(e => console.error("Sync Error:", e));
 };
 
 export const toggleFlag = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string | null) => {
-    // 1. Optimistic UI: Sofortiges Update im lokalen RAM (Triggert sofortiges Neusortieren)
     update(s => ({ 
         ...s, 
         tasks: s.tasks.map(t => t.id === id ? { ...t, flaggedDate: date } : t) 
     }));
-    
-    // 2. Fire-and-Forget an die Datenbank
     pb.collection('tasks').update(id, { flaggedDate: date }).catch(e => console.error("Sync Error:", e));
 };
 
@@ -145,59 +136,100 @@ export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id
     }
 };
 
-export const addSubtask = async (get: () => AppData, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
-    // 1. OPTIMISTIC UI: Wir manipulieren den Store direkt für sofortiges Feedback
-    const state = get();
-    const task = state.tasks.find(t => t.id === taskId);
-    if (!task) return;
+// ============================================================================
+// --- REFACTORED SUBTASK FUNCTIONS ---
+// Implemented declarative array mapping within Svelte's `update` function 
+// to guarantee Optimistic UI re-rendering without page refresh.
+// ============================================================================
 
+/**
+ * Fügt einen neuen Subtask hinzu.
+ * REFACTOR: Nutzt Sveltes update() zur immutablen Array-Erweiterung statt Pointer-Mutation.
+ */
+export const addSubtask = async (update: any, get: any, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
     const newSub: Subtask = { id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] };
-    const newSubtasks = [...task.subtasks, newSub];
-
-    // Wir pushen das Array in den Store (UI updatet in 0ms)
-    // Da du keinen direkten 'update' Parameter in der Signatur hast, holen wir uns 
-    // die Reaktivität indirekt über eine saubere Pointer-Referenz (falls nötig)
-    task.subtasks = newSubtasks; 
-
-    // 2. FIRE-AND-FORGET: Wir schicken es an die DB, ohne das UI zu blockieren (kein await nötig für UI-Flow)
-    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
-};
-
-export const toggleSubtask = async (get: () => AppData, taskId: string, subId: string) => {
-    const state = get();
-    const task = state.tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const newSubtasks = recursiveUpdate(task.subtasks, subId, s => ({ ...s, done: !s.done }));
-    task.subtasks = newSubtasks; // Optimistic Update
     
-    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
+    // 1. Optimistic UI: Sofortiges Neuschreiben des State-Objekts für Svelte
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: [...t.subtasks, newSub]
+        } : t)
+    }));
+
+    // 2. Fire-and-Forget DB Sync (ohne die UI zu blockieren)
+    const task = get().tasks.find((t: Task) => t.id === taskId);
+    if (task) {
+        pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
+    }
 };
 
-export const updateSubtaskTitle = async (get: () => AppData, taskId: string, subId: string, title: string) => {
-    const state = get();
-    const task = state.tasks.find(t => t.id === taskId);
-    if (!task) return;
+/**
+ * Schaltet den "Erledigt"-Status eines Subtasks um.
+ * REFACTOR: Nutzt Sveltes update() + recursiveUpdate, um den Status tief im Array immutabel zu flippen.
+ */
+export const toggleSubtask = async (update: any, get: any, taskId: string, subId: string) => {
+    // 1. Optimistic UI
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, subId, sub => ({ ...sub, done: !sub.done }))
+        } : t)
+    }));
 
-    const newSubtasks = recursiveUpdate(task.subtasks, subId, s => ({ ...s, title }));
-    task.subtasks = newSubtasks; // Optimistic Update
-    
-    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
+    // 2. Fire-and-Forget DB Sync
+    const task = get().tasks.find((t: Task) => t.id === taskId);
+    if (task) {
+        pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
+    }
 };
 
-export const addSubSubtask = async (get: () => AppData, taskId: string, parentSubId: string, title: string) => {
-    const state = get();
-    const task = state.tasks.find(t => t.id === taskId);
-    if (!task) return;
+/**
+ * Aktualisiert den Text/Titel eines Subtasks.
+ * REFACTOR: Nutzt Sveltes update() + recursiveUpdate, um den String immutabel auszutauschen.
+ */
+export const updateSubtaskTitle = async (update: any, get: any, taskId: string, subId: string, title: string) => {
+    // 1. Optimistic UI
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveUpdate(t.subtasks, subId, sub => ({ ...sub, title }))
+        } : t)
+    }));
 
+    // 2. Fire-and-Forget DB Sync
+    const task = get().tasks.find((t: Task) => t.id === taskId);
+    if (task) {
+        pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
+    }
+};
+
+/**
+ * Fügt einem bestehenden Subtask ein Kind-Element (Sub-Subtask) hinzu.
+ * REFACTOR: Nutzt Sveltes update() + recursiveAdd, um die verschachtelte Struktur korrekt aufzubauen.
+ */
+export const addSubSubtask = async (update: any, get: any, taskId: string, parentSubId: string, title: string) => {
     const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
-    const newSubtasks = recursiveAdd(task.subtasks, parentSubId, newSub);
-    task.subtasks = newSubtasks; // Optimistic Update
     
-    pb.collection('tasks').update(taskId, { subtasks: newSubtasks }).catch(e => console.error("Sync Error:", e));
+    // 1. Optimistic UI
+    update((s: AppData) => ({
+        ...s,
+        tasks: s.tasks.map(t => t.id === taskId ? {
+            ...t,
+            subtasks: recursiveAdd(t.subtasks, parentSubId, newSub)
+        } : t)
+    }));
+
+    // 2. Fire-and-Forget DB Sync
+    const task = get().tasks.find((t: Task) => t.id === taskId);
+    if (task) {
+        pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error("Sync Error:", e));
+    }
 };
 
-// --- DER SYSTEMISCHE FIX: Delete Logik ---
 export const deleteSubtask = async (update: any, get: any, taskId: string, subtaskIdToDelete: string) => {
     const deepClean = (nodes: any): Subtask[] => {
         if (!Array.isArray(nodes)) return [];
@@ -224,16 +256,12 @@ export const deleteSubtask = async (update: any, get: any, taskId: string, subta
     }
 };
 
-// --- FIX 1: DIE ANTI-RUBBERBANDING LOGIK ---
 let moveTimer: ReturnType<typeof setTimeout>;
-// Wir exportieren ein "Lock"-Flag. Wenn true, ignoriert das Frontend eingehende DB-Updates für Subtasks.
 export let isDraggingLock = false; 
 
 export const updateSubtaskPos = async (update: any, get: any, taskId: string, subId: string, x: number, y: number) => {
-    // 1. Lock aktivieren, damit der 1s-Poller uns nicht dazwischenfunkt
     isDraggingLock = true;
 
-    // 2. Optimistic UI Update (Sofort)
     update((s: AppData) => ({
         ...s,
         tasks: s.tasks.map(t => t.id === taskId ? {
@@ -244,7 +272,6 @@ export const updateSubtaskPos = async (update: any, get: any, taskId: string, su
 
     clearTimeout(moveTimer);
     
-    // 3. Debounced DB Sync (Nach 400ms Ruhe)
     moveTimer = setTimeout(async () => {
         const task = get().tasks.find((t: Task) => t.id === taskId);
         if(task) {
@@ -252,9 +279,8 @@ export const updateSubtaskPos = async (update: any, get: any, taskId: string, su
                 await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
             } catch(e) { console.error("Sync Error:", e); }
         }
-        // Lock erst nach erfolgreichem Sync freigeben
         isDraggingLock = false; 
-    }, 400); // 400ms sind völlig ausreichend und fühlen sich snappier an als 800ms
+    }, 400); 
 };
 
 export const connectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
@@ -281,16 +307,13 @@ export const disconnectSubtasks = async (update: any, get: any, taskId: string, 
     if(task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch(e => console.error(e));
 };
 
-// --- NEU: MATTER CONTEXT LOGIC ---
 export const fetchContext = async (matterRef: string) => {
     const userId = pb.authStore.model?.id;
     if (!userId || !matterRef) return null;
     try {
-        // Sucht den spezifischen Kontext für diesen Nutzer und dieses Aktenzeichen
         const record = await pb.collection('contexts').getFirstListItem(`matterRef="${matterRef}" && owner="${userId}"`);
         return record;
     } catch (e) {
-        // ClientResponseError 404 ist hier völlig normal, wenn noch kein Kontext existiert
         return null;
     }
 };
@@ -300,10 +323,8 @@ export const saveContext = async (matterRef: string, content: string, contextId?
     if (!userId || !matterRef) return null;
     try {
         if (contextId) {
-            // Existierenden Kontext updaten
             return await pb.collection('contexts').update(contextId, { content });
         } else {
-            // Neuen Kontext anlegen
             return await pb.collection('contexts').create({ matterRef, owner: userId, content });
         }
     } catch (e) {

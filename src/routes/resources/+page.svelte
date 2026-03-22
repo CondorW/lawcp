@@ -6,6 +6,7 @@
 		Search,
 		Building2,
 		User,
+		Landmark,
 		Trash2,
 		ExternalLink,
 		Copy,
@@ -14,28 +15,25 @@
 	import { fade } from 'svelte/transition';
 
 	let filter = '';
-	let resType: 'COMPANY' | 'PERSON' = 'COMPANY';
+	let resType: 'COMPANY' | 'PERSON' | 'AUTHORITY' = 'COMPANY';
 	let resName = '';
 	let resId = '';
+	let resSeat = ''; 
 
-	// Neue Felder für Adresse
 	let resStreet = '';
 	let resZip = '';
 	let resCity = '';
 
-	// Feedback State für Copy
 	let copiedId: string | null = null;
 
-	function add() {
+	async function add() {
 		if (!resName) return;
 
-		store.addResource({
+		await store.addResource({
 			type: resType,
 			name: resName,
 			identifier: resId,
-			// Hinweis: Falls street, zip und city als EIGENE Felder in der Datenbank
-			// gespeichert werden sollen, müssen sie auch im PocketBase Admin-Panel
-			// und in der types.ts angelegt werden. Ansonsten nutzt PB den 'address' Fallback.
+			seat: resSeat,
 			street: resStreet,
 			zip: resZip,
 			city: resCity,
@@ -45,6 +43,7 @@
 		// Reset
 		resName = '';
 		resId = '';
+		resSeat = '';
 		resStreet = '';
 		resZip = '';
 		resCity = '';
@@ -58,19 +57,27 @@
 	}
 
 	async function copyForContract(res: any) {
-		// Adresse zusammenbauen (Priorität auf neue Felder)
 		let addressPart = '';
 		if (res.street || res.city) {
 			addressPart = `${res.street || ''}, ${res.zip || ''} ${res.city || ''}`;
 		} else {
-			// Fallback für alte Daten
 			addressPart = res.address || 'k.A.';
 		}
-
-		// Cleanup von doppelten Kommas/Leerzeichen
 		addressPart = addressPart.replace(/,\s*,/g, ',').trim();
 
-		const text = `${res.name}, ${res.identifier || 'k.A.'} mit der Geschäftsanschrift ${addressPart}`;
+		let text = '';
+		let idPart = res.identifier ? `, ${res.identifier}` : '';
+
+		if (res.type === 'COMPANY') {
+			const seatText = res.seat ? ` mit dem Sitz in ${res.seat} und` : ' mit';
+			text = `${res.name}${idPart}${seatText} der Geschäftsanschrift ${addressPart}`;
+		} else if (res.type === 'AUTHORITY') {
+			text = `${res.name}, ${addressPart}`;
+		} else {
+			text = `${res.name}${idPart} mit der Adresse ${addressPart}`;
+		}
+
+		text = text.replace(/\s+/g, ' ').trim();
 
 		try {
 			await navigator.clipboard.writeText(text);
@@ -81,7 +88,6 @@
 		}
 	}
 
-	// Hilfsfunktion für ein sauberes Datum
 	function formatDate(dateString: string | undefined) {
 		if (!dateString) return 'Unbekannt';
 		return new Date(dateString).toLocaleDateString('de-DE', {
@@ -91,12 +97,12 @@
 		});
 	}
 
-	$: list = $store.resources.filter((r) => r.name.toLowerCase().includes(filter.toLowerCase()));
+	$: list = $store.resources
+		? $store.resources.filter((r) => r.name.toLowerCase().includes(filter.toLowerCase()))
+		: [];
 </script>
 
-<div
-	class="min-h-screen bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-8 font-sans"
->
+<div class="min-h-screen bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-8 font-sans">
 	<div class="max-w-[1200px] mx-auto">
 		<div class="flex items-center justify-between mb-8">
 			<div class="flex items-center gap-4">
@@ -124,16 +130,32 @@
 						<div class="flex items-start justify-between w-full">
 							<div class="flex gap-4">
 								<div
-									class={`p-3 rounded-lg ${res.type === 'COMPANY' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'}`}
+									class={`p-3 rounded-lg ${
+										res.type === 'COMPANY'
+											? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+											: res.type === 'AUTHORITY'
+											? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+											: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+									}`}
 								>
-									{#if res.type === 'COMPANY'}<Building2 size={24} />{:else}<User size={24} />{/if}
+									{#if res.type === 'COMPANY'}
+										<Building2 size={24} />
+									{:else if res.type === 'AUTHORITY'}
+										<Landmark size={24} />
+									{:else}
+										<User size={24} />
+									{/if}
 								</div>
 								<div>
 									<h3 class="font-bold text-lg">{res.name}</h3>
-									{#if res.identifier}<div class="text-sm text-gray-500 font-mono">
-											{res.identifier}
-										</div>{/if}
-									<div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+									{#if res.identifier}
+										<div class="text-sm text-gray-500 font-mono">{res.identifier}</div>
+									{/if}
+									
+									<div class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+										{#if res.seat}
+											<div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Sitz: {res.seat}</div>
+										{/if}
 										{#if res.street || res.city}
 											<div>{res.street || ''}</div>
 											<div>{res.zip || ''} {res.city || ''}</div>
@@ -144,9 +166,7 @@
 								</div>
 							</div>
 
-							<div
-								class="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-							>
+							<div class="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
 								<button
 									onclick={() => copyForContract(res)}
 									title="Für Vertrag kopieren"
@@ -174,9 +194,7 @@
 							</div>
 						</div>
 
-						<div
-							class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-slate-700 w-full"
-						>
+						<div class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-slate-700 w-full">
 							<span
 								class="bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 uppercase tracking-wide"
 								title="Erstellt von"
@@ -189,29 +207,30 @@
 						</div>
 					</div>
 				{:else}
-					<div
-						class="text-center py-10 text-gray-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700"
-					>
+					<div class="text-center py-10 text-gray-400 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700">
 						Keine Einträge gefunden.
 					</div>
 				{/each}
 			</div>
 
-			<div
-				class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-200 dark:border-slate-700 h-fit sticky top-10"
-			>
+			<div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-200 dark:border-slate-700 h-fit sticky top-10">
 				<h2 class="text-xl font-bold mb-6">Neu erstellen</h2>
 
 				<div class="flex gap-2 mb-4 p-1 bg-gray-100 dark:bg-slate-700 rounded-lg">
 					<button
 						onclick={() => (resType = 'COMPANY')}
-						class={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${resType === 'COMPANY' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-gray-500'}`}
+						class={`flex-1 py-1.5 text-xs sm:text-sm font-bold rounded-md transition-all ${resType === 'COMPANY' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-gray-500'}`}
 						>Firma</button
 					>
 					<button
 						onclick={() => (resType = 'PERSON')}
-						class={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${resType === 'PERSON' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-gray-500'}`}
+						class={`flex-1 py-1.5 text-xs sm:text-sm font-bold rounded-md transition-all ${resType === 'PERSON' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-gray-500'}`}
 						>Person</button
+					>
+					<button
+						onclick={() => (resType = 'AUTHORITY')}
+						class={`flex-1 py-1.5 text-xs sm:text-sm font-bold rounded-md transition-all ${resType === 'AUTHORITY' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-gray-500'}`}
+						>Behörde</button
 					>
 				</div>
 
@@ -221,20 +240,33 @@
 						<input
 							bind:value={resName}
 							class="w-full rounded-md border-gray-300 dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-amber-500 focus:border-amber-500"
-							placeholder={resType === 'COMPANY' ? 'Firmenwortlaut' : 'Vor- & Nachname'}
+							placeholder={resType === 'COMPANY' ? 'Firmenwortlaut' : resType === 'AUTHORITY' ? 'Behördenname' : 'Vor- & Nachname'}
 						/>
 					</label>
 
-					<label class="block">
-						<span class="text-xs font-bold text-gray-500 uppercase mb-1 block"
-							>{resType === 'COMPANY' ? 'HR-Nummer (FL...)' : 'Geburtsdatum'}</span
-						>
-						<input
-							bind:value={resId}
-							class="w-full rounded-md border-gray-300 dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-amber-500 focus:border-amber-500"
-							placeholder={resType === 'COMPANY' ? 'HR-Nummer (FL...)' : 'Geburtsdatum'}
-						/>
-					</label>
+					{#if resType !== 'AUTHORITY'}
+						<label class="block">
+							<span class="text-xs font-bold text-gray-500 uppercase mb-1 block"
+								>{resType === 'COMPANY' ? 'HR-Nummer (FL...)' : 'Geburtsdatum'}</span
+							>
+							<input
+								bind:value={resId}
+								class="w-full rounded-md border-gray-300 dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-amber-500 focus:border-amber-500"
+								placeholder={resType === 'COMPANY' ? 'HR-Nummer (FL...)' : 'Geburtsdatum'}
+							/>
+						</label>
+					{/if}
+
+					{#if resType === 'COMPANY'}
+						<label class="block">
+							<span class="text-xs font-bold text-gray-500 uppercase mb-1 block">Sitz (Gemeinde/Ort)</span>
+							<input
+								bind:value={resSeat}
+								class="w-full rounded-md border-gray-300 dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-amber-500 focus:border-amber-500"
+								placeholder="Z.B. Vaduz"
+							/>
+						</label>
+					{/if}
 
 					<div class="space-y-2">
 						<label class="block">

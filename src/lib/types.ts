@@ -23,9 +23,10 @@ export const FirmUserSchema = z.object({
 // FIX: created und updated hinzugefügt für den Staleness-Check
 export const ResourceSchema = z.object({
     id: z.string(),
-    type: z.enum(['COMPANY', 'PERSON']),
+    type: z.enum(['COMPANY', 'PERSON','AUTHORITY']),
     name: z.string(),
     identifier: z.string().optional(),
+    seat: z.string().optional(),
     address: z.string().optional(),
     street: z.string().optional(),
     zip: z.string().optional(),

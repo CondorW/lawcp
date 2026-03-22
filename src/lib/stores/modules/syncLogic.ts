@@ -18,7 +18,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 
 			const resRecords = await pb.collection('resources').getFullList({ sort: '-created', expand: 'owner' });
 			const resources = resRecords.map((r: any) => ({
-				id: r.id, type: r.type, name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
+				id: r.id, type: r.type, name: r.name, identifier: r.identifier, seat: r.seat, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
 			}));
 
 			const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
@@ -102,7 +102,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 			try {
 				const r = await pb.collection('resources').getOne(e.record.id, { expand: 'owner' });
 				const updatedRes: Resource = {
-					id: r.id, type: r.type as 'COMPANY' | 'PERSON', name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
+					id: r.id, type: r.type as 'COMPANY' | 'PERSON' | 'AUTHORITY', name: r.name, identifier: r.identifier, seat: r.seat, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
 				};
 				update((s) => {
 					const index = s.resources.findIndex((res) => res.id === r.id);

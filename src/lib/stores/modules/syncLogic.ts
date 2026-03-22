@@ -8,112 +8,109 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 
     if (pb.authStore.isValid && pb.authStore.model) {
         const user = pb.authStore.model;
-        update(s => ({
-            ...s,
-            settings: { ...s.settings, myShortsign: user.shortsign || 'ME', isAuthenticated: true }
-        }));
+        update(s => ({ ...s, settings: { ...s.settings, myShortsign: user.shortsign || 'ME', isAuthenticated: true } }));
     }
 
-    try {
-        const users = await pb.collection('users').getFullList({
-            fields: 'id,name,shortsign,email,teamLeader',
-            sort: 'shortsign'
-        });
-
-        const resRecords = await pb.collection('resources').getFullList({ sort: '-created', expand: 'owner' });
-        const resources = resRecords.map((r: any) => ({
-            id: r.id, type: r.type, name: r.name, identifier: r.identifier, address: r.address,
-            street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created,
-            updated: r.updated, owner: r.owner, expand: r.expand
-        }));
-
-        const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
-        const tasks = records.map((r: any) => ({
-            id: r.id, title: r.title, status: r.status, matterRef: r.matterRef,
-            dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: r.subtasks || [],
-            flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM',
-            createdAt: r.created, timeTracked: 0, dependencies: [], assignees: r.assignees || [],
-            owner: r.owner, expand: r.expand
-        }));
-
-        update(s => ({ ...s, tasks: tasks as Task[], firmUsers: users, resources: resources as Resource[] }));
-    } catch (e) {
-        console.error("PB Load Error:", e);
-    }
-
-    // --- REALTIME SUBSCRIPTION: TASKS ---
-pb.collection('tasks').subscribe('*', async (e) => {
-    const myId = pb.authStore.model?.id;
-    if (e.action === 'delete') {
-        update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
-        return;
-    }
-    if (e.action === 'create' || e.action === 'update') {
+    // --- 1. ZENTRALE HARD-SYNC FUNKTION ---
+    // Diese Funktion garantiert absolute Wahrheit, indem sie alles frisch zieht.
+    const forceFullSync = async () => {
         try {
-            const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
-            const isOwner = r.owner === myId;
-            const isAssignee = r.assignees?.includes(myId);
-            const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
+            const users = await pb.collection('users').getFullList({ fields: 'id,name,shortsign,email,teamLeader', sort: 'shortsign' });
+            
+            const resRecords = await pb.collection('resources').getFullList({ sort: '-created', expand: 'owner' });
+            const resources = resRecords.map((r: any) => ({
+                id: r.id, type: r.type, name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
+            }));
 
-            if (isOwner || isAssignee || isTeamReview) {
-                update(s => {
-                    const index = s.tasks.findIndex(t => t.id === r.id);
-                    const currentLocalTask = index !== -1 ? s.tasks[index] : null;
-                    
-                    // HIER IST DAS SCHUTZSCHILD FÜR DEN WEBSOCKET
-                    // Wenn wir ziehen, behalten wir zwingend unsere lokalen Subtasks!
-                    const subtasksToUse = (isDraggingLock && currentLocalTask) ? currentLocalTask.subtasks : (r.subtasks || []);
+            const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
+            const tasks = records.map((r: any) => ({
+                id: r.id, title: r.title, status: r.status, matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: r.subtasks || [], flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM', createdAt: r.created, timeTracked: 0, dependencies: [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
+            }));
 
-                    const updatedTask: Task = {
-                        id: r.id,
-                        title: r.title,
-                        status: r.status as Task['status'],
-                        matterRef: r.matterRef,
-                        dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '',
-                        subtasks: subtasksToUse, // <-- Der abgewehrte Rubberbanding-Versuch
-                        flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null,
-                        priority: 'MEDIUM',
-                        createdAt: r.created,
-                        timeTracked: 0,
-                        dependencies: [],
-                        assignees: r.assignees || [],
-                        owner: r.owner,
-                        expand: r.expand
-                    };
-
-                    if (index !== -1) {
-                        const newTasks = [...s.tasks];
-                        newTasks[index] = updatedTask;
-                        return { ...s, tasks: newTasks };
-                    } else {
-                        return { ...s, tasks: [updatedTask, ...s.tasks] };
-                    }
-                });
-            } else {
-                update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== r.id) }));
-            }
-        } catch (err) {
-            update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
+            update(s => {
+                // Sicherheits-Sperre: Wenn der User gerade eine Karte zieht (Drag & Drop), 
+                // überschreiben wir das UI nicht, um den Flow nicht zu unterbrechen.
+                if (isDraggingLock) return s;
+                return { ...s, tasks: tasks as Task[], firmUsers: users, resources: resources as Resource[] };
+            });
+        } catch (e) {
+            console.error("PB Load Error:", e);
         }
-    }
-});
+    };
 
-    // --- REALTIME SUBSCRIPTION: RESOURCES ---
+    // Beim allerersten Laden der Seite
+    await forceFullSync();
+
+    // --- 2. WAKE-UP CALL (DER FIX FÜR DEN STALE CACHE) ---
+    let lastWakeUp = 0;
+    const onWakeUp = () => {
+        const now = Date.now();
+        // Wir erlauben den Hard Sync maximal alle 2 Sekunden, 
+        // damit kein Spam entsteht, wenn du schnell Fenster wechselst.
+        if (now - lastWakeUp > 2000) { 
+            lastWakeUp = now;
+            forceFullSync(); 
+        }
+    };
+
+    // Hört darauf, ob du in das Fenster klickst (Focus) oder den Tab wechselst (Visibility)
+    window.addEventListener('focus', onWakeUp);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') onWakeUp();
+    });
+
+    // --- 3. REALTIME SUBSCRIPTION (WebSockets) ---
+    pb.collection('tasks').subscribe('*', async (e) => {
+        const myId = pb.authStore.model?.id;
+        if (e.action === 'delete') {
+            update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
+            return;
+        }
+        if (e.action === 'create' || e.action === 'update') {
+            try {
+                const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
+                const isOwner = r.owner === myId;
+                const isAssignee = r.assignees?.includes(myId);
+                const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
+                
+                if (isOwner || isAssignee || isTeamReview) {
+                    update(s => {
+                        const index = s.tasks.findIndex(t => t.id === r.id);
+                        const currentLocalTask = index !== -1 ? s.tasks[index] : null;
+                        const subtasksToUse = (isDraggingLock && currentLocalTask) ? currentLocalTask.subtasks : (r.subtasks || []);
+                        
+                        const updatedTask: Task = {
+                            id: r.id, title: r.title, status: r.status as Task['status'], matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM', createdAt: r.created, timeTracked: 0, dependencies: [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
+                        };
+
+                        if (index !== -1) {
+                            const newTasks = [...s.tasks];
+                            newTasks[index] = updatedTask;
+                            return { ...s, tasks: newTasks };
+                        } else {
+                            return { ...s, tasks: [updatedTask, ...s.tasks] };
+                        }
+                    });
+                } else {
+                    update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== r.id) }));
+                }
+            } catch (err) {
+                update(s => ({ ...s, tasks: s.tasks.filter(t => t.id !== e.record.id) }));
+            }
+        }
+    });
+
     pb.collection('resources').subscribe('*', async (e) => {
         if (e.action === 'delete') {
             update(s => ({ ...s, resources: s.resources.filter(r => r.id !== e.record.id) }));
             return;
         }
-
         if (e.action === 'create' || e.action === 'update') {
             try {
                 const r = await pb.collection('resources').getOne(e.record.id, { expand: 'owner' });
                 const updatedRes: Resource = {
-                    id: r.id, type: r.type as 'COMPANY' | 'PERSON', name: r.name, identifier: r.identifier,
-                    address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes,
-                    created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
+                    id: r.id, type: r.type as 'COMPANY' | 'PERSON', name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
                 };
-
                 update(s => {
                     const index = s.resources.findIndex(res => res.id === r.id);
                     if (index !== -1) {
@@ -130,149 +127,93 @@ pb.collection('tasks').subscribe('*', async (e) => {
         }
     });
 
-    // --- ADAPTIVE HEARTBEAT SYNC (Firewall-Buster) ---
-    // Simuliert Echtzeit durch aggressives Polling (1s) bei Aktivität
-    if (browser) {
-        let lastServerTime = ""; // Wir vertrauen NICHT mehr der lokalen Browser-Uhr!
-        let pollInterval: any;
-        let isFastPolling = false;
-        let idleTimer: any;
+    // --- 4. ADAPTIVER POLLER (Für aktive Sitzungen im HP Secure Browser) ---
+    let lastServerTime = ""; 
+    let pollInterval: ReturnType<typeof setInterval>;
+    let isFastPolling = false;
+    let idleTimer: ReturnType<typeof setTimeout>;
 
-        // Die Sync-Funktion (Kernlogik inkl. Ghost-Buster)
-        const runSync = async () => {
-            const myId = pb.authStore.model?.id;
-            if (!myId) return;
+    const runSync = async () => {
+        const myId = pb.authStore.model?.id;
+        if (!myId) return;
+        try {
+            const serverMeta = await pb.collection('tasks').getFullList({ 
+                fields: 'id,updated', sort: '-updated', requestKey: null, headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+            });
+            const serverIds = new Set(serverMeta.map((t: any) => t.id));
 
-            try {
-                // 1. Ghost-Buster & Zeit-Sync: Wir holen alle IDs und das neueste Update-Datum vom Server
-                const serverMeta = await pb.collection('tasks').getFullList({ 
-                    fields: 'id,updated', 
-                    sort: '-updated',
-                    requestKey: null, // Verhindert Auto-Cancel durch das SDK bei schnellem Polling
-                    headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } // Proxy-Cache sprengen
+            if (!lastServerTime && serverMeta.length > 0) {
+                lastServerTime = serverMeta[0].updated;
+                return;
+            }
+
+            let missedTasks: any[] = [];
+            if (lastServerTime) {
+                missedTasks = await pb.collection('tasks').getFullList({
+                    filter: `updated > "${lastServerTime}"`, expand: 'owner', sort: '-updated', requestKey: null, headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
                 });
-                
-                const serverIds = new Set(serverMeta.map((t: any) => t.id));
+            }
 
-                // Beim allerersten Tick kalibrieren wir unsere "Uhr" auf die Serverzeit
-                if (!lastServerTime && serverMeta.length > 0) {
-                    lastServerTime = serverMeta[0].updated;
-                    return; 
-                }
+            if (missedTasks.length > 0) lastServerTime = missedTasks[0].updated;
 
-                // 2. Updates: Nur Tasks laden, die nach der exakten Server-Zeit verändert wurden
-                let missedTasks: any[] = [];
-                if (lastServerTime) {
-                    missedTasks = await pb.collection('tasks').getFullList({
-                        filter: `updated > "${lastServerTime}"`,
-                        expand: 'owner',
-                        sort: '-updated', // Neueste zuerst
-                        requestKey: null,
-                        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-                    });
-                }
+            update(s => {
+                let newTasks = s.tasks.filter(t => t.id.startsWith('temp-') || serverIds.has(t.id));
+                let hasChanges = s.tasks.length !== newTasks.length;
 
                 if (missedTasks.length > 0) {
-                    lastServerTime = missedTasks[0].updated; // Uhr sofort auf den neuesten Stand setzen
-                }
+                    missedTasks.forEach((mt: any) => {
+                        const index = newTasks.findIndex(t => t.id === mt.id);
+                        const isOwner = mt.owner === myId;
+                        const isAssignee = mt.assignees?.includes(myId);
+                        const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
 
-                // 3. Store updaten
-                update(s => {
-                    // 3.1 Ghost-Buster inkl. Schutzschild für Optimistic UI
-                    // (Wir behalten Tasks, die eine 'temp-' ID haben oder vom Server bestätigt sind)
-                    let newTasks = s.tasks.filter(t => t.id.startsWith('temp-') || serverIds.has(t.id));
-                    let hasChanges = s.tasks.length !== newTasks.length;
-
-                    // 3.2 Updates & Rechte-Entzug verarbeiten
-                    if (missedTasks.length > 0) {
-                        missedTasks.forEach((mt: any) => {
-                            const index = newTasks.findIndex(t => t.id === mt.id);
+                        if (isOwner || isAssignee || isTeamReview) {
+                            const currentLocalTask = s.tasks[index];
+                            const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : (mt.subtasks || []);
                             
-                            const isOwner = mt.owner === myId;
-                            const isAssignee = mt.assignees?.includes(myId);
-                            const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
+                            const taskObj: Task = {
+                                id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef, dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: 'MEDIUM', createdAt: mt.created, timeTracked: 0, dependencies: [], assignees: mt.assignees || [], owner: mt.owner, expand: mt.expand
+                            };
 
-                            if (isOwner || isAssignee || isTeamReview) {
-    // FIX: Wenn wir gerade ziehen, übernehmen wir NICHT die Subtasks vom Server, 
-    // sondern behalten unseren lokalen, manipulierten Zustand (s.tasks[index].subtasks).
-    // Ansonsten überschreibt der Server unsere Mausbewegung.
-    const currentLocalTask = s.tasks[index];
-    const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : (mt.subtasks || []);
-
-    const taskObj: Task = {
-        id: mt.id,
-        title: mt.title,
-        status: mt.status,
-        matterRef: mt.matterRef,
-        dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '',
-        subtasks: subtasksToUse, // HIER WIRKT DAS SCHUTZSCHILD
-        flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null,
-        priority: 'MEDIUM',
-        createdAt: mt.created,
-        timeTracked: 0,
-        dependencies: [],
-        assignees: mt.assignees || [],
-        owner: mt.owner,
-        expand: mt.expand
-    };
-
-                                if (index !== -1) {
-                                    // Update eines bestehenden Tasks
-                                    if (JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) {
-                                        newTasks[index] = taskObj;
-                                        hasChanges = true;
-                                    }
-                                } else {
-                                    // Neuer Task von außen
-                                    newTasks.unshift(taskObj);
+                            if (index !== -1) {
+                                if (JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) {
+                                    newTasks[index] = taskObj;
                                     hasChanges = true;
                                 }
-                            } else if (index !== -1) {
-                                // HAUPT-FIX: Rechte verloren (z.B. TL hat TM entzogen) -> Sofort ausblenden
-                                newTasks = newTasks.filter(t => t.id !== mt.id); // Sicherer als splice()
+                            } else {
+                                newTasks.unshift(taskObj);
                                 hasChanges = true;
                             }
-                        });
-                    }
-                    return hasChanges ? { ...s, tasks: newTasks } : s;
-                });
-            } catch (e) {
-                // Silent Error (verhindert Spam in der Konsole bei Netzwerk-Rucklern)
-            }
-        };
+                        } else if (index !== -1) {
+                            newTasks = newTasks.filter(t => t.id !== mt.id);
+                            hasChanges = true;
+                        }
+                    });
+                }
+                return hasChanges ? { ...s, tasks: newTasks } : s;
+            });
+        } catch (e) {
+            // Leiser Fehler, falls das Netzwerk kurz wackelt
+        }
+    };
 
-        // Polling-Geschwindigkeit steuern
-        const setPolling = (fast: boolean) => {
-            if (isFastPolling === fast) return;
-            isFastPolling = fast;
-            
-            clearInterval(pollInterval);
-            // Fast: 1000ms (Fühlt sich wie Realtime an) | Slow: 10000ms (Hintergrund)
-            pollInterval = setInterval(runSync, fast ? 1000 : 10000);
-        };
+    const setPolling = (fast: boolean) => {
+        if (isFastPolling === fast) return;
+        isFastPolling = fast;
+        clearInterval(pollInterval);
+        pollInterval = setInterval(runSync, fast ? 1000 : 10000);
+    };
 
-        // Aktivitäts-Tracker
-        const onUserActivity = () => {
-            setPolling(true); // Sofort auf schnell schalten
-            clearTimeout(idleTimer);
-            // Nach 30 Sekunden Inaktivität wieder runterfahren
-            idleTimer = setTimeout(() => setPolling(false), 30000);
-        };
+    const onUserActivity = () => {
+        setPolling(true);
+        clearTimeout(idleTimer);
+        // Geht nach 30 Sekunden Inaktivität in den langsamen Polling-Modus
+        idleTimer = setTimeout(() => setPolling(false), 30000);
+    };
 
-        // Event Listeners für "Aufwachen"
-        window.addEventListener('mousemove', onUserActivity);
-        window.addEventListener('keydown', onUserActivity);
-        window.addEventListener('click', onUserActivity);
-        
-        // Wenn Tab gewechselt wird: Sofort-Sync
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                runSync();
-                onUserActivity();
-            }
-        });
+    window.addEventListener('mousemove', onUserActivity);
+    window.addEventListener('keydown', onUserActivity);
+    window.addEventListener('click', onUserActivity);
 
-        // Start initial
-        onUserActivity();
-    }
-}
+    onUserActivity();
+};

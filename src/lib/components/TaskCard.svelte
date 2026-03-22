@@ -16,25 +16,20 @@
     const isOwner = task.owner === myId;
     const ownerShortsign = task.expand?.owner?.shortsign || '?';
     
-    // AUTHORIZATION GATE: Is the current user a Team Leader?
-    // Based on DB structure: TMs have a 'teamLeader' relation. TLs do not.
-    // (If you use a specific boolean instead, change this to: pb.authStore.model?.isLeader)
     const isTeamLeader = !pb.authStore.model?.teamLeader;
     
-    // Finde heraus, wer aktuell zugewiesen ist
     $: currentAssignee = task.assignees && task.assignees.length > 0 ? task.assignees[0] : '';
 
     let dragging = false;
     let newSubtaskTitle = '';
     let newSubtaskType: SubtaskType = 'GENERIC';
-
+    
     function handleAddSubtask() {
         if (!newSubtaskTitle.trim()) return;
         store.addSubtask(task.id, newSubtaskTitle, newSubtaskType);
         newSubtaskTitle = '';
     }
 
-    // Direkte Zuweisung über Button-Klick
     function assignTo(userId: string) {
         if (currentAssignee === userId) return;
         store.assignTask(task.id, userId);
@@ -42,9 +37,8 @@
 
     function onDragStart(e: DragEvent) {
         const target = e.target as HTMLElement;
-        // Buttons (Kürzel) vom Dragging ausschließen
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') { 
-            e.preventDefault(); 
+            e.preventDefault();
             return; 
         }
         e.dataTransfer?.setData('text/plain', task.id); 
@@ -55,7 +49,7 @@
 <div 
     role="listitem"
     class={cn(
-        "group relative flex flex-col gap-3 rounded-xl border p-5 shadow-sm transition-all cursor-move bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-md",
+        "group relative flex flex-col gap-2 rounded-xl border p-3 shadow-sm transition-all cursor-move bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-md",
         task.status === 'DONE' && "bg-gray-50 dark:bg-slate-800/50 opacity-60 grayscale",
         dragging && "opacity-50",
         !isOwner && "border-amber-200 dark:border-amber-900/30"
@@ -74,10 +68,10 @@
 
     <TaskTitle {task} />
 
-    <div class="space-y-3 my-2 border-t border-gray-100 dark:border-slate-700 pt-3">
+    <div class="space-y-2 my-1 border-t border-gray-100 dark:border-slate-700 pt-2">
         
         {#if isOwner && isTeamLeader}
-            <div class="flex items-center gap-2 mb-3">
+            <div class="flex items-center gap-2 mb-2">
                 <span class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
                 <div class="flex flex-wrap gap-1.5">
                     
@@ -119,7 +113,7 @@
             <SubtaskItem taskId={task.id} {sub} />
         {/each}
 
-        <div class="flex gap-2 items-center mt-3 pt-1 relative z-20">
+        <div class="flex gap-2 items-center mt-2 pt-1 relative z-20">
             <select bind:value={newSubtaskType} class="text-xs bg-gray-100 dark:bg-slate-700 border-0 rounded px-2 py-1 text-gray-600 dark:text-gray-300 cursor-pointer focus:ring-0">
                 <option value="GENERIC">Task</option>
                 <option value="DOCUMENT">Doc</option>

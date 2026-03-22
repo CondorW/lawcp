@@ -71,50 +71,25 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
     if (!userId) return;
 
     const dueDate = date || new Date().toISOString();
-    const finalId = generatePbId(); // Wir erzeugen die finale ID sofort selbst!
-
-    // 1. Task sofort auf dem Bildschirm anzeigen (ohne Fake-ID)
-    update((s: AppData) => {
-        const newTask: Task = {
-            id: finalId,
-            title,
-            status: status as Task['status'],
-            matterRef: ref,
-            dueDate,
-            subtasks: [],
-            owner: userId,
-            assignees: assignedTo ? [assignedTo] : [userId],
-            priority: 'MEDIUM',
-            createdAt: new Date().toISOString(),
-            timeTracked: 0,
-            dependencies: [],
-            flaggedDate: null
-        };
-        return { ...s, tasks: [newTask, ...s.tasks] };
-    });
 
     try {
-        // 2. An die Datenbank senden (wir zwingen die DB, unsere ID zu nutzen)
-        const record = await pb.collection('tasks').create({ 
-            id: finalId,
+        await pb.collection('tasks').create({ 
             title, 
             status, 
             matterRef: ref, 
             dueDate, 
             subtasks: [], 
             owner: userId, 
-            assignees: assignedTo ? [assignedTo] : [userId] 
-        }, { expand: 'owner' });
-
-        // Wir fügen nur noch unsichtbar die Besitzer-Details (expand) hinzu. Kein Flackern mehr!
-        update((s: AppData) => ({
-            ...s,
-            tasks: s.tasks.map(t => t.id === finalId ? { ...t, expand: record.expand } : t)
-        }));
-    } catch (e) { 
-        console.error("Task creation failed:", e); 
-        // Bei einem echten Netzwerkfehler wird der Task wieder entfernt
-        update((s: AppData) => ({ ...s, tasks: s.tasks.filter(t => t.id !== finalId) }));
+            assignees: assignedTo ? [assignedTo] : [userId],
+            
+            // HIER SIND DIE FEHLENDEN STANDARDFELDER:
+            priority: 'MEDIUM',
+            timeTracked: 0,
+            dependencies: [],
+            flaggedDate: null
+        });
+    } catch (e) {
+        console.error("Task creation failed:", e);
     }
 };
 

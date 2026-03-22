@@ -12,7 +12,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
     }
 
     // --- 1. ZENTRALE HARD-SYNC FUNKTION ---
-    // Diese Funktion garantiert absolute Wahrheit, indem sie alles frisch zieht.
     const forceFullSync = async () => {
         try {
             const users = await pb.collection('users').getFullList({ fields: 'id,name,shortsign,email,teamLeader', sort: 'shortsign' });
@@ -28,8 +27,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
             }));
 
             update(s => {
-                // Sicherheits-Sperre: Wenn der User gerade eine Karte zieht (Drag & Drop), 
-                // überschreiben wir das UI nicht, um den Flow nicht zu unterbrechen.
                 if (isDraggingLock) return s;
                 return { ...s, tasks: tasks as Task[], firmUsers: users, resources: resources as Resource[] };
             });
@@ -38,22 +35,18 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
         }
     };
 
-    // Beim allerersten Laden der Seite
     await forceFullSync();
 
-    // --- 2. WAKE-UP CALL (DER FIX FÜR DEN STALE CACHE) ---
+    // --- 2. WAKE-UP CALL ---
     let lastWakeUp = 0;
     const onWakeUp = () => {
         const now = Date.now();
-        // Wir erlauben den Hard Sync maximal alle 2 Sekunden, 
-        // damit kein Spam entsteht, wenn du schnell Fenster wechselst.
         if (now - lastWakeUp > 2000) { 
             lastWakeUp = now;
             forceFullSync(); 
         }
     };
 
-    // Hört darauf, ob du in das Fenster klickst (Focus) oder den Tab wechselst (Visibility)
     window.addEventListener('focus', onWakeUp);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') onWakeUp();
@@ -75,7 +68,12 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
                 
                 if (isOwner || isAssignee || isTeamReview) {
                     update(s => {
-                        const index = s.tasks.findIndex(t => t.id === r.id);
+                        // FUZZY MATCHING: Wenn IDs nicht übereinstimmen, suchen wir den lokalen "Geist" via Titel & Zeit
+                        let index = s.tasks.findIndex(t => t.id === r.id);
+                        if (index === -1) {
+                            index = s.tasks.findIndex(t => t.title === r.title && t.status === r.status && (Date.now() - new Date(t.createdAt).getTime() < 10000));
+                        }
+
                         const currentLocalTask = index !== -1 ? s.tasks[index] : null;
                         const subtasksToUse = (isDraggingLock && currentLocalTask) ? currentLocalTask.subtasks : (r.subtasks || []);
                         
@@ -85,7 +83,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 
                         if (index !== -1) {
                             const newTasks = [...s.tasks];
-                            newTasks[index] = updatedTask;
+                            newTasks[index] = updatedTask; // Überschreibt den Ghost-Task unsichtbar mit echten DB-Daten!
                             return { ...s, tasks: newTasks };
                         } else {
                             return { ...s, tasks: [updatedTask, ...s.tasks] };
@@ -157,18 +155,29 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
             if (missedTasks.length > 0) lastServerTime = missedTasks[0].updated;
 
             update(s => {
-                let newTasks = s.tasks.filter(t => t.id.startsWith('temp-') || serverIds.has(t.id));
+                // Die 5-Sekunden-Gnadenfrist greift für lokale Aufgaben, solange die IDs noch nicht repariert wurden
+                let newTasks = s.tasks.filter(t => 
+                    t.id.startsWith('temp-') || 
+                    serverIds.has(t.id) || 
+                    (Date.now() - new Date(t.createdAt).getTime() < 5000) 
+                );                
+                
                 let hasChanges = s.tasks.length !== newTasks.length;
 
                 if (missedTasks.length > 0) {
                     missedTasks.forEach((mt: any) => {
-                        const index = newTasks.findIndex(t => t.id === mt.id);
+                        // FUZZY MATCHING für den Poller
+                        let index = newTasks.findIndex(t => t.id === mt.id);
+                        if (index === -1) {
+                            index = newTasks.findIndex(t => t.title === mt.title && t.status === mt.status && (Date.now() - new Date(t.createdAt).getTime() < 10000));
+                        }
+
                         const isOwner = mt.owner === myId;
                         const isAssignee = mt.assignees?.includes(myId);
                         const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
-
+                        
                         if (isOwner || isAssignee || isTeamReview) {
-                            const currentLocalTask = s.tasks[index];
+                            const currentLocalTask = index !== -1 ? newTasks[index] : null;
                             const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : (mt.subtasks || []);
                             
                             const taskObj: Task = {
@@ -176,7 +185,8 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
                             };
 
                             if (index !== -1) {
-                                if (JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) {
+                                // Update nur triggern, wenn sich wirklich was geändert hat ODER wir den Ghost reparieren
+                                if (newTasks[index].id !== taskObj.id || JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) {
                                     newTasks[index] = taskObj;
                                     hasChanges = true;
                                 }
@@ -193,7 +203,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
                 return hasChanges ? { ...s, tasks: newTasks } : s;
             });
         } catch (e) {
-            // Leiser Fehler, falls das Netzwerk kurz wackelt
+            // Leiser Fehler
         }
     };
 
@@ -207,7 +217,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
     const onUserActivity = () => {
         setPolling(true);
         clearTimeout(idleTimer);
-        // Geht nach 30 Sekunden Inaktivität in den langsamen Polling-Modus
         idleTimer = setTimeout(() => setPolling(false), 30000);
     };
 

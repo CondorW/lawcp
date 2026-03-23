@@ -1,6 +1,6 @@
 import { pb } from '$lib/pocketbase';
 import { browser } from '$app/environment';
-import { isDraggingLock } from './dbLogic';
+import { isDraggingLock, sortSubtasksDeep } from './dbLogic';
 import type { AppData, Task, Resource } from '$lib/types';
 
 export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) => void) => {
@@ -11,19 +11,20 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 		update((s) => ({ ...s, settings: { ...s.settings, myShortsign: user.shortsign || 'ME', isAuthenticated: true } }));
 	}
 
-	// --- 1. ZENTRALE HARD-SYNC FUNKTION ---
 	const forceFullSync = async () => {
 		try {
 			const users = await pb.collection('users').getFullList({ fields: 'id,name,shortsign,email,teamLeader', sort: 'shortsign' });
 
 			const resRecords = await pb.collection('resources').getFullList({ sort: '-created', expand: 'owner' });
 			const resources = resRecords.map((r: any) => ({
-				id: r.id, type: r.type, name: r.name, identifier: r.identifier, seat: r.seat, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
+				id: r.id, type: r.type, name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
 			}));
 
 			const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
 			const tasks = records.map((r: any) => ({
-				id: r.id, title: r.title, status: r.status, matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: r.subtasks || [], flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
+				id: r.id, title: r.title, status: r.status, matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', 
+				subtasks: sortSubtasksDeep(r.subtasks || []), // <--- HIER WIRD DIREKT BEIM LADEN SORTIERT
+				flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
 			}));
 
 			update((s) => {
@@ -37,7 +38,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 
 	await forceFullSync();
 
-	// --- 2. WAKE-UP CALL ---
 	let lastWakeUp = 0;
 	const onWakeUp = () => {
 		const now = Date.now();
@@ -52,7 +52,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 		if (document.visibilityState === 'visible') onWakeUp();
 	});
 
-	// --- 3. REALTIME SUBSCRIPTION (Ignoriert im HP Browser, gut für andere) ---
 	pb.collection('tasks').subscribe('*', async (e) => {
 		const myId = pb.authStore.model?.id;
 		if (e.action === 'delete') {
@@ -64,13 +63,14 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 				const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' });
 				const isOwner = r.owner === myId;
 				const isAssignee = r.assignees?.includes(myId);
-				const isTeamReview = r.expand?.owner?.teamLeader === myId && r.status === 'REVIEW';
+				const isTeamTask = r.expand?.owner?.teamLeader === myId;
 
-				if (isOwner || isAssignee || isTeamReview) {
+				if (isOwner || isAssignee || isTeamTask) {
 					update((s) => {
 						const index = s.tasks.findIndex((t) => t.id === r.id);
 						const currentLocalTask = index !== -1 ? s.tasks[index] : null;
-						const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : r.subtasks || [];
+						// HIER WIRD AUCH BEI WEBSOCKET UPDATES SORTIERT
+						const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : sortSubtasksDeep(r.subtasks || []);
 
 						const updatedTask: Task = {
 							id: r.id, title: r.title, status: r.status as Task['status'], matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
@@ -102,7 +102,7 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 			try {
 				const r = await pb.collection('resources').getOne(e.record.id, { expand: 'owner' });
 				const updatedRes: Resource = {
-					id: r.id, type: r.type as 'COMPANY' | 'PERSON' | 'AUTHORITY', name: r.name, identifier: r.identifier, seat: r.seat, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
+					id: r.id, type: r.type as 'COMPANY' | 'PERSON' | 'AUTHORITY', name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand
 				};
 				update((s) => {
 					const index = s.resources.findIndex((res) => res.id === r.id);
@@ -120,7 +120,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 		}
 	});
 
-	// --- 4. CLEAN DELTA-POLLER (Ressourcenschonend, alle 15s) ---
 	let lastServerTime = '';
 	let pollInterval: ReturnType<typeof setInterval>;
 
@@ -129,7 +128,6 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 		if (!myId) return;
 
 		try {
-			// Wir checken nur den neuesten Zeitstempel, um Last zu sparen
 			const serverMeta = await pb.collection('tasks').getFullList({
 				fields: 'id,updated', sort: '-updated', requestKey: null, headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }, limit: 1
 			});
@@ -157,11 +155,12 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 						const index = newTasks.findIndex((t) => t.id === mt.id);
 						const isOwner = mt.owner === myId;
 						const isAssignee = mt.assignees?.includes(myId);
-						const isTeamReview = mt.expand?.owner?.teamLeader === myId && mt.status === 'REVIEW';
+						const isTeamTask = mt.expand?.owner?.teamLeader === myId;
 
-						if (isOwner || isAssignee || isTeamReview) {
+						if (isOwner || isAssignee || isTeamTask) {
 							const currentLocalTask = index !== -1 ? newTasks[index] : null;
-							const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : mt.subtasks || [];
+							// HIER WIRD AUCH BEIM POLLER SORTIERT
+							const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : sortSubtasksDeep(mt.subtasks || []);
 
 							const taskObj: Task = {
 								id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef, dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: mt.priority || 'MEDIUM', createdAt: mt.created, timeTracked: mt.timeTracked || 0, dependencies: mt.dependencies || [], assignees: mt.assignees || [], owner: mt.owner, expand: mt.expand
@@ -186,10 +185,9 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 				});
 			}
 		} catch (e) {
-			// Silent fail for network blips
+			// Silent fail
 		}
 	};
 
-	// Startet den ressourcenschonenden Poller (15 Sekunden Intervall)
 	pollInterval = setInterval(runSync, 15000);
 };

@@ -4,12 +4,24 @@ import type { AppData, Task, SubtaskType, Resource, Subtask } from '$lib/types';
 import { recursiveAdd, recursiveUpdate } from '$lib/utils';
 
 // --- HELPER: Deterministic Identity ---
-// Generiert eine strikt PB-konforme ID (15 Zeichen, alphanumerisch)
 const generatePbId = () => {
 	const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
 	let result = '';
 	for (let i = 0; i < 15; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
 	return result;
+};
+
+// --- HELPER: Deep Sort Subtasks (Undone first, stable) ---
+export const sortSubtasksDeep = (nodes: Subtask[]): Subtask[] => {
+	if (!Array.isArray(nodes)) return [];
+	const cloned = [...nodes];
+	cloned.forEach((n, i) => {
+		if (n.subtasks && n.subtasks.length > 0) {
+			cloned[i] = { ...n, subtasks: sortSubtasksDeep(n.subtasks) };
+		}
+	});
+	// Stable Sort: Offene (false=0) vor Erledigten (true=1)
+	return cloned.sort((a, b) => Number(a.done) - Number(b.done));
 };
 
 // --- RESOURCES ---
@@ -65,43 +77,17 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 	const dueDate = date || new Date().toISOString();
 	const finalId = generatePbId();
 
-	// 1. Client-Authoritative Optimistic UI (Zero Latency)
 	update((s: AppData) => {
 		const newTask: Task = {
-			id: finalId,
-			title,
-			status: status as Task['status'],
-			matterRef: ref,
-			dueDate,
-			subtasks: [],
-			owner: userId,
-			assignees: assignedTo ? [assignedTo] : [userId],
-			priority: 'MEDIUM',
-			createdAt: new Date().toISOString(),
-			timeTracked: 0,
-			dependencies: [],
-			flaggedDate: null,
-			// Expand sofort mocken, damit das UI das Kürzel anzeigen kann
+			id: finalId, title, status: status as Task['status'], matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', createdAt: new Date().toISOString(), timeTracked: 0, dependencies: [], flaggedDate: null,
 			expand: { owner: { shortsign: userModel.shortsign || 'ME' } as any }
 		};
 		return { ...s, tasks: [newTask, ...s.tasks] };
 	});
 
 	try {
-		// 2. Fire-and-Forget to Database
 		await pb.collection('tasks').create({
-			id: finalId,
-			title,
-			status,
-			matterRef: ref,
-			dueDate,
-			subtasks: [],
-			owner: userId,
-			assignees: assignedTo ? [assignedTo] : [userId],
-			priority: 'MEDIUM',
-			timeTracked: 0,
-			dependencies: [],
-			flaggedDate: null
+			id: finalId, title, status, matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', timeTracked: 0, dependencies: [], flaggedDate: null
 		});
 	} catch (e) {
 		console.error('Task creation failed:', e);
@@ -110,10 +96,7 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 };
 
 export const assignTask = async (update: (fn: (s: AppData) => AppData) => void, taskId: string, assigneeId: string) => {
-	update((s) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, assignees: assigneeId ? [assigneeId] : [] } : t))
-	}));
+	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, assignees: assigneeId ? [assigneeId] : [] } : t)) }));
 	pb.collection('tasks').update(taskId, { assignees: assigneeId ? [assigneeId] : [] }).catch((e) => console.error(e));
 };
 
@@ -163,7 +146,7 @@ export const addSubtask = async (update: any, get: any, taskId: string, title: s
 	const newSub: Subtask = { id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] };
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: [...t.subtasks, newSub] } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep([...t.subtasks, newSub]) } : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -172,7 +155,7 @@ export const addSubtask = async (update: any, get: any, taskId: string, title: s
 export const toggleSubtask = async (update: any, get: any, taskId: string, subId: string) => {
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, done: !sub.done })) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, done: !sub.done }))) } : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -191,7 +174,7 @@ export const addSubSubtask = async (update: any, get: any, taskId: string, paren
 	const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: recursiveAdd(t.subtasks, parentSubId, newSub) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep(recursiveAdd(t.subtasks, parentSubId, newSub)) } : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -213,7 +196,7 @@ export const deleteSubtask = async (update: any, get: any, taskId: string, subta
 	update((s: AppData) => {
 		const task = s.tasks.find((t) => t.id === taskId);
 		if (!task) return s;
-		payloadToSync = deepClean(task.subtasks);
+		payloadToSync = sortSubtasksDeep(deepClean(task.subtasks));
 		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: payloadToSync } : t)) };
 	});
 
@@ -232,13 +215,7 @@ export const updateSubtaskPos = async (update: any, get: any, taskId: string, su
 	clearTimeout(moveTimer);
 	moveTimer = setTimeout(async () => {
 		const task = get().tasks.find((t: Task) => t.id === taskId);
-		if (task) {
-			try {
-				await pb.collection('tasks').update(taskId, { subtasks: task.subtasks });
-			} catch (e) {
-				console.error(e);
-			}
-		}
+		if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
 		isDraggingLock = false;
 	}, 400);
 };
@@ -284,7 +261,7 @@ export const indentSubtask = async (update: any, get: any, taskId: string, subId
 				return false;
 			};
 			indent(newSubtasks);
-			return { ...t, subtasks: newSubtasks };
+			return { ...t, subtasks: sortSubtasksDeep(newSubtasks) };
 		});
 		return { ...s, tasks };
 	});
@@ -316,7 +293,7 @@ export const outdentSubtask = async (update: any, get: any, taskId: string, subI
 				return false;
 			};
 			outdent(newSubtasks, null, -1);
-			return { ...t, subtasks: newSubtasks };
+			return { ...t, subtasks: sortSubtasksDeep(newSubtasks) };
 		});
 		return { ...s, tasks };
 	});

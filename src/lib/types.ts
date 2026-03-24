@@ -57,14 +57,16 @@ export const SettingsSchema = z.object({
 // --- TASKS & SUBTASKS ---
 // Wichtig: Lazy loading für Rekursion
 export const SubtaskSchema: z.ZodType<any> = z.lazy(() => z.object({
-    id: z.string(),
-    title: z.string(),
-    done: z.boolean().default(false),
-    type: SubtaskTypeSchema.default('GENERIC'),
-    x: z.number().default(0),
-    y: z.number().default(0),
-    next: z.array(z.string()).default([]),
-    subtasks: z.array(SubtaskSchema).default([])
+	id: z.string(),
+	title: z.string(),
+	done: z.boolean().default(false),
+	// NEU: Die State-Machine ersetzt den simplen Boolean-Schalter
+	reviewState: z.enum(['REQUESTED', 'APPROVED', 'REVISION']).nullable().optional(),
+	type: SubtaskTypeSchema.default('GENERIC'),
+	x: z.number().default(0),
+	y: z.number().default(0),
+	next: z.array(z.string()).default([]),
+	subtasks: z.array(SubtaskSchema).default([])
 }));
 
 export const TaskSchema = z.object({

@@ -19,6 +19,28 @@
 		if (!isTeamLeader) goto('/');
 	});
 
+	// --- FILTER LOGIK FÜR DAS TEAM RADAR ---
+	const hasSubtaskInReview = (subtasks: any[]): boolean => {
+	if (!subtasks || !Array.isArray(subtasks)) return false;
+	for (const sub of subtasks) {
+		// NEU: Reagiert nur auf REQUESTED
+		if (sub.reviewState === 'REQUESTED') return true;
+		if (sub.subtasks && hasSubtaskInReview(sub.subtasks)) return true;
+	}
+	return false;
+};
+
+	function filterReviewSubtasks(subs: Subtask[]): Subtask[] {
+		if (!subs) return [];
+		return subs.reduce((acc, sub) => {
+			const filteredChildren = filterReviewSubtasks(sub.subtasks || []);
+			if (sub.review || filteredChildren.length > 0) {
+				acc.push({ ...sub, subtasks: filteredChildren });
+			}
+			return acc;
+		}, [] as Subtask[]);
+	}
+
 	let teamMembers = $derived($store.firmUsers.filter((u) => u.id !== myId));
 
 	let userMetrics = $derived(
@@ -27,10 +49,13 @@
 				(t) => t.owner === user.id || t.assignees?.includes(user.id)
 			);
 
-			const todo = tasks.filter((t) => t.status === 'TODO').length;
-			const inArbeit = tasks.filter((t) => t.status === 'WAITING').length;
-			const review = tasks.filter((t) => t.status === 'REVIEW').length;
-			const done = tasks.filter((t) => t.status === 'DONE').length;
+			// Überschreibt den Status für die Statistiken, wenn ein Teil-Review ansteht
+			const getEffectiveStatus = (t: Task) => hasSubtaskInReview(t.subtasks) && t.status !== 'DONE' ? 'REVIEW' : t.status;
+
+			const todo = tasks.filter((t) => getEffectiveStatus(t) === 'TODO').length;
+			const inArbeit = tasks.filter((t) => getEffectiveStatus(t) === 'WAITING').length;
+			const review = tasks.filter((t) => getEffectiveStatus(t) === 'REVIEW').length;
+			const done = tasks.filter((t) => getEffectiveStatus(t) === 'DONE').length;
 
 			const activeTasks = tasks.filter((t) => t.status !== 'DONE');
 
@@ -56,7 +81,7 @@
 					if (!dateB) return -1;
 					return new Date(dateA).getTime() - new Date(dateB).getTime();
 				})
-				.slice(0, 5); // Strikt auf Top 5 reduziert
+				.slice(0, 5);
 
 			return {
 				user,
@@ -110,7 +135,6 @@
 	<div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black">
 		
 		<div class="shrink-0 relative py-3 px-6 lg:px-8 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-center items-center min-h-[64px]">
-			
 			<div class="absolute left-6 lg:left-8 flex items-center gap-4">
 				<a href="/" class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
 					<ArrowLeft size={20} />
@@ -132,7 +156,6 @@
 					<span class="text-sm font-bold">{globalMetrics.totalOverdue} <span class="opacity-80 font-normal">Überfällig</span></span>
 				</div>
 			</div>
-
 		</div>
 
 		<div class="flex-1 overflow-auto custom-scrollbar p-6 lg:px-8">
@@ -141,9 +164,9 @@
 				{#each userMetrics as data}
 					<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-max overflow-hidden">
 						
-						<div class="p-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center shrink-0">
+						<div class="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center shrink-0">
 							<div class="flex items-center gap-4">
-								<div class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-base shadow-inner">
+								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-base shadow-inner">
 									{data.user.shortsign}
 								</div>
 								<div>
@@ -181,12 +204,15 @@
 							{#if data.urgentTasks.length > 0}
 								<div class="space-y-3">
 									{#each data.urgentTasks as task}
+										{@const effStatus = hasSubtaskInReview(task.subtasks) && task.status !== 'DONE' ? 'REVIEW' : task.status}
+										{@const isMicro = effStatus === 'REVIEW' && task.status !== 'REVIEW'}
+
 										<button 
 											onclick={() => selectedTask = task}
 											class="w-full text-left group flex flex-col gap-2 p-3.5 rounded-lg border bg-white dark:bg-slate-800 shadow-sm transition-all hover:border-amber-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500"
 										>
 											<div class="flex justify-between items-start gap-3 w-full">
-												<span class="text-sm font-bold text-slate-700 dark:text-slate-300 line-clamp-2 leading-snug group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors tracking-wide">{task.title}</span>
+												<span class="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">{task.title}</span>
 												{#if task.matterRef}
 													<span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-500 whitespace-nowrap uppercase shrink-0">
 														{task.matterRef}
@@ -195,8 +221,8 @@
 											</div>
 											
 											<div class="flex justify-between items-center mt-1 border-t border-slate-100 dark:border-slate-700 pt-2.5 w-full">
-												<span class={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${task.status === 'WAITING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : task.status === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-													{task.status === 'WAITING' ? 'IN ARBEIT' : task.status}
+												<span class={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${effStatus === 'WAITING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+													{isMicro ? 'TEIL-REVIEW' : (effStatus === 'WAITING' ? 'IN ARBEIT' : effStatus)}
 												</span>
 												
 												{#if task.flaggedDate}
@@ -230,6 +256,10 @@
 {/if}
 
 {#if selectedTask}
+	{@const isMicro = selectedTask.status !== 'REVIEW' && hasSubtaskInReview(selectedTask.subtasks)}
+	{@const effStatus = isMicro ? 'REVIEW' : selectedTask.status}
+	{@const displaySubs = isMicro ? filterReviewSubtasks(selectedTask.subtasks || []) : (selectedTask.subtasks || [])}
+
 	<div 
 		class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
 		transition:fade={{ duration: 150 }}
@@ -249,8 +279,8 @@
 			<div class="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 rounded-t-2xl flex justify-between items-start gap-4">
 				<div class="flex-1">
 					<div class="flex items-center gap-3 mb-3">
-						<span class={`text-[10px] font-bold px-2 py-1 rounded tracking-widest uppercase ${selectedTask.status === 'WAITING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : selectedTask.status === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
-							{selectedTask.status === 'WAITING' ? 'IN ARBEIT' : selectedTask.status}
+						<span class={`text-[10px] font-bold px-2 py-1 rounded tracking-widest uppercase ${effStatus === 'WAITING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+							{isMicro ? 'TEIL-REVIEW' : (effStatus === 'WAITING' ? 'IN ARBEIT' : effStatus)}
 						</span>
 						{#if selectedTask.matterRef}
 							<span class="text-[10px] font-bold px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-500 uppercase tracking-wider">
@@ -304,14 +334,15 @@
 				<div>
 					<h3 class="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
 						<ListTodo size={16} class="text-slate-400" />
-						Subtasks ({selectedTask.subtasks?.filter(s => s.done).length || 0} / {selectedTask.subtasks?.length || 0})
+						{isMicro ? 'Zu kontrollierende Subtasks' : 'Subtasks'}
+						<span class="text-slate-400 font-normal ml-1">({displaySubs.filter(s => s.done).length} / {displaySubs.length})</span>
 					</h3>
 					
-					{#if selectedTask.subtasks && selectedTask.subtasks.length > 0}
-						{@render subtaskTree(selectedTask.subtasks)}
+					{#if displaySubs && displaySubs.length > 0}
+						{@render subtaskTree(displaySubs)}
 					{:else}
 						<div class="text-sm text-slate-400 italic bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-center">
-							Keine Subtasks vorhanden.
+							Keine Subtasks zur Kontrolle markiert.
 						</div>
 					{/if}
 				</div>

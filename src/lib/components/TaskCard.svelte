@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
-	import type { Task, SubtaskType } from '$lib/types';
+	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn } from '$lib/utils';
 
-	// Module Imports
 	import TaskHeader from './task/TaskHeader.svelte';
 	import TaskTitle from './task/TaskTitle.svelte';
 	import TaskFooter from './task/TaskFooter.svelte';
@@ -13,7 +12,7 @@
 	export let task: Task;
 
 	const myId = pb.authStore.model?.id || '';
-	const isOwner = task.owner === myId;
+	const isOwner = task.owner === myId || (task.assignees && task.assignees.includes(myId));
 	const ownerShortsign = task.expand?.owner?.shortsign || '?';
 	const isTeamLeader = !pb.authStore.model?.teamLeader;
 
@@ -22,6 +21,26 @@
 	let dragging = false;
 	let newSubtaskTitle = '';
 	let newSubtaskType: SubtaskType = 'GENERIC';
+
+	// Rekursiver Filter: Behält nur Subtasks, die ein Review verlangen
+	function filterReviewSubtasks(subs: Subtask[]): Subtask[] {
+		if (!subs) return [];
+		return subs.reduce((acc, sub) => {
+			const filteredChildren = filterReviewSubtasks(sub.subtasks || []);
+			if (sub.review || filteredChildren.length > 0) {
+				acc.push({ ...sub, subtasks: filteredChildren });
+			}
+			return acc;
+		}, [] as Subtask[]);
+	}
+
+	// Erkennt, ob diese Karte für den Betrachter eine "Geister-Karte" ist
+	$: isMicroReviewForTL = !isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks || []).length > 0;
+	
+	// Erzeugt die gefilterte Liste
+	$: displaySubtasks = isMicroReviewForTL 
+		? filterReviewSubtasks(task.subtasks || []) 
+		: (task.subtasks || []);
 
 	function handleAddSubtask() {
 		if (!newSubtaskTitle.trim()) return;
@@ -104,27 +123,29 @@
 			</div>
 		{/if}
 
-		<div class="flex gap-2 items-center mb-3 pb-2 border-b border-gray-50 dark:border-slate-700/50 relative z-20">
-			<select
-				bind:value={newSubtaskType}
-				class="text-xs bg-gray-100 dark:bg-slate-700 border-0 rounded px-2 py-1 text-gray-600 dark:text-gray-300 cursor-pointer focus:ring-0"
-			>
-				<option value="GENERIC">Task</option>
-				<option value="DOCUMENT">Doc</option>
-				<option value="RESEARCH">Res</option>
-				<option value="EMAIL">Mail</option>
-			</select>
-			<input
-				id={`new-subtask-${task.id}`}
-				type="text"
-				bind:value={newSubtaskTitle}
-				placeholder="Neuer Subtask... (Enter)"
-				class="flex-grow bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm placeholder:text-gray-400 focus:ring-0 text-gray-700 dark:text-gray-300"
-				onkeydown={(e) => e.key === 'Enter' && handleAddSubtask()}
-			/>
-		</div>
+		{#if !isMicroReviewForTL}
+			<div class="flex gap-2 items-center mb-3 pb-2 border-b border-gray-50 dark:border-slate-700/50 relative z-20">
+				<select
+					bind:value={newSubtaskType}
+					class="text-xs bg-gray-100 dark:bg-slate-700 border-0 rounded px-2 py-1 text-gray-600 dark:text-gray-300 cursor-pointer focus:ring-0"
+				>
+					<option value="GENERIC">Task</option>
+					<option value="DOCUMENT">Doc</option>
+					<option value="RESEARCH">Res</option>
+					<option value="EMAIL">Mail</option>
+				</select>
+				<input
+					id={`new-subtask-${task.id}`}
+					type="text"
+					bind:value={newSubtaskTitle}
+					placeholder="Neuer Subtask... (Enter)"
+					class="flex-grow bg-transparent border-b border-transparent focus:border-blue-500 p-1 text-sm placeholder:text-gray-400 focus:ring-0 text-gray-700 dark:text-gray-300"
+					onkeydown={(e) => e.key === 'Enter' && handleAddSubtask()}
+				/>
+			</div>
+		{/if}
 
-		{#each task.subtasks || [] as sub (sub.id)}
+		{#each displaySubtasks as sub (sub.id)}
 			<SubtaskItem taskId={task.id} {sub} />
 		{/each}
 

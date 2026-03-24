@@ -5,6 +5,7 @@
 	import TaskInput from '$lib/components/TaskInput.svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
+	import type { Task } from '$lib/types';
 
 	let refFilter = '';
 
@@ -12,20 +13,15 @@
 		const aIsCourtDeadline = a.flaggedDate !== null;
 		const bIsCourtDeadline = b.flaggedDate !== null;
 
-		// Ebene 1: Gerichtsfristen IMMER vor normalen Fristen
 		if (aIsCourtDeadline && !bIsCourtDeadline) return -1;
 		if (!aIsCourtDeadline && bIsCourtDeadline) return 1;
-
-		// Ebene 2: Wenn BEIDES Gerichtsfristen sind -> nach der Gerichtsfrist (flaggedDate) sortieren
 		if (aIsCourtDeadline && bIsCourtDeadline) {
 			return new Date(a.flaggedDate).getTime() - new Date(b.flaggedDate).getTime();
 		}
-
-		// Ebene 3: Wenn BEIDES normale Aufgaben sind -> nach der normalen Frist (dueDate) sortieren
 		return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 	};
 
-	$: matchesFilter = (t: any) => {
+	$: matchesFilter = (t: Task) => {
 		if (!refFilter.trim()) return true;
 		return t.matterRef && t.matterRef.toLowerCase().includes(refFilter.toLowerCase());
 	};
@@ -33,18 +29,40 @@
 	$: currentUserId = pb.authStore.model?.id || '';
 	$: currentUserSign = pb.authStore.model?.shortsign || 'ME';
 
-	$: isMyTask = (t: any) => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
-	// Der zentrale Türsteher für das Board (Eigene Tasks + Team-Reviews)
-	$: showOnMainBoard = (t: any) => isMyTask(t) || t.status === 'REVIEW';
+	$: isMyTask = (t: Task) => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
 
-	$: todos = $store.tasks.filter(t => t.status === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: waiting = $store.tasks.filter(t => t.status === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: review = $store.tasks.filter(t => t.status === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: done = $store.tasks.filter(t => t.status === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	// Prüft rekursiv, ob ein Micro-Review existiert
+	const hasSubtaskInReview = (subtasks: any[]): boolean => {
+	if (!subtasks || !Array.isArray(subtasks)) return false;
+	for (const sub of subtasks) {
+		// NEU: Reagiert nur auf REQUESTED
+		if (sub.reviewState === 'REQUESTED') return true;
+		if (sub.subtasks && hasSubtaskInReview(sub.subtasks)) return true;
+	}
+	return false;
+};
 
-	// HIER: Nutzt nun ebenfalls `showOnMainBoard(t)`, damit die Agenda perfekt mit dem visuellen Board übereinstimmt
+	// DIE SPLIT-VIEW LOGIK:
+	$: effectiveStatus = (t: Task) => {
+		const isMine = isMyTask(t);
+		const hasReview = hasSubtaskInReview(t.subtasks);
+		
+		// Für den TL: Existiert ein Micro-Review, ziehe eine Geister-Karte in die Review-Spalte
+		if (!isMine && hasReview && t.status !== 'DONE') return 'REVIEW';
+		
+		// Für den TM: Die Karte bleibt unangetastet (z.B. WAITING), damit der Flow nicht bricht
+		return t.status;
+	};
+
+	$: showOnMainBoard = (t: Task) => isMyTask(t) || effectiveStatus(t) === 'REVIEW';
+
+	$: todos = $store.tasks.filter(t => effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	$: waiting = $store.tasks.filter(t => effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	$: review = $store.tasks.filter(t => effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	$: done = $store.tasks.filter(t => effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+
 	$: myActiveTasks = $store.tasks.filter(t => 
-		['TODO', 'WAITING', 'REVIEW'].includes(t.status) && 
+		['TODO', 'WAITING', 'REVIEW'].includes(effectiveStatus(t)) && 
 		showOnMainBoard(t)
 	).sort(byDateAndPriority);
 

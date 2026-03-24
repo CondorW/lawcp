@@ -20,8 +20,20 @@ export const sortSubtasksDeep = (nodes: Subtask[]): Subtask[] => {
 			cloned[i] = { ...n, subtasks: sortSubtasksDeep(n.subtasks) };
 		}
 	});
-	// Stable Sort: Offene (false=0) vor Erledigten (true=1)
-	return cloned.sort((a, b) => Number(a.done) - Number(b.done));
+	// Stable Sort: Offene vor Erledigten, dann REQUESTED ganz nach oben, REVISION danach
+	return cloned.sort((a, b) => {
+		if (a.done !== b.done) return Number(a.done) - Number(b.done);
+		
+		const aReq = a.reviewState === 'REQUESTED' ? 1 : 0;
+		const bReq = b.reviewState === 'REQUESTED' ? 1 : 0;
+		if (aReq !== bReq) return bReq - aReq;
+
+		const aRev = a.reviewState === 'REVISION' ? 1 : 0;
+		const bRev = b.reviewState === 'REVISION' ? 1 : 0;
+		if (aRev !== bRev) return bRev - aRev;
+
+		return 0;
+	});
 };
 
 // --- RESOURCES ---
@@ -301,6 +313,18 @@ export const outdentSubtask = async (update: any, get: any, taskId: string, subI
 		const task = get().tasks.find((t: Task) => t.id === taskId);
 		if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
 	}
+};
+
+export const setSubtaskReviewState = async (update: any, get: any, taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) => {
+	update((s: AppData) => ({
+		...s,
+		tasks: s.tasks.map((t) => (t.id === taskId ? { 
+			...t, 
+			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, reviewState: state }))) 
+		} : t))
+	}));
+	const task = get().tasks.find((t: Task) => t.id === taskId);
+	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
 };
 
 export const fetchContext = async (matterRef: string) => {

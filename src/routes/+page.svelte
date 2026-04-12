@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
-	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users, DollarSign, Archive } from 'lucide-svelte';
+	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users, DollarSign, Archive, ArchiveIcon } from 'lucide-svelte';
 	import TaskInput from '$lib/components/TaskInput.svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
@@ -104,7 +104,7 @@
 							<DollarSign size={16} /> Abrechnung
 						</a>
 						<a href="/archive" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-							<DollarSign size={16} /> Abrechnung
+							<ArchiveIcon size={16} /> Archiv
 						</a>
 						
 						{#if !pb.authStore.model?.teamLeader}

@@ -72,6 +72,22 @@
 		return new Date(dateStr).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
 	}
 
+	// --- NEU: Zuverlässige Hitbox-Logik per JavaScript ---
+	function openPicker(e: MouseEvent) {
+		e.stopPropagation();
+		const btn = e.currentTarget as HTMLElement;
+		const input = btn.querySelector('input[type="date"]') as HTMLInputElement;
+		if (input) {
+			try {
+				input.showPicker();
+			} catch (err) {
+				// Fallback, falls der Browser showPicker() nicht mag
+				input.focus();
+				input.click();
+			}
+		}
+	}
+
 	async function updateCourtDate(e: Event) {
 		const target = e.target as HTMLInputElement;
 		const newDate = target.value ? new Date(target.value).toISOString() : null;
@@ -177,46 +193,34 @@
 
 		<div class="flex flex-row items-center gap-1 h-7">
 			
-			<div class="relative group h-full">
+			<button type="button" class="relative group outline-none focus:ring-0" onclick={openPicker}>
 				{#if task.flaggedDate}
-					<div class="h-7 px-2 bg-red-100 text-red-600 rounded border border-red-200 text-[11px] font-bold flex items-center justify-center tracking-wide group-hover:bg-red-200 transition-colors cursor-pointer">
+					<div class="h-7 px-2 bg-red-100 text-red-600 rounded border border-red-200 text-[11px] font-bold flex items-center justify-center tracking-wide group-hover:bg-red-200 transition-colors">
 						{formatShortDate(task.flaggedDate)}
 					</div>
 				{:else}
-					<div class="w-7 h-7 rounded flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 group-hover:text-red-500 transition-colors cursor-pointer">
+					<div class="w-7 h-7 rounded flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 group-hover:text-red-500 transition-colors">
 						<Flag size={14} />
 					</div>
 				{/if}
-				<input 
-					type="date" 
-					class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-					value={task.flaggedDate ? task.flaggedDate.split('T')[0] : ''}
-					onchange={updateCourtDate}
-					onclick={(e) => e.stopPropagation()}
-				/>
-			</div>
+				<input type="date" class="sr-only" tabindex="-1" value={task.flaggedDate ? task.flaggedDate.split('T')[0] : ''} onchange={updateCourtDate} />
+			</button>
 
-			<div class="relative group h-full">
+			<button type="button" class="relative group outline-none focus:ring-0" onclick={openPicker}>
 				{#if task.dueDate}
-					<div class="h-7 px-2 flex items-center gap-1.5 rounded text-slate-500 hover:text-slate-700 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 transition-colors cursor-pointer">
+					<div class="h-7 px-2 flex items-center gap-1.5 rounded text-slate-500 hover:text-slate-700 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 transition-colors">
 						<Calendar size={14} />
 						<span class="text-[11px] font-medium tracking-wide">
 							{formatShortDate(task.dueDate)}
 						</span>
 					</div>
 				{:else}
-					<div class="w-7 h-7 rounded flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 group-hover:text-slate-600 transition-colors cursor-pointer">
+					<div class="w-7 h-7 rounded flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 group-hover:text-slate-600 transition-colors">
 						<Calendar size={14} />
 					</div>
 				{/if}
-				<input 
-					type="date" 
-					class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-					value={task.dueDate ? task.dueDate.split('T')[0] : ''}
-					onchange={updateInternalDate}
-					onclick={(e) => e.stopPropagation()}
-				/>
-			</div>
+				<input type="date" class="sr-only" tabindex="-1" value={task.dueDate ? task.dueDate.split('T')[0] : ''} onchange={updateInternalDate} />
+			</button>
 			
 			<div 
 				class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer outline-none"

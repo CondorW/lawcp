@@ -1,15 +1,12 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import type { Task } from '$lib/types';
-	import { Flag, Trash2, BrainCircuit } from 'lucide-svelte';
+	import { Trash2, BrainCircuit } from 'lucide-svelte';
 
 	// Svelte 5: Props & State
 	let { task }: { task: Task } = $props();
 	let isEditingRef = $state(false);
 	let editRefBuffer = $state('');
-
-	// Referenz auf das versteckte Input-Feld
-	let dateInput: HTMLInputElement;
 
 	function startEditRef() {
 		editRefBuffer = task.matterRef || '';
@@ -23,92 +20,45 @@
 		}
 		isEditingRef = false;
 	}
-
-	function handleFlagClick(e: MouseEvent) {
-		e.stopPropagation();
-		try {
-			// Öffnet den nativen Browser-Kalender programmgesteuert
-			dateInput.showPicker();
-		} catch (err) {
-			// Fallback
-			dateInput.focus();
-			dateInput.click();
-		}
-	}
-
-	function onDateChange(e: Event) {
-		e.stopPropagation();
-		const target = e.currentTarget as HTMLInputElement;
-		store.toggleFlag(task.id, target.value || null);
-	}
 </script>
 
-<div class="flex justify-between items-start">
-	<div class="flex items-center gap-2">
-		{#if isEditingRef}
-			<input
-				id={`edit-ref-${task.id}`}
-				type="text"
-				bind:value={editRefBuffer}
-				onblur={saveEditRef}
-				onkeydown={(e) => e.key === 'Enter' && saveEditRef()}
-				class="text-xs font-bold px-2 py-1 rounded border uppercase w-24 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-slate-600"
-				placeholder="REF"
-			/>
-		{:else}
-			<button
-				onclick={(e) => {
-					e.stopPropagation();
-					startEditRef();
-				}}
-				class="text-xs font-bold px-2 py-1 rounded border uppercase tracking-wider text-slate-500 bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 max-w-[120px] truncate hover:text-amber-600 transition-colors"
-			>
-				{task.matterRef || 'NO-REF'}
-			</button>
-		{/if}
-
-		{#if task.matterRef}
-			<button
-				onclick={(e) => {
-					e.stopPropagation();
-					store.openMatterNotes(task.matterRef!);
-				}}
-				class="p-1 rounded-full text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors ml-1"
-				title="Akten-Notizen öffnen"
-			>
-				<BrainCircuit size={16} />
-			</button>
-		{/if}
-	</div>
-
-	<div class="flex gap-1 items-center group">
+<div class="flex items-center gap-1 h-7">
+	
+	{#if isEditingRef}
+		<input
+			id={`edit-ref-${task.id}`}
+			type="text"
+			bind:value={editRefBuffer}
+			onblur={saveEditRef}
+			onkeydown={(e) => e.key === 'Enter' && saveEditRef()}
+			class="h-7 text-[11px] font-bold px-2 rounded border uppercase w-24 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-slate-600 flex items-center"
+			placeholder="REF"
+		/>
+	{:else}
 		<button
-			onclick={handleFlagClick}
-			class="relative w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-			title="Gerichtsfrist setzen"
+			onclick={(e) => { e.stopPropagation(); startEditRef(); }}
+			class="h-7 px-2 flex items-center justify-center text-[11px] font-bold rounded border uppercase tracking-wider text-slate-500 bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 max-w-[100px] truncate hover:text-amber-600 transition-colors outline-none"
 		>
-			<Flag
-				size={16}
-				class={task.flaggedDate ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}
-			/>
-			<input
-				bind:this={dateInput}
-				type="date"
-				value={task.flaggedDate || ''}
-				onchange={onDateChange}
-				class="sr-only"
-				tabindex="-1"
-			/>
+			{task.matterRef || 'NO-REF'}
 		</button>
+	{/if}
+
+	{#if task.matterRef}
 		<button
-			onclick={(e) => {
-				e.stopPropagation();
-				store.deleteTask(task.id);
-			}}
-			class="text-gray-300 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all"
-			title="Aufgabe löschen"
+			onclick={(e) => { e.stopPropagation(); store.openMatterNotes(task.matterRef!); }}
+			class="w-7 h-7 flex items-center justify-center rounded hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-600 text-slate-400 transition-colors outline-none focus:ring-0"
+			title="Akten-Notizen öffnen"
 		>
-			<Trash2 size={16} />
+			<BrainCircuit size={14} />
 		</button>
-	</div>
+	{/if}
+
+	<button
+		onclick={(e) => { e.stopPropagation(); store.deleteTask(task.id); }}
+		class="w-7 h-7 flex items-center justify-center rounded hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-all outline-none focus:ring-0"
+		title="Aufgabe löschen"
+	>
+		<Trash2 size={14} />
+	</button>
+
 </div>

@@ -3,11 +3,11 @@
 	import { pb } from '$lib/pocketbase';
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn } from '$lib/utils';
-	import { ChevronDown, ChevronUp, ListTodo, Eye, Flag, Calendar } from 'lucide-svelte';
+	import { ChevronDown, ChevronUp, ListTodo, Eye } from 'lucide-svelte';
 
-	import TaskHeader from './task/TaskHeader.svelte';
 	import TaskTitle from './task/TaskTitle.svelte';
 	import SubtaskItem from './task/SubtaskItem.svelte';
+	import TaskFooter from './task/TaskFooter.svelte';
 
 	export let task: Task;
 
@@ -63,45 +63,13 @@
 
 	function toggleExpand(e: MouseEvent | KeyboardEvent) {
 		const target = e.target as HTMLElement;
+		// FIX: Erlaubt den Klick, wenn er vom Chevron-Button kommt
+		if (target.closest('.expand-chevron')) {
+			isExpanded = !isExpanded;
+			return;
+		}
 		if (['INPUT', 'BUTTON', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.closest('button')) return;
 		isExpanded = !isExpanded;
-	}
-
-	function formatShortDate(dateStr: string | null) {
-		if (!dateStr) return '';
-		return new Date(dateStr).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
-	}
-
-	// --- NEU: Zuverlässige Hitbox-Logik per JavaScript ---
-	function openPicker(e: MouseEvent) {
-		e.stopPropagation();
-		const btn = e.currentTarget as HTMLElement;
-		const input = btn.querySelector('input[type="date"]') as HTMLInputElement;
-		if (input) {
-			try {
-				input.showPicker();
-			} catch (err) {
-				// Fallback, falls der Browser showPicker() nicht mag
-				input.focus();
-				input.click();
-			}
-		}
-	}
-
-	async function updateCourtDate(e: Event) {
-		const target = e.target as HTMLInputElement;
-		const newDate = target.value ? new Date(target.value).toISOString() : null;
-		try {
-			await pb.collection('tasks').update(task.id, { flaggedDate: newDate });
-		} catch (err) { console.error(err); }
-	}
-
-	async function updateInternalDate(e: Event) {
-		const target = e.target as HTMLInputElement;
-		const newDate = target.value ? new Date(target.value).toISOString() : null;
-		try {
-			await pb.collection('tasks').update(task.id, { dueDate: newDate });
-		} catch (err) { console.error(err); }
 	}
 </script>
 
@@ -177,65 +145,22 @@
 		</div>
 	{/if}
 
-	<div class="mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 flex flex-row items-center justify-between">
+	<div class="mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 flex flex-row items-center justify-between gap-1 h-7">
 		
-		<div class="flex flex-row items-center gap-1">
-			<div class="h-7 flex items-center justify-center cursor-pointer outline-none" role="button" tabindex="0" onclick={toggleExpand} onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}>
-				<TaskHeader {task} />
-			</div>
-			
-			{#if !isOwner}
-				<div class="h-7 px-1.5 ml-1 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200 rounded border border-amber-200 dark:border-amber-800/50 uppercase tracking-wide text-[10px] font-bold flex items-center justify-center shrink-0" title="Delegiert von {ownerShortsign}">
-					{ownerShortsign}
-				</div>
+		<TaskFooter {task} {isOwner} {ownerShortsign} />
+		
+		<div 
+			class="expand-chevron w-7 h-7 shrink-0 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer outline-none"
+			role="button" 
+			tabindex="0"
+			onclick={toggleExpand}
+			onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
+		>
+			{#if isExpanded}
+				<ChevronUp size={16} class="pointer-events-none" />
+			{:else}
+				<ChevronDown size={16} class="pointer-events-none" />
 			{/if}
-		</div>
-
-		<div class="flex flex-row items-center gap-1 h-7">
-			
-			<button type="button" class="relative group outline-none focus:ring-0" onclick={openPicker}>
-				{#if task.flaggedDate}
-					<div class="h-7 px-2 bg-red-100 text-red-600 rounded border border-red-200 text-[11px] font-bold flex items-center justify-center tracking-wide group-hover:bg-red-200 transition-colors">
-						{formatShortDate(task.flaggedDate)}
-					</div>
-				{:else}
-					<div class="w-7 h-7 rounded flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 group-hover:text-red-500 transition-colors">
-						<Flag size={14} />
-					</div>
-				{/if}
-				<input type="date" class="sr-only" tabindex="-1" value={task.flaggedDate ? task.flaggedDate.split('T')[0] : ''} onchange={updateCourtDate} />
-			</button>
-
-			<button type="button" class="relative group outline-none focus:ring-0" onclick={openPicker}>
-				{#if task.dueDate}
-					<div class="h-7 px-2 flex items-center gap-1.5 rounded text-slate-500 hover:text-slate-700 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 transition-colors">
-						<Calendar size={14} />
-						<span class="text-[11px] font-medium tracking-wide">
-							{formatShortDate(task.dueDate)}
-						</span>
-					</div>
-				{:else}
-					<div class="w-7 h-7 rounded flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700/50 group-hover:text-slate-600 transition-colors">
-						<Calendar size={14} />
-					</div>
-				{/if}
-				<input type="date" class="sr-only" tabindex="-1" value={task.dueDate ? task.dueDate.split('T')[0] : ''} onchange={updateInternalDate} />
-			</button>
-			
-			<div 
-				class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer outline-none"
-				role="button" 
-				tabindex="0"
-				onclick={toggleExpand}
-				onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
-			>
-				{#if isExpanded}
-					<ChevronUp size={16} />
-				{:else}
-					<ChevronDown size={16} />
-				{/if}
-			</div>
-
 		</div>
 	</div>
 </div>

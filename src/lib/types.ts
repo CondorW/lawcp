@@ -56,11 +56,12 @@ export const SettingsSchema = z.object({
 
 // --- TASKS & SUBTASKS ---
 // Wichtig: Lazy loading für Rekursion
+// --- TASKS & SUBTASKS ---
 export const SubtaskSchema: z.ZodType<any> = z.lazy(() => z.object({
 	id: z.string(),
 	title: z.string(),
 	done: z.boolean().default(false),
-	// NEU: Die State-Machine ersetzt den simplen Boolean-Schalter
+	completedAt: z.string().optional(), // <--- NEU: Der Zeitstempel für die Abrechnung
 	reviewState: z.enum(['REQUESTED', 'APPROVED', 'REVISION']).nullable().optional(),
 	type: SubtaskTypeSchema.default('GENERIC'),
 	x: z.number().default(0),

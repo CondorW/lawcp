@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
-	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users } from 'lucide-svelte';
+	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users, DollarSign } from 'lucide-svelte';
 	import TaskInput from '$lib/components/TaskInput.svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
@@ -89,7 +89,7 @@
 				<div class="flex items-center gap-10">
 					<div class="flex items-center gap-2.5">
 						<div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
-						<span class="text-xl font-bold tracking-tight text-white font-serif">Lawganized<span class="text-amber-500">LWA</span></span>
+						<span class="text-xl font-bold tracking-tight text-white font-sansserif">Lawganized<span class="text-amber-500">LWA</span></span>
 					</div>
 
 					<div class="hidden md:flex items-center gap-1">
@@ -104,6 +104,9 @@
 						</a>
 						<a href="/resources" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
 							<Building2 size={16} /> Ressourcen
+						</a>
+						<a href="/abrechnung" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+							<DollarSign size={16} /> Abrechnung
 						</a>
 						
 						{#if !pb.authStore.model?.teamLeader}

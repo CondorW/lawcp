@@ -167,8 +167,19 @@ export const addSubtask = async (update: any, get: any, taskId: string, title: s
 export const toggleSubtask = async (update: any, get: any, taskId: string, subId: string) => {
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, done: !sub.done }))) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => {
+				const isNowDone = !sub.done;
+				return {
+					...sub,
+					done: isNowDone,
+					completedAt: isNowDone ? new Date().toISOString() : undefined
+				};
+			}))
+		} : t))
 	}));
+
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
 };

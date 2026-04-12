@@ -72,14 +72,15 @@ const createStore = () => {
 			}
 		},
 
-		addResource: (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) =>
-			DBLogic.addResource(update, resData),
+		addResource: (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => DBLogic.addResource(update, resData),
 		deleteResource: (id: string) => DBLogic.deleteResource(update, id),
 
-		addTask: (status: string, title: string, ref?: string, date?: string, assignedTo?: string) =>
-			DBLogic.addTask(update, status, title, ref, date, assignedTo),
+		addTask: (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => DBLogic.addTask(update, status, title, ref, date, assignedTo),
 		assignTask: (taskId: string, assigneeId: string) => DBLogic.assignTask(update, taskId, assigneeId),
 		deleteTask: (id: string) => DBLogic.deleteTask(update, id),
+		
+		// NEU
+		archiveTask: (id: string, archived: boolean) => DBLogic.archiveTask(update, id, archived),
 
 		updateTaskTitle: (id: string, title: string) => DBLogic.updateTaskTitle(update, id, title),
 		updateTaskRef: (id: string, ref: string) => DBLogic.updateTaskRef(update, id, ref),
@@ -87,34 +88,25 @@ const createStore = () => {
 		toggleFlag: (id: string, date: string | null) => DBLogic.toggleFlag(update, id, date),
 		moveTask: (id: string, status: string) => DBLogic.moveTask(update, id, status),
 
-		addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 0, y = 0) =>
-			DBLogic.addSubtask(update, () => get({ subscribe }), taskId, title, type, x, y),
-		toggleSubtask: (taskId: string, subId: string) =>
-			DBLogic.toggleSubtask(update, () => get({ subscribe }), taskId, subId),
+		addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 0, y = 0) => DBLogic.addSubtask(update, () => get({ subscribe }), taskId, title, type, x, y),
+		toggleSubtask: (taskId: string, subId: string) => DBLogic.toggleSubtask(update, () => get({ subscribe }), taskId, subId),
 		
-		// GEÄNDERT: Neue Feedback-Loop State-Machine Methode
-		setSubtaskReviewState: (taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) =>
-			DBLogic.setSubtaskReviewState(update, () => get({ subscribe }), taskId, subId, state),
+		// NEU
+		archiveSubtask: (taskId: string, subId: string, archived: boolean) => DBLogic.archiveSubtask(update, () => get({ subscribe }), taskId, subId, archived),
 
-		updateSubtaskTitle: (taskId: string, subId: string, title: string) =>
-			DBLogic.updateSubtaskTitle(update, () => get({ subscribe }), taskId, subId, title),
-		addSubSubtask: (taskId: string, parentSubId: string, title: string) =>
-			DBLogic.addSubSubtask(update, () => get({ subscribe }), taskId, parentSubId, title),
-		updateSubtaskPos: (taskId: string, subId: string, x: number, y: number) =>
-			DBLogic.updateSubtaskPos(update, () => get({ subscribe }), taskId, subId, x, y),
-		connectSubtasks: (taskId: string, sourceId: string, targetId: string) =>
-			DBLogic.connectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
-		disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) =>
-			DBLogic.disconnectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
-		deleteSubtask: (taskId: string, subtaskIdToDelete: string) =>
-			DBLogic.deleteSubtask(update, () => get({ subscribe }), taskId, subtaskIdToDelete),
+		setSubtaskReviewState: (taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) => DBLogic.setSubtaskReviewState(update, () => get({ subscribe }), taskId, subId, state),
+		updateSubtaskTitle: (taskId: string, subId: string, title: string) => DBLogic.updateSubtaskTitle(update, () => get({ subscribe }), taskId, subId, title),
+		addSubSubtask: (taskId: string, parentSubId: string, title: string) => DBLogic.addSubSubtask(update, () => get({ subscribe }), taskId, parentSubId, title),
+		updateSubtaskPos: (taskId: string, subId: string, x: number, y: number) => DBLogic.updateSubtaskPos(update, () => get({ subscribe }), taskId, subId, x, y),
+		connectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.connectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
+		disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.disconnectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
+		deleteSubtask: (taskId: string, subtaskIdToDelete: string) => DBLogic.deleteSubtask(update, () => get({ subscribe }), taskId, subtaskIdToDelete),
 
 		openMatterNotes: (ref: string) => activeMatterStore.set(ref),
 		closeMatterNotes: () => activeMatterStore.set(null),
 		updateMatterNote: async (ref: string, content: string) => console.log('Note Update:', ref),
 		fetchContext: async (ref: string) => DBLogic.fetchContext(ref),
-		saveContext: async (ref: string, content: string, contextId?: string) =>
-			DBLogic.saveContext(ref, content, contextId)
+		saveContext: async (ref: string, content: string, contextId?: string) => DBLogic.saveContext(ref, content, contextId)
 	};
 };
 

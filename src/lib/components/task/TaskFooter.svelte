@@ -2,7 +2,7 @@
     import { store } from '$lib/stores/tasks';
     import { pb } from '$lib/pocketbase';
     import type { Task } from '$lib/types';
-    import { Calendar, Flag, BrainCircuit, Trash2 } from 'lucide-svelte';
+    import { Calendar, Flag, BrainCircuit, Trash2, Archive, ArchiveRestore } from 'lucide-svelte';
     import { formatDate } from '$lib/utils';
 
     interface Props {
@@ -29,7 +29,6 @@
         isEditingRef = false;
     }
 
-    // Die schnelle native Picker-Logik
     function openNativePicker(e: MouseEvent) {
         e.stopPropagation();
         const btn = e.currentTarget as HTMLElement;
@@ -68,7 +67,6 @@
 <div class="flex flex-row items-center justify-between flex-grow min-w-0 pr-1 h-7">
     
     <div class="flex flex-row items-center gap-1 h-full">
-        
         {#if isEditingRef}
             <input
                 id={`edit-ref-${task.id}`}
@@ -109,6 +107,19 @@
 
     <div class="flex flex-row items-center gap-1 h-full shrink-0">
         
+        <button
+            type="button"
+            onclick={(e) => { e.stopPropagation(); store.archiveTask(task.id, !task.archived); }}
+            class="w-7 h-7 flex items-center justify-center rounded hover:bg-blue-100 dark:hover:bg-blue-900/20 hover:text-blue-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-all outline-none focus:ring-0 shrink-0"
+            title={task.archived ? "Aufgabe wiederherstellen" : "Aufgabe archivieren"}
+        >
+            {#if task.archived}
+                <ArchiveRestore size={14} class="pointer-events-none" />
+            {:else}
+                <Archive size={14} class="pointer-events-none" />
+            {/if}
+        </button>
+
         <button
             type="button"
             onclick={(e) => { e.stopPropagation(); store.deleteTask(task.id); }}

@@ -11,7 +11,7 @@ const generatePbId = () => {
 	return result;
 };
 
-// --- HELPER: Deep Sort Subtasks (Undone first, stable) ---
+// --- HELPER: Deep Sort Subtasks ---
 export const sortSubtasksDeep = (nodes: Subtask[]): Subtask[] => {
 	if (!Array.isArray(nodes)) return [];
 	const cloned = [...nodes];
@@ -20,7 +20,6 @@ export const sortSubtasksDeep = (nodes: Subtask[]): Subtask[] => {
 			cloned[i] = { ...n, subtasks: sortSubtasksDeep(n.subtasks) };
 		}
 	});
-	// Stable Sort: Offene vor Erledigten, dann REQUESTED ganz nach oben, REVISION danach
 	return cloned.sort((a, b) => {
 		if (a.done !== b.done) return Number(a.done) - Number(b.done);
 		
@@ -91,7 +90,7 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 
 	update((s: AppData) => {
 		const newTask: Task = {
-			id: finalId, title, status: status as Task['status'], matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', createdAt: new Date().toISOString(), timeTracked: 0, dependencies: [], flaggedDate: null,
+			id: finalId, title, status: status as Task['status'], matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', archived: false, createdAt: new Date().toISOString(), timeTracked: 0, dependencies: [], flaggedDate: null,
 			expand: { owner: { shortsign: userModel.shortsign || 'ME' } as any }
 		};
 		return { ...s, tasks: [newTask, ...s.tasks] };
@@ -99,7 +98,7 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 
 	try {
 		await pb.collection('tasks').create({
-			id: finalId, title, status, matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', timeTracked: 0, dependencies: [], flaggedDate: null
+			id: finalId, title, status, matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', archived: false, timeTracked: 0, dependencies: [], flaggedDate: null
 		});
 	} catch (e) {
 		console.error('Task creation failed:', e);
@@ -115,6 +114,12 @@ export const assignTask = async (update: (fn: (s: AppData) => AppData) => void, 
 export const deleteTask = async (update: (fn: (s: AppData) => AppData) => void, id: string) => {
 	update((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
 	pb.collection('tasks').delete(id).catch((e) => console.error(e));
+};
+
+// NEU: Archivieren von Hauptaufgaben
+export const archiveTask = async (update: (fn: (s: AppData) => AppData) => void, id: string, archived: boolean) => {
+	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived } : t)) }));
+	pb.collection('tasks').update(id, { archived }).catch((e) => console.error(e));
 };
 
 export const updateTaskTitle = async (update: any, id: string, title: string) => {
@@ -155,7 +160,7 @@ export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id
 };
 
 export const addSubtask = async (update: any, get: any, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
-	const newSub: Subtask = { id: uuidv4(), title, done: false, type, x, y, next: [], subtasks: [] };
+	const newSub: Subtask = { id: uuidv4(), title, done: false, archived: false, type, x, y, next: [], subtasks: [] };
 	update((s: AppData) => ({
 		...s,
 		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep([...t.subtasks, newSub]) } : t))
@@ -171,15 +176,24 @@ export const toggleSubtask = async (update: any, get: any, taskId: string, subId
 			...t,
 			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => {
 				const isNowDone = !sub.done;
-				return {
-					...sub,
-					done: isNowDone,
-					completedAt: isNowDone ? new Date().toISOString() : undefined
-				};
+				return { ...sub, done: isNowDone, completedAt: isNowDone ? new Date().toISOString() : undefined };
 			}))
 		} : t))
 	}));
 
+	const task = get().tasks.find((t: Task) => t.id === taskId);
+	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
+};
+
+// NEU: Archivieren von Subtasks
+export const archiveSubtask = async (update: any, get: any, taskId: string, subId: string, archived: boolean) => {
+	update((s: AppData) => ({
+		...s,
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, archived })))
+		} : t))
+	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
 };
@@ -194,7 +208,7 @@ export const updateSubtaskTitle = async (update: any, get: any, taskId: string, 
 };
 
 export const addSubSubtask = async (update: any, get: any, taskId: string, parentSubId: string, title: string) => {
-	const newSub: Subtask = { id: uuidv4(), title, done: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
+	const newSub: Subtask = { id: uuidv4(), title, done: false, archived: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
 	update((s: AppData) => ({
 		...s,
 		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep(recursiveAdd(t.subtasks, parentSubId, newSub)) } : t))

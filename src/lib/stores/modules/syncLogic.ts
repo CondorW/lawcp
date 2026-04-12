@@ -23,8 +23,10 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 			const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' });
 			const tasks = records.map((r: any) => ({
 				id: r.id, title: r.title, status: r.status, matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', 
-				subtasks: sortSubtasksDeep(r.subtasks || []), // <--- HIER WIRD DIREKT BEIM LADEN SORTIERT
-				flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
+				subtasks: sortSubtasksDeep(r.subtasks || []),
+				flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', 
+				archived: r.archived || false, // <--- FIX 1: Fehlendes Mapping hinzugefügt
+				createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
 			}));
 
 			update((s) => {
@@ -69,11 +71,12 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 					update((s) => {
 						const index = s.tasks.findIndex((t) => t.id === r.id);
 						const currentLocalTask = index !== -1 ? s.tasks[index] : null;
-						// HIER WIRD AUCH BEI WEBSOCKET UPDATES SORTIERT
 						const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : sortSubtasksDeep(r.subtasks || []);
 
 						const updatedTask: Task = {
-							id: r.id, title: r.title, status: r.status as Task['status'], matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
+							id: r.id, title: r.title, status: r.status as Task['status'], matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', 
+							archived: r.archived || false, // <--- FIX 2: Fehlendes Mapping hinzugefügt
+							createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand
 						};
 
 						if (index !== -1) {
@@ -159,11 +162,12 @@ export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) =
 
 						if (isOwner || isAssignee || isTeamTask) {
 							const currentLocalTask = index !== -1 ? newTasks[index] : null;
-							// HIER WIRD AUCH BEIM POLLER SORTIERT
 							const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : sortSubtasksDeep(mt.subtasks || []);
 
 							const taskObj: Task = {
-								id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef, dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: mt.priority || 'MEDIUM', createdAt: mt.created, timeTracked: mt.timeTracked || 0, dependencies: mt.dependencies || [], assignees: mt.assignees || [], owner: mt.owner, expand: mt.expand
+								id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef, dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: mt.priority || 'MEDIUM', 
+								archived: mt.archived || false, // <--- FIX 3: Fehlendes Mapping hinzugefügt
+								createdAt: mt.created, timeTracked: mt.timeTracked || 0, dependencies: mt.dependencies || [], assignees: mt.assignees || [], owner: mt.owner, expand: mt.expand
 							};
 
 							if (index !== -1) {

@@ -2,14 +2,13 @@
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
 	import type { Subtask } from '$lib/types';
-	import { CheckSquare, Square, Copy, ListPlus, CornerDownRight, Check, X, Trash2, Eye, ShieldAlert, BadgeCheck } from 'lucide-svelte';
+	import { CheckSquare, Square, Copy, ListPlus, CornerDownRight, Check, X, Trash2, Eye, ShieldAlert, BadgeCheck, Archive, ArchiveRestore } from 'lucide-svelte';
 	import { cn, renderTitleWithTags } from '$lib/utils';
 	import { autosize, focusOnMount } from '$lib/actions';
 
 	export let taskId: string;
 	export let sub: Subtask;
 
-	// Ermittle den Task und die Rolle reaktiv aus dem Store
 	$: parentTask = $store.tasks.find(t => t.id === taskId);
 	$: myId = pb.authStore.model?.id || '';
 	$: isTeamLeader = parentTask?.expand?.owner?.teamLeader === myId;
@@ -137,15 +136,8 @@
 					</button>
 				{:else}
 					<button
-						onclick={(e) => {
-							e.stopPropagation();
-							const newState = sub.reviewState === 'REQUESTED' ? null : 'REQUESTED';
-							store.setSubtaskReviewState(taskId, sub.id, newState);
-						}}
-						class={cn(
-							"mt-0.5 transition-all",
-							sub.reviewState === 'REQUESTED' ? "text-purple-600 dark:text-purple-400 opacity-100" : "text-gray-300 hover:text-purple-600 opacity-0 group-hover/sub:opacity-100"
-						)}
+						onclick={(e) => { e.stopPropagation(); const newState = sub.reviewState === 'REQUESTED' ? null : 'REQUESTED'; store.setSubtaskReviewState(taskId, sub.id, newState); }}
+						class={cn("mt-0.5 transition-all", sub.reviewState === 'REQUESTED' ? "text-purple-600 dark:text-purple-400 opacity-100" : "text-gray-300 hover:text-purple-600 opacity-0 group-hover/sub:opacity-100")}
 						title={sub.reviewState === 'REQUESTED' ? "Review abbrechen" : "Review anfordern"}
 					>
 						<Eye size={14} />
@@ -163,7 +155,15 @@
 				</button>
 			{/if}
 
-			<button onclick={(e) => { e.stopPropagation(); store.deleteSubtask(taskId, sub.id); }} class="text-gray-300 hover:text-red-500 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity ml-1" title="Löschen">
+            <button onclick={(e) => { e.stopPropagation(); store.archiveSubtask(taskId, sub.id, !sub.archived); }} class="text-gray-300 hover:text-blue-500 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity ml-1" title={sub.archived ? "Wiederherstellen" : "Archivieren"}>
+                {#if sub.archived}
+                    <ArchiveRestore size={14} />
+                {:else}
+                    <Archive size={14} />
+                {/if}
+            </button>
+
+			<button onclick={(e) => { e.stopPropagation(); store.deleteSubtask(taskId, sub.id); }} class="text-gray-300 hover:text-red-500 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity" title="Löschen">
 				<Trash2 size={14} />
 			</button>
 		</div>

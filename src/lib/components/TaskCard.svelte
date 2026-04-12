@@ -3,7 +3,7 @@
 	import { pb } from '$lib/pocketbase';
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn } from '$lib/utils';
-	import { ChevronDown, ChevronUp, ListTodo, Eye } from 'lucide-svelte';
+	import { ChevronDown, ChevronUp, ListTodo, Eye, Archive } from 'lucide-svelte';
 
 	import TaskTitle from './task/TaskTitle.svelte';
 	import SubtaskItem from './task/SubtaskItem.svelte';
@@ -22,6 +22,7 @@
 	let newSubtaskTitle = '';
 	let newSubtaskType: SubtaskType = 'GENERIC';
 	let isExpanded = false;
+	let showArchived = false;
 
 	function filterReviewSubtasks(subs: Subtask[]): Subtask[] {
 		if (!subs) return [];
@@ -34,11 +35,36 @@
 		}, [] as Subtask[]);
 	}
 
+	// Filtert die Subtasks für den aktiven Baum (Archivierte fliegen raus)
+	function getActiveSubtasks(subs: Subtask[]): Subtask[] {
+		if (!subs) return [];
+		return subs
+			.filter(s => !s.archived)
+			.map(s => ({ ...s, subtasks: getActiveSubtasks(s.subtasks || []) }));
+	}
+
+	// Sammelt alle archivierten Subtasks ein
+	function getArchivedSubtasks(subs: Subtask[]): Subtask[] {
+		if (!subs) return [];
+		let archived: Subtask[] = [];
+		for (const s of subs) {
+			if (s.archived) {
+				archived.push(s); // Wenn der Parent archiviert ist, nimm ihn (mitsamt all seinen Children)
+			} else {
+				archived = archived.concat(getArchivedSubtasks(s.subtasks || []));
+			}
+		}
+		return archived;
+	}
+
+	$: activeSubtasksRaw = getActiveSubtasks(task.subtasks || []);
+	$: archivedSubtasks = getArchivedSubtasks(task.subtasks || []);
+
 	$: isMicroReviewForTL = !isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks || []).length > 0;
 	
 	$: displaySubtasks = isMicroReviewForTL 
-		? filterReviewSubtasks(task.subtasks || []) 
-		: (task.subtasks || []);
+		? filterReviewSubtasks(activeSubtasksRaw) 
+		: activeSubtasksRaw;
 
 	function handleAddSubtask() {
 		if (!newSubtaskTitle.trim()) return;
@@ -63,7 +89,6 @@
 
 	function toggleExpand(e: MouseEvent | KeyboardEvent) {
 		const target = e.target as HTMLElement;
-		// FIX: Erlaubt den Klick, wenn er vom Chevron-Button kommt
 		if (target.closest('.expand-chevron')) {
 			isExpanded = !isExpanded;
 			return;
@@ -88,27 +113,41 @@
 	<div 
 		role="button" 
 		tabindex="0" 
-		class="outline-none w-full"
+		class="outline-none w-full flex items-start justify-between gap-2"
 		onclick={toggleExpand}
 		onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
 	>
-		<div class={cn("w-full transition-all", !isExpanded ? "truncate" : "whitespace-normal break-words leading-snug")}>
-			<TaskTitle {task} />
+		<div class="flex-grow min-w-0 flex flex-col">
+			<div class={cn("w-full transition-all", !isExpanded ? "truncate" : "whitespace-normal break-words leading-snug")}>
+				<TaskTitle {task} />
+			</div>
+
+			{#if !isExpanded && task.subtasks && task.subtasks.length > 0}
+				<div class="flex items-center gap-2 pt-1.5 mt-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+					<ListTodo size={12} />
+					{task.subtasks.filter(s => s.done).length} / {task.subtasks.length} Subtasks
+					{#if isMicroReviewForTL}
+						<span class="ml-auto flex items-center gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-1.5 py-0.5 rounded"><Eye size={10} /> REVIEW OFFEN</span>
+					{:else if task.subtasks.some(s => s.reviewState === 'REVISION')}
+						<span class="ml-auto flex items-center gap-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded">KORREKTUR</span>
+					{:else if task.subtasks.some(s => s.reviewState === 'APPROVED')}
+						<span class="ml-auto flex items-center gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded">FREIGEGEBEN</span>
+					{/if}
+				</div>
+			{/if}
 		</div>
 
-		{#if !isExpanded && task.subtasks && task.subtasks.length > 0}
-			<div class="flex items-center gap-2 pt-1.5 mt-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-				<ListTodo size={12} />
-				{task.subtasks.filter(s => s.done).length} / {task.subtasks.length} Subtasks
-				{#if isMicroReviewForTL}
-					<span class="ml-auto flex items-center gap-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-1.5 py-0.5 rounded"><Eye size={10} /> REVIEW OFFEN</span>
-				{:else if task.subtasks.some(s => s.reviewState === 'REVISION')}
-					<span class="ml-auto flex items-center gap-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded">KORREKTUR</span>
-				{:else if task.subtasks.some(s => s.reviewState === 'APPROVED')}
-					<span class="ml-auto flex items-center gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded">FREIGEGEBEN</span>
-				{/if}
-			</div>
-		{/if}
+		<div 
+			class="expand-chevron w-7 h-7 shrink-0 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer outline-none -mt-1 -mr-1"
+			role="button" 
+			tabindex="0"
+		>
+			{#if isExpanded}
+				<ChevronUp size={16} class="pointer-events-none" />
+			{:else}
+				<ChevronDown size={16} class="pointer-events-none" />
+			{/if}
+		</div>
 	</div>
 
 	{#if isExpanded}
@@ -142,25 +181,37 @@
 			{#each displaySubtasks as sub (sub.id)}
 				<SubtaskItem taskId={task.id} {sub} />
 			{/each}
+
+			{#if archivedSubtasks.length > 0}
+				<div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+					<button 
+						onclick={(e) => { e.stopPropagation(); showArchived = !showArchived; }}
+						class="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-widest outline-none transition-colors w-fit"
+					>
+						<Archive size={12} />
+						{archivedSubtasks.length} Archivierte Subtasks
+						<div class="ml-0.5 opacity-70">
+							{#if showArchived}
+								<ChevronUp size={12} />
+							{:else}
+								<ChevronDown size={12} />
+							{/if}
+						</div>
+					</button>
+
+					{#if showArchived}
+						<div class="mt-3 space-y-2 opacity-75 grayscale-[50%] border-l-2 border-slate-100 dark:border-slate-700 pl-2 ml-1">
+							{#each archivedSubtasks as sub (sub.id)}
+								<SubtaskItem taskId={task.id} {sub} />
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	{/if}
 
 	<div class="mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 flex flex-row items-center justify-between gap-1 h-7">
-		
 		<TaskFooter {task} {isOwner} {ownerShortsign} />
-		
-		<div 
-			class="expand-chevron w-7 h-7 shrink-0 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer outline-none"
-			role="button" 
-			tabindex="0"
-			onclick={toggleExpand}
-			onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
-		>
-			{#if isExpanded}
-				<ChevronUp size={16} class="pointer-events-none" />
-			{:else}
-				<ChevronDown size={16} class="pointer-events-none" />
-			{/if}
-		</div>
 	</div>
 </div>

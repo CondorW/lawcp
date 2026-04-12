@@ -1,14 +1,13 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
-	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users, DollarSign } from 'lucide-svelte';
+	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users, DollarSign, Archive } from 'lucide-svelte';
 	import TaskInput from '$lib/components/TaskInput.svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
 	import type { Task } from '$lib/types';
 
 	let refFilter = '';
-
 	const byDateAndPriority = (a: any, b: any): number => {
 		const aIsCourtDeadline = a.flaggedDate !== null;
 		const bIsCourtDeadline = b.flaggedDate !== null;
@@ -30,38 +29,34 @@
 	$: currentUserSign = pb.authStore.model?.shortsign || 'ME';
 
 	$: isMyTask = (t: Task) => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
-
-	// Prüft rekursiv, ob ein Micro-Review existiert
+	
 	const hasSubtaskInReview = (subtasks: any[]): boolean => {
-	if (!subtasks || !Array.isArray(subtasks)) return false;
-	for (const sub of subtasks) {
-		// NEU: Reagiert nur auf REQUESTED
-		if (sub.reviewState === 'REQUESTED') return true;
-		if (sub.subtasks && hasSubtaskInReview(sub.subtasks)) return true;
-	}
-	return false;
-};
+		if (!subtasks || !Array.isArray(subtasks)) return false;
+		for (const sub of subtasks) {
+			if (sub.reviewState === 'REQUESTED') return true;
+			if (sub.subtasks && hasSubtaskInReview(sub.subtasks)) return true;
+		}
+		return false;
+	};
 
-	// DIE SPLIT-VIEW LOGIK:
 	$: effectiveStatus = (t: Task) => {
 		const isMine = isMyTask(t);
 		const hasReview = hasSubtaskInReview(t.subtasks);
 		
-		// Für den TL: Existiert ein Micro-Review, ziehe eine Geister-Karte in die Review-Spalte
 		if (!isMine && hasReview && t.status !== 'DONE') return 'REVIEW';
-		
-		// Für den TM: Die Karte bleibt unangetastet (z.B. WAITING), damit der Flow nicht bricht
 		return t.status;
 	};
 
 	$: showOnMainBoard = (t: Task) => isMyTask(t) || effectiveStatus(t) === 'REVIEW';
-
-	$: todos = $store.tasks.filter(t => effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: waiting = $store.tasks.filter(t => effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: review = $store.tasks.filter(t => effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: done = $store.tasks.filter(t => effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-
+	
+	// FIX: Filtert jetzt archivierte Tasks aus dem Board heraus (!t.archived)
+	$: todos = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	$: waiting = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	$: review = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	$: done = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	
 	$: myActiveTasks = $store.tasks.filter(t => 
+		!t.archived &&
 		['TODO', 'WAITING', 'REVIEW'].includes(effectiveStatus(t)) && 
 		showOnMainBoard(t)
 	).sort(byDateAndPriority);
@@ -108,6 +103,9 @@
 						<a href="/abrechnung" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
 							<DollarSign size={16} /> Abrechnung
 						</a>
+						<a href="/archive" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+							<DollarSign size={16} /> Abrechnung
+						</a>
 						
 						{#if !pb.authStore.model?.teamLeader}
 							<div class="w-px h-5 bg-slate-700 mx-1"></div>
@@ -123,6 +121,11 @@
 						<Filter class="absolute left-2.5 top-1.5 text-slate-500 group-focus-within:text-amber-500 transition-colors" size={14}/>
 						<input type="text" bind:value={refFilter} placeholder="Ref-Filter..." class="pl-8 pr-3 py-1.5 rounded-md border border-slate-600 bg-slate-800 text-xs text-white placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500 outline-none w-32 focus:w-48 transition-all" />
 					</div>
+					
+					<a href="/archive" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full" title="Zum Archiv">
+						<Archive size={20} />
+					</a>
+					
 					<button onclick={printAgenda} title="Tagesagenda drucken" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
 						<Printer size={20} />
 					</button>

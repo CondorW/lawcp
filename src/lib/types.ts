@@ -41,6 +41,14 @@ export const ResourceSchema = z.object({
 	}).optional() 
 }); 
 
+export const TimeLogSchema = z.object({
+    id: z.string(),
+    userId: z.string(),
+    date: z.string(), // ISO String
+    minutes: z.number(),
+    note: z.string().optional()
+});
+
 export const MatterNoteSchema = z.object({ 
 	ref: z.string(), 
 	content: z.string().default('') 
@@ -78,7 +86,8 @@ export const TaskSchema = z.object({
 	priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'), 
 	archived: z.boolean().nullable().optional().transform(v => !!v), 
 	createdAt: z.string(), 
-	timeTracked: z.number().default(0), 
+	timeTracked: z.number().default(0),
+	timeLogs: z.array(TimeLogSchema).default([]), 
 	subtasks: z.array(SubtaskSchema).default([]), 
 	dependencies: z.array(z.string()).default([]), 
 	assignees: z.array(z.string()).default([]), 
@@ -109,3 +118,4 @@ export type Task = z.infer<typeof TaskSchema>;
 export type MatterNote = z.infer<typeof MatterNoteSchema>; 
 export type AppData = z.infer<typeof AppDataSchema>; 
 export type FirmUser = z.infer<typeof FirmUserSchema>;
+export type TimeLog = z.infer<typeof TimeLogSchema>;

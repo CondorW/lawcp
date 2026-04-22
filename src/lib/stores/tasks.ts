@@ -91,7 +91,6 @@ const createStore = () => {
 		addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 0, y = 0) => DBLogic.addSubtask(update, () => get({ subscribe }), taskId, title, type, x, y),
 		toggleSubtask: (taskId: string, subId: string) => DBLogic.toggleSubtask(update, () => get({ subscribe }), taskId, subId),
 		
-		// NEU
 		archiveSubtask: (taskId: string, subId: string, archived: boolean) => DBLogic.archiveSubtask(update, () => get({ subscribe }), taskId, subId, archived),
 
 		setSubtaskReviewState: (taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) => DBLogic.setSubtaskReviewState(update, () => get({ subscribe }), taskId, subId, state),
@@ -106,7 +105,16 @@ const createStore = () => {
 		closeMatterNotes: () => activeMatterStore.set(null),
 		updateMatterNote: async (ref: string, content: string) => console.log('Note Update:', ref),
 		fetchContext: async (ref: string) => DBLogic.fetchContext(ref),
-		saveContext: async (ref: string, content: string, contextId?: string) => DBLogic.saveContext(ref, content, contextId)
+		saveContext: async (ref: string, content: string, contextId?: string) => DBLogic.saveContext(ref, content, contextId),
+
+		// --- ZEITERFASSUNG ---
+		addTimeLog: (taskId: string, minutes: number, note: string, dateStr: string) => 
+			DBLogic.addTimeLog(update, () => get({ subscribe }), taskId, minutes, note, dateStr),
+		updateTimeLog: (taskId: string, logId: string, minutes: number, note: string, dateStr: string) => 
+			DBLogic.updateTimeLog(update, () => get({ subscribe }), taskId, logId, minutes, note, dateStr),
+		deleteTimeLog: (taskId: string, logId: string) => 
+			DBLogic.deleteTimeLog(update, () => get({ subscribe }), taskId, logId),
+
 	};
 };
 

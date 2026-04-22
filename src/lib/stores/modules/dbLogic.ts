@@ -90,7 +90,7 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 
 	update((s: AppData) => {
 		const newTask: Task = {
-			id: finalId, title, status: status as Task['status'], matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', archived: false, createdAt: new Date().toISOString(), timeTracked: 0, dependencies: [], flaggedDate: null,
+			id: finalId, title, status: status as Task['status'], matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', archived: false, createdAt: new Date().toISOString(), timeTracked: 0, timeLogs: [], dependencies: [], flaggedDate: null,
 			expand: { owner: { shortsign: userModel.shortsign || 'ME' } as any }
 		};
 		return { ...s, tasks: [newTask, ...s.tasks] };
@@ -371,5 +371,82 @@ export const saveContext = async (matterRef: string, content: string, contextId?
 	} catch (e) {
 		console.error('Failed to save context:', e);
 		return null;
+	}
+};
+
+// --- ZEITERFASSUNG ---
+export const addTimeLog = async (update: any, get: any, taskId: string, minutes: number, note: string, dateStr: string) => {
+	const userId = pb.authStore.model?.id;
+	if (!userId) return;
+
+	const newLog = {
+		id: uuidv4(),
+		userId: userId,
+		date: new Date(dateStr).toISOString(), // Nutzt das manuell gewählte Datum
+		minutes: minutes,
+		note: note
+	};
+
+	let payloadToSync: any[] | null = null;
+
+	update((s: AppData) => {
+		const task = s.tasks.find((t) => t.id === taskId);
+		if (!task) return s;
+		
+		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
+		payloadToSync = [...currentLogs, newLog];
+		
+		return {
+			...s,
+			tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t))
+		};
+	});
+
+	if (payloadToSync !== null) {
+		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
+	}
+};
+
+export const updateTimeLog = async (update: any, get: any, taskId: string, logId: string, minutes: number, note: string, dateStr: string) => {
+	let payloadToSync: any[] | null = null;
+	
+	update((s: AppData) => {
+		const task = s.tasks.find((t) => t.id === taskId);
+		if (!task) return s;
+		
+		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
+		payloadToSync = currentLogs.map(log => 
+			log.id === logId ? { ...log, minutes, note, date: new Date(dateStr).toISOString() } : log
+		);
+		
+		return {
+			...s,
+			tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t))
+		};
+	});
+
+	if (payloadToSync !== null) {
+		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
+	}
+};
+
+export const deleteTimeLog = async (update: any, get: any, taskId: string, logId: string) => {
+	let payloadToSync: any[] | null = null;
+	
+	update((s: AppData) => {
+		const task = s.tasks.find((t) => t.id === taskId);
+		if (!task) return s;
+		
+		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
+		payloadToSync = currentLogs.filter(log => log.id !== logId);
+		
+		return {
+			...s,
+			tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t))
+		};
+	});
+
+	if (payloadToSync !== null) {
+		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
 	}
 };

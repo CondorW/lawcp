@@ -128,6 +128,7 @@
         }
     }
 
+    // --- MS EXCEL IDIOTENSICHERUNG ---
     function exportToCSV() {
         if (aggregatedLogs.length === 0) return;
 
@@ -144,8 +145,10 @@
             ].join(';');
         });
 
-        const csvContent = [headers.join(';'), ...rows].join('\n');
-        // FIX: \uFEFF erzwingt in Excel die UTF-8 Formatierung
+        // "sep=;" zwingt Excel dazu, das Semikolon als Trennzeichen zu nutzen, egal welche Sprache eingestellt ist.
+        const csvContent = ["sep=;", headers.join(';'), ...rows].join('\n');
+        
+        // \uFEFF ist der BOM, der Excel zwingt, UTF-8 (Umlaute) zu lesen
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -325,7 +328,7 @@
                     <label for="logNoteInput" class="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Tätigkeit / Bemerkung</label>
                     <textarea id="logNoteInput" bind:value={logNote} rows="2" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm" placeholder="Was wurde gemacht?"></textarea>
                     
-                    {#if recommendedNotes.length > 0}
+                    {#if recommendedNotes.length > 0 && !editLogId}
                         <div class="mt-3">
                             <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider block mb-1.5">Ausgeführte Teilschritte:</span>
                             <div class="flex flex-wrap gap-1.5">

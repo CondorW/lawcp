@@ -1,9 +1,10 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
     import { pb } from '$lib/pocketbase';
-    import { ArrowLeft, Banknote, Clock, FileDown, Briefcase, Plus, X, Pencil, Trash2 } from 'lucide-svelte';
+    import { ArrowLeft, Banknote, Clock, FileDown, Briefcase, Plus, X, Pencil, Trash2, CheckSquare } from 'lucide-svelte';
     import type { Task, TimeLog, Subtask } from '$lib/types';
     import { fade, scale } from 'svelte/transition';
+    import { renderTitleWithTags } from '$lib/utils';
 
     $: myId = pb.authStore.model?.id || '';
 
@@ -64,6 +65,36 @@
         }
         return completedToday;
     }
+
+    type GroupedCompletedTasks = {
+        taskId: string;
+        taskTitle: string;
+        matterRef: string;
+        latestTime: number;
+        subtasks: Subtask[];
+    };
+    
+    $: groupedTodayTasks = $store.tasks.reduce((acc: GroupedCompletedTasks[], task: Task) => {
+        if (task.owner !== myId && !task.assignees?.includes(myId)) return acc;
+        
+        const subsDone = getTodayCompletedSubtasks(task.subtasks);
+        if (subsDone.length > 0) {
+            subsDone.sort((a, b) => {
+                const timeA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+                const timeB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+                return timeB - timeA;
+            });
+
+            acc.push({
+                taskId: task.id,
+                taskTitle: task.title,
+                matterRef: task.matterRef || 'NO-REF',
+                latestTime: subsDone[0].completedAt ? new Date(subsDone[0].completedAt).getTime() : 0,
+                subtasks: subsDone
+            });
+        }
+        return acc;
+    }, []).sort((a, b) => b.latestTime - a.latestTime);
 
     $: selectedTask = $store.tasks.find(t => t.id === logTaskId);
     $: recommendedNotes = (() => {
@@ -128,7 +159,6 @@
         }
     }
 
-    // --- MS EXCEL IDIOTENSICHERUNG ---
     function exportToCSV() {
         if (aggregatedLogs.length === 0) return;
 
@@ -145,10 +175,7 @@
             ].join(';');
         });
 
-        // "sep=;" zwingt Excel dazu, das Semikolon als Trennzeichen zu nutzen, egal welche Sprache eingestellt ist.
         const csvContent = ["sep=;", headers.join(';'), ...rows].join('\n');
-        
-        // \uFEFF ist der BOM, der Excel zwingt, UTF-8 (Umlaute) zu lesen
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -165,7 +192,7 @@
     <div class="shrink-0 relative py-4 px-6 lg:px-8 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center shadow-sm z-10">
         <div class="flex items-center gap-4">
             <a href="/" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
-                <ArrowLeft size={20} />
+                <ArrowLeft size={24} />
             </a>
             <div>
                 <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
@@ -175,130 +202,193 @@
         </div>
 
         <div class="flex items-center gap-4">
-            <div class="hidden md:flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                <button onclick={() => filterMode = 'TODAY'} class="px-3 py-1 text-xs font-bold rounded-md transition-colors {filterMode === 'TODAY' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">Heute</button>
-                <button onclick={() => filterMode = 'WEEK'} class="px-3 py-1 text-xs font-bold rounded-md transition-colors {filterMode === 'WEEK' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">7 Tage</button>
-                <button onclick={() => filterMode = 'MONTH'} class="px-3 py-1 text-xs font-bold rounded-md transition-colors {filterMode === 'MONTH' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">Monat</button>
-                <button onclick={() => filterMode = 'ALL'} class="px-3 py-1 text-xs font-bold rounded-md transition-colors {filterMode === 'ALL' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">Alle</button>
+            <div class="hidden md:flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                <button onclick={() => filterMode = 'TODAY'} class="px-4 py-1.5 text-sm font-bold rounded-md transition-colors {filterMode === 'TODAY' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">Heute</button>
+                <button onclick={() => filterMode = 'WEEK'} class="px-4 py-1.5 text-sm font-bold rounded-md transition-colors {filterMode === 'WEEK' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">7 Tage</button>
+                <button onclick={() => filterMode = 'MONTH'} class="px-4 py-1.5 text-sm font-bold rounded-md transition-colors {filterMode === 'MONTH' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">Monat</button>
+                <button onclick={() => filterMode = 'ALL'} class="px-4 py-1.5 text-sm font-bold rounded-md transition-colors {filterMode === 'ALL' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}">Alle</button>
             </div>
 
-            <button onclick={openCreateModal} class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-lg font-bold text-sm shadow-sm transition-colors" title="Zeit buchen">
-                <Plus size={16} /> Buchen
+            <button onclick={openCreateModal} class="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-lg font-bold text-sm shadow-sm transition-colors" title="Zeit buchen">
+                <Plus size={18} /> Buchen
             </button>
 
-            <button onclick={exportToCSV} class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm shadow-sm transition-colors" title="Als CSV exportieren">
-                <FileDown size={16} /> Export
+            <button onclick={exportToCSV} class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm shadow-sm transition-colors" title="Als CSV exportieren">
+                <FileDown size={18} /> Export
             </button>
         </div>
     </div>
 
     <div class="flex-1 overflow-auto custom-scrollbar p-6 lg:p-8">
-        <div class="max-w-5xl mx-auto">
+        <!-- LAYOUT: Verbreitert auf max-w-[1600px] für 1920x1080 Screens -->
+        <div class="max-w-[1600px] mx-auto flex flex-col lg:flex-row gap-8">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                    <div>
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Gefilterte Zeit</div>
-                        <div class="text-3xl font-bold text-slate-800 dark:text-white">{totalHours} <span class="text-lg font-medium text-slate-500">Stunden</span></div>
+            <!-- Linke Spalte (Hauptbereich) -->
+            <div class="flex-1 min-w-0">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1.5">Gefilterte Zeit</div>
+                            <div class="text-4xl font-bold text-slate-800 dark:text-white">{totalHours} <span class="text-xl font-medium text-slate-500">Stunden</span></div>
+                        </div>
+                        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full">
+                            <Clock size={32} />
+                        </div>
                     </div>
-                    <div class="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full">
-                        <Clock size={28} />
+                    <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1.5">Erfasste Einträge</div>
+                            <div class="text-4xl font-bold text-slate-800 dark:text-white">{aggregatedLogs.length}</div>
+                        </div>
+                        <div class="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-full">
+                            <Banknote size={32} />
+                        </div>
                     </div>
                 </div>
-                <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                    <div>
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Erfasste Einträge</div>
-                        <div class="text-3xl font-bold text-slate-800 dark:text-white">{aggregatedLogs.length}</div>
+
+                {#if aggregatedLogs.length === 0}
+                    <div class="flex flex-col items-center justify-center py-24 text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 border-dashed">
+                        <Briefcase size={56} class="mb-5 opacity-20" />
+                        <p class="text-xl font-medium">Keine Einträge in diesem Zeitraum.</p>
+                        <p class="text-base mt-2">Buche Zeiten über den Button oben rechts.</p>
                     </div>
-                    <div class="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-full">
-                        <Banknote size={28} />
+                {:else}
+                    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm whitespace-nowrap">
+                                <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                                    <tr>
+                                        <!-- TABLE HEADERS: text-xs (12px) -->
+                                        <th class="px-6 py-4 font-bold uppercase tracking-wider text-xs">Datum</th>
+                                        <th class="px-6 py-4 font-bold uppercase tracking-wider text-xs">Dauer</th>
+                                        <th class="px-6 py-4 font-bold uppercase tracking-wider text-xs">REF</th>
+                                        <th class="px-6 py-4 font-bold uppercase tracking-wider text-xs w-full">Task / Tätigkeit</th>
+                                        <th class="px-6 py-4 font-bold uppercase tracking-wider text-xs text-right">Aktion</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {#each aggregatedLogs as log}
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+                                            <td class="px-6 py-4 align-top">
+                                                <div class="font-medium text-sm text-slate-900 dark:text-white mb-0.5">{new Date(log.date).toLocaleDateString('de-DE')}</div>
+                                                <div class="text-xs text-slate-500">{new Date(log.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
+                                            </td>
+                                            <td class="px-6 py-4 align-top">
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm border border-blue-100 dark:border-blue-800/50">
+                                                    <Clock size={14} /> {log.minutes}m
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 align-top">
+                                                <span class="text-[11px] font-bold px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded uppercase tracking-wider">
+                                                    {log.matterRef}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-normal">
+                                                <div class="font-bold text-sm text-slate-900 dark:text-white mb-1">{log.taskTitle}</div>
+                                                {#if log.note}
+                                                    <div class="text-sm text-slate-600 dark:text-slate-400 italic leading-relaxed">"{log.note}"</div>
+                                                {/if}
+                                            </td>
+                                            <td class="px-6 py-4 align-top text-right">
+                                                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onclick={() => openEditModal(log)} class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors" title="Bearbeiten">
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                    <button onclick={() => deleteLog(log)} class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-md transition-colors" title="Löschen">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                {/if}
             </div>
 
-            {#if aggregatedLogs.length === 0}
-                <div class="flex flex-col items-center justify-center py-20 text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 border-dashed">
-                    <Briefcase size={48} class="mb-4 opacity-20" />
-                    <p class="text-lg font-medium">Keine Einträge in diesem Zeitraum.</p>
-                    <p class="text-sm mt-1">Buche Zeiten über den Button oben rechts.</p>
-                </div>
-            {:else}
-                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm whitespace-nowrap">
-                            <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                                <tr>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Datum</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">Dauer</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-[10px]">REF</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-full">Task / Tätigkeit</th>
-                                    <th class="px-4 py-3 font-bold uppercase tracking-wider text-[10px] text-right">Aktion</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                {#each aggregatedLogs as log}
-                                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                                        <td class="px-4 py-3 align-top">
-                                            <div class="font-medium text-slate-900 dark:text-white">{new Date(log.date).toLocaleDateString('de-DE')}</div>
-                                            <div class="text-xs text-slate-500">{new Date(log.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
-                                        </td>
-                                        <td class="px-4 py-3 align-top">
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-xs border border-blue-100 dark:border-blue-800/50">
-                                                <Clock size={12} /> {log.minutes}m
+            <!-- Rechte Spalte (Sidebar) - Verbreitert auf 480px -->
+            <aside class="w-full lg:w-[480px] shrink-0 flex flex-col gap-6">
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 sticky top-0">
+                    <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <CheckSquare size={20} class="text-emerald-500" /> Heute erledigt
+                    </h3>
+                    
+                    {#if groupedTodayTasks.length === 0}
+                        <div class="text-center py-8">
+                            <p class="text-sm text-slate-400 italic">Noch keine Teilschritte heute abgehakt.</p>
+                        </div>
+                    {:else}
+                        <div class="space-y-8 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-4">
+                            {#each groupedTodayTasks as group}
+                                <div class="relative pl-5 border-l-[3px] border-emerald-200 dark:border-emerald-800/50">
+                                    
+                                    {#if group.matterRef !== 'NO-REF'}
+                                        <div class="mb-2">
+                                            <span class="text-[11px] font-bold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded uppercase tracking-wider">
+                                                {group.matterRef}
                                             </span>
-                                        </td>
-                                        <td class="px-4 py-3 align-top">
-                                            <span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase tracking-wider">
-                                                {log.matterRef}
-                                            </span>
-                                        </td>
-                                        <td class="px-4 py-3 whitespace-normal">
-                                            <div class="font-medium text-slate-900 dark:text-white mb-0.5">{log.taskTitle}</div>
-                                            {#if log.note}
-                                                <div class="text-xs text-slate-500 italic">"{log.note}"</div>
-                                            {/if}
-                                        </td>
-                                        <td class="px-4 py-3 align-top text-right">
-                                            <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onclick={() => openEditModal(log)} class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors" title="Bearbeiten">
-                                                    <Pencil size={14} />
-                                                </button>
-                                                <button onclick={() => deleteLog(log)} class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors" title="Löschen">
-                                                    <Trash2 size={14} />
-                                                </button>
+                                        </div>
+                                    {/if}
+                                    
+                                    <!-- Sidebar Hauptaufgabe: text-sm (14px) und font-bold -->
+                                    <div class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-snug mb-3 line-clamp-3">
+                                        {group.taskTitle}
+                                    </div>
+                                    
+                                    <div class="space-y-3">
+                                        {#each group.subtasks as sub}
+                                            <div class="flex items-start gap-2.5">
+                                                <span class="text-emerald-500 text-base mt-[-1px] shrink-0">↳</span>
+                                                <div class="min-w-0">
+                                                    {#if sub.completedAt}
+                                                        <!-- Sidebar Uhrzeit: text-xs (12px) -->
+                                                        <span class="text-xs font-bold text-slate-400 block mb-1">
+                                                            {new Date(sub.completedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
+                                                        </span>
+                                                    {/if}
+                                                    <!-- Sidebar Teilschritt: text-sm (14px) -->
+                                                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 leading-snug break-words">
+                                                        {@html renderTitleWithTags(sub.title, $store.settings.team)}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </td>
-                                    </tr>
-                                {/each}
-                            </tbody>
-                        </table>
-                    </div>
+                                        {/each}
+                                    </div>
+                                    
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
                 </div>
-            {/if}
+            </aside>
+
         </div>
     </div>
 </div>
 
+<!-- Modal-Bereich (Unverändert außer Typografie-Bumps) -->
 {#if showManualLog}
     <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4" role="dialog" aria-modal="true" transition:fade={{ duration: 150 }}>
         <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick={(e) => { e.stopPropagation(); showManualLog = false; }} onkeydown={(e) => e.key === 'Escape' && (showManualLog = false)} role="button" tabindex="-1"></div>
         
-        <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md p-6 space-y-5" transition:scale={{ duration: 200, start: 0.95 }}>
-            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+        <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg p-8 space-y-6" transition:scale={{ duration: 200, start: 0.95 }}>
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     {#if editLogId}
-                        <Pencil size={18} class="text-blue-500" /> Zeit bearbeiten
+                        <Pencil size={20} class="text-blue-600" /> Zeit bearbeiten
                     {:else}
-                        <Plus size={18} class="text-blue-500" /> Zeit buchen
+                        <Plus size={20} class="text-blue-600" /> Zeit buchen
                     {/if}
                 </h3>
-                <button onclick={() => showManualLog = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"><X size={20}/></button>
+                <button onclick={() => showManualLog = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"><X size={24}/></button>
             </div>
             
-            <div class="space-y-4">
+            <div class="space-y-5">
                 <div>
-                    <label for="taskSelect" class="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Für welche Aufgabe?</label>
-                    <select id="taskSelect" bind:value={logTaskId} disabled={!!editLogId} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm disabled:opacity-50">
+                    <label for="taskSelect" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Für welche Aufgabe?</label>
+                    <select id="taskSelect" bind:value={logTaskId} disabled={!!editLogId} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm disabled:opacity-50">
                         <option value="" disabled selected>Bitte wählen...</option>
                         {#each myTasksForDropdown as t}
                             <option value={t.id}>[{t.matterRef || 'NO-REF'}] {t.title}</option>
@@ -306,34 +396,34 @@
                     </select>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-5">
                     <div>
-                        <label for="logDateInput" class="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Datum</label>
-                        <input id="logDateInput" type="date" bind:value={logDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500 dark:[color-scheme:dark] outline-none text-sm" />
+                        <label for="logDateInput" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Datum</label>
+                        <input id="logDateInput" type="date" bind:value={logDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 dark:[color-scheme:dark] outline-none text-sm" />
                     </div>
 
                     <div>
-                        <label for="logMinutesInput" class="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Dauer (Minuten)</label>
-                        <input id="logMinutesInput" type="number" bind:value={logMinutes} min="1" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                        <label for="logMinutesInput" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Dauer (Minuten)</label>
+                        <input id="logMinutesInput" type="number" bind:value={logMinutes} min="1" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                     </div>
                 </div>
                 
-                <div class="flex gap-2">
-                    <button onclick={() => logMinutes = 15} class="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold transition-colors">+15m</button>
-                    <button onclick={() => logMinutes = 30} class="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold transition-colors">+30m</button>
-                    <button onclick={() => logMinutes = 60} class="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold transition-colors">+1h</button>
+                <div class="flex gap-3">
+                    <button onclick={() => logMinutes = 15} class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold transition-colors">+15m</button>
+                    <button onclick={() => logMinutes = 30} class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold transition-colors">+30m</button>
+                    <button onclick={() => logMinutes = 60} class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold transition-colors">+1h</button>
                 </div>
 
                 <div>
-                    <label for="logNoteInput" class="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Tätigkeit / Bemerkung</label>
-                    <textarea id="logNoteInput" bind:value={logNote} rows="2" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-2.5 focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm" placeholder="Was wurde gemacht?"></textarea>
+                    <label for="logNoteInput" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Tätigkeit / Bemerkung</label>
+                    <textarea id="logNoteInput" bind:value={logNote} rows="3" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm leading-relaxed" placeholder="Was wurde gemacht?"></textarea>
                     
                     {#if recommendedNotes.length > 0 && !editLogId}
-                        <div class="mt-3">
-                            <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider block mb-1.5">Ausgeführte Teilschritte:</span>
-                            <div class="flex flex-wrap gap-1.5">
+                        <div class="mt-4">
+                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider block mb-2">Ausgeführte Teilschritte:</span>
+                            <div class="flex flex-wrap gap-2">
                                 {#each recommendedNotes as rec}
-                                    <button type="button" onclick={() => appendToNote(rec)} class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 rounded-lg text-[11px] font-medium transition-colors text-left max-w-full truncate">
+                                    <button type="button" onclick={() => appendToNote(rec)} class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 rounded-lg text-xs font-medium transition-colors text-left max-w-full truncate">
                                         + {@html rec}
                                     </button>
                                 {/each}
@@ -343,9 +433,9 @@
                 </div>
             </div>
             
-            <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button onclick={() => showManualLog = false} class="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition-colors outline-none">Abbrechen</button>
-                <button onclick={saveManualLog} disabled={!logTaskId || logMinutes <= 0} class="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none">Speichern</button>
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button onclick={() => showManualLog = false} class="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg">Abbrechen</button>
+                <button onclick={saveManualLog} disabled={!logTaskId || logMinutes <= 0} class="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none">Speichern</button>
             </div>
         </div>
     </div>

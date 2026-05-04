@@ -1,9 +1,7 @@
 <script lang="ts">
     import { store } from '$lib/stores/tasks';
-    // FIX 1: Task Typ kommt jetzt aus types.ts
-    import type { Task } from '$lib/types'; 
-    // FIX 2: Icons müssen importiert werden
-    import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Plus, X, Clock } from 'lucide-svelte';
+    import type { Task } from '$lib/types';
+    import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Plus, X } from 'lucide-svelte';
     import { fade, scale } from 'svelte/transition';
 
     let currentDate = new Date();
@@ -27,16 +25,25 @@
         | { type: 'day'; dayNum: number; dateStr: string; tasks: Task[]; id?: undefined };
 
     function nextMonth() {
-        if (month === 11) { month = 0; year++; } else { month++; }
+        if (month === 11) {
+            month = 0;
+            year++;
+        } else {
+            month++;
+        }
         currentDate = new Date(year, month, 1);
     }
 
     function prevMonth() {
-        if (month === 0) { month = 11; year--; } else { month--; }
+        if (month === 0) {
+            month = 11;
+            year--;
+        } else {
+            month--;
+        }
         currentDate = new Date(year, month, 1);
     }
 
-    // 1. Reaktivität: Tasks gruppieren
     $: tasksByDate = $store.tasks.reduce((acc, task) => {
         if (!task.dueDate) return acc;
         if (!acc[task.dueDate]) acc[task.dueDate] = [];
@@ -44,20 +51,21 @@
         return acc;
     }, {} as Record<string, Task[]>);
 
-    // 2. Reaktivität: Kalenderstruktur bauen
     $: calendarDays = (() => {
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const startDayIndex = (new Date(year, month, 1).getDay() + 6) % 7;
-        
         const days: CalendarCell[] = [];
+
         for (let i = 0; i < startDayIndex; i++) {
             days.push({ type: 'empty', id: `empty-${i}` });
         }
+
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
             const tasks = tasksByDate[dateStr] || [];
             days.push({ type: 'day', dayNum: i, dateStr, tasks });
         }
+
         return days;
     })();
 
@@ -76,7 +84,6 @@
 
     function saveTask() {
         if (!newTaskTitle.trim()) return;
-        // FIX 3: Aufruf an PocketBase Store angepasst (Status 'TODO' zuerst)
         store.addTask('TODO', newTaskTitle, newTaskRef, newTaskDate);
         closeModal();
     }
@@ -119,36 +126,52 @@
     }
 </script>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-8 font-sans">
-    <div class="max-w-[1600px] mx-auto">
-        <div class="flex items-center justify-between mb-8">
+<!-- LAYOUT FIX: h-screen und overflow-hidden garantieren, dass die Seite niemals vertikal scrollt -->
+<div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 lg:p-6 font-sans">
+    
+    <div class="max-w-[1600px] w-full mx-auto flex flex-col flex-1 min-h-0">
+        
+        <!-- HEADER (Kompakter gemacht) -->
+        <div class="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div class="flex items-center gap-4">
-                <a href="/" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><ArrowLeft /></a>
-                <h1 class="text-3xl font-bold font-serif text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                    <Calendar class="text-amber-600" />
+                <a href="/" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
+                    <ArrowLeft size={24} />
+                </a>
+                <!-- KONTRAST FIX: blue-600 im Light Mode, blue-400 im Dark Mode für perfekten Kontrast -->
+                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+                    <Calendar size={28} class="text-blue-600 dark:text-blue-400" /> 
                     {monthNames[month]} <span class="text-slate-400">{year}</span>
                 </h1>
             </div>
+
             <div class="flex gap-2">
-                <button onclick={prevMonth} class="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"><ChevronLeft /></button>
-                <button onclick={nextMonth} class="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"><ChevronRight /></button>
+                <button onclick={prevMonth} class="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-colors outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
+                    <ChevronLeft size={20} />
+                </button>
+                <button onclick={nextMonth} class="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-colors outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
+                    <ChevronRight size={20} />
+                </button>
             </div>
         </div>
 
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden select-none">
-            <div class="grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+        <!-- KALENDER BEREICH: Nimmt den restlichen Platz ein (flex-1) -->
+        <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden min-h-0 select-none">
+            
+            <!-- Wochentage (Kopfzeile) -->
+            <div class="shrink-0 grid grid-cols-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                 {#each ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as dayName}
-                    <div class="py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{dayName}</div>
+                    <div class="py-2.5 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{dayName}</div>
                 {/each}
             </div>
 
-            <div class="grid grid-cols-7 auto-rows-fr bg-slate-200 dark:bg-slate-800 gap-px">
+            <!-- Kalender Grid: auto-rows-fr sorgt dafür, dass sich die Zellen den Platz perfekt aufteilen -->
+            <div class="flex-1 grid grid-cols-7 auto-rows-fr bg-slate-200 dark:border-slate-800 gap-px min-h-0">
                 {#each calendarDays as cell (cell.type === 'day' ? cell.dateStr : cell.id)}
                     {#if cell.type === 'empty'}
-                         <div class="bg-slate-50/50 dark:bg-slate-900/50 min-h-[140px]"></div>
+                        <div class="bg-slate-50/50 dark:bg-slate-900/50"></div>
                     {:else}
                         <div 
-                            class={`bg-white dark:bg-slate-900 min-h-[140px] p-2 transition-all relative group cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-500 ${dragOverDate === cell.dateStr ? 'bg-amber-50 dark:bg-amber-900/20 ring-2 ring-inset ring-amber-400' : 'hover:bg-amber-50/20 dark:hover:bg-slate-800/80'}`}
+                            class={`bg-white dark:bg-slate-900 flex flex-col min-h-0 p-2 transition-all relative group cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400 ${dragOverDate === cell.dateStr ? 'bg-blue-50/50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-500 dark:ring-blue-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'}`}
                             onclick={() => openAddModal(cell.dateStr!)}
                             onkeydown={(e) => onDayKeyDown(e, cell.dateStr!)}
                             ondragover={(e) => handleDragOver(e, cell.dateStr!)}
@@ -156,29 +179,34 @@
                             role="button"
                             tabindex="0"
                         >
-                            <div class="flex justify-between items-start">
-                                <span class={`text-sm font-semibold transition-colors ${dragOverDate === cell.dateStr ? 'text-amber-600 font-bold scale-110' : 'text-slate-400 group-hover:text-amber-600'}`}>{cell.dayNum}</span>
-                                <div class="opacity-0 group-hover:opacity-100 transition-opacity text-amber-500">
+                            <div class="shrink-0 flex justify-between items-start mb-1.5">
+                                <span class={`text-sm font-bold transition-colors ${dragOverDate === cell.dateStr ? 'text-blue-600 dark:text-blue-400 scale-110' : 'text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400'}`}>{cell.dayNum}</span>
+                                <div class="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 dark:text-blue-400">
                                     <Plus size={16} />
                                 </div>
                             </div>
                             
-                            <div class="mt-2 space-y-1.5 overflow-y-auto max-h-[100px] custom-scrollbar">
+                            <!-- Tasks-Container scrollt in sich selbst, wenn nötig -->
+                            <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
                                 {#each cell.tasks as task (task.id)}
                                     <div 
-                                        class={`text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1.5 rounded border-l-4 border-slate-500 hover:border-amber-500 shadow-sm transition-all truncate cursor-grab active:cursor-grabbing ${draggingTaskId === task.id ? 'opacity-50 scale-95' : ''}`}
+                                        class={`bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded-md border-l-[3px] border-slate-300 dark:border-slate-600 hover:border-blue-600 dark:hover:border-blue-400 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggingTaskId === task.id ? 'opacity-50 scale-95' : ''}`}
                                         title={task.title}
                                         role="button"
                                         tabindex="0"
                                         draggable="true"
                                         ondragstart={(e) => handleDragStart(e, task.id)}
-                                        onclick={(e) => e.stopPropagation()} 
+                                        onclick={(e) => e.stopPropagation()}
                                         onkeydown={(e) => e.stopPropagation()}
                                     >
                                         {#if task.matterRef}
-                                            <span class="font-bold text-[10px] text-slate-400 block mb-0.5">{task.matterRef}</span>
+                                            <span class="inline-block text-[10px] font-bold px-1 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase tracking-wider mb-0.5 truncate max-w-full">
+                                                {task.matterRef}
+                                            </span>
                                         {/if}
-                                        {task.title}
+                                        <div class="text-xs font-medium text-slate-800 dark:text-slate-200 leading-tight line-clamp-2">
+                                            {task.title}
+                                        </div>
                                     </div>
                                 {/each}
                             </div>
@@ -186,76 +214,49 @@
                     {/if}
                 {/each}
             </div>
+            
         </div>
     </div>
 
+    <!-- Modal-Bereich -->
     {#if showModal}
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 200 }}>
-            <div 
-                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm focus:outline-none" 
-                onclick={closeModal}
-                onkeydown={(e) => e.key === 'Escape' && closeModal()}
-                role="button"
-                tabindex="0"
-            ></div>
+        <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick={closeModal} onkeydown={(e) => e.key === 'Escape' && closeModal()} role="button" tabindex="-1"></div>
             
-            <div 
-                class="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"
-                transition:scale={{ duration: 200, start: 0.95 }}
-            >
-                <div class="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Clock size={20} class="text-amber-500"/>
-                        Schnelleingabe
-                    </h2>
-                    <button onclick={closeModal} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                        <X size={20} />
+            <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg p-8 space-y-6" transition:scale={{ duration: 200, start: 0.95 }}>
+                <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <Plus size={20} class="text-blue-600 dark:text-blue-400" /> Schnelleingabe
+                    </h3>
+                    <button onclick={closeModal} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none">
+                        <X size={24} />
                     </button>
                 </div>
-
-                <div class="p-6 space-y-5">
+                
+                <div class="space-y-5">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1.5" for="new-task-input">Aufgabe</label>
-                        <input 
-                            id="new-task-input"
-                            type="text" 
-                            bind:value={newTaskTitle} 
-                            placeholder="Was ist zu tun?" 
-                            class="w-full rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 p-3 text-base shadow-sm"
-                            onkeydown={handleModalKeydown}
-                        />
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-2" for="new-task-input">Aufgabe</label>
+                        <input id="new-task-input" type="text" bind:value={newTaskTitle} placeholder="Was ist zu tun?" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none p-3 text-sm shadow-sm" onkeydown={handleModalKeydown} />
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-2 gap-5">
                         <div>
-                            <label class="block text-xs font-bold uppercase text-slate-500 mb-1.5" for="new-task-date">Frist</label>
-                            <input 
-                                id="new-task-date"
-                                type="date" 
-                                bind:value={newTaskDate} 
-                                class="w-full rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 p-2.5 shadow-sm"
-                            />
+                            <label class="block text-xs font-bold uppercase text-slate-500 mb-2" for="new-task-date">Frist (Intern)</label>
+                            <input id="new-task-date" type="date" bind:value={newTaskDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:[color-scheme:dark] outline-none p-3 text-sm shadow-sm" />
                         </div>
                         <div>
-                            <label class="block text-xs font-bold uppercase text-slate-500 mb-1.5" for="new-task-ref">Ref-Nr.</label>
-                            <input 
-                                id="new-task-ref"
-                                type="text" 
-                                bind:value={newTaskRef} 
-                                placeholder="Optional" 
-                                class="w-full rounded-lg border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 p-2.5 shadow-sm font-mono text-sm"
-                                onkeydown={handleModalKeydown}
-                            />
+                            <label class="block text-xs font-bold uppercase text-slate-500 mb-2" for="new-task-ref">Aktenzeichen / Ref.</label>
+                            <input id="new-task-ref" type="text" bind:value={newTaskRef} placeholder="Optional" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none p-3 text-sm shadow-sm uppercase" onkeydown={handleModalKeydown} />
                         </div>
                     </div>
                 </div>
-
-                <div class="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
-                    <button onclick={closeModal} class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg border border-transparent hover:border-slate-200 dark:hover:border-slate-600 transition-all">
+                
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button onclick={closeModal} class="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg">
                         Abbrechen
                     </button>
-                    <button onclick={saveTask} class="px-5 py-2 text-sm font-bold text-white bg-slate-900 dark:bg-amber-600 hover:bg-slate-800 dark:hover:bg-amber-500 rounded-lg shadow-md hover:shadow-lg transition-all transform active:scale-95 flex items-center gap-2">
-                        <Plus size={16} /> Speichern
+                    <button onclick={saveTask} disabled={!newTaskTitle.trim()} class="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none flex items-center gap-2">
+                        <Plus size={18} /> Speichern
                     </button>
                 </div>
             </div>

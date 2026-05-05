@@ -39,7 +39,7 @@
 			bind:value={buffer} 
 			onblur={saveEdit} 
 			onkeydown={handleKeydown} 
-			class="w-full font-bold text-inherit text-slate-900 bg-slate-50 border border-blue-400 rounded px-1.5 py-0.5 resize-none overflow-hidden dark:bg-slate-700 dark:text-white block focus:ring-2 focus:ring-blue-500 outline-none leading-tight" 
+			class="w-full font-bold text-inherit text-slate-900 bg-slate-50 border border-brand-400 rounded px-1.5 py-0.5 resize-none overflow-hidden dark:bg-slate-700 dark:text-white block focus:ring-2 focus:ring-brand-500 outline-none leading-tight" 
 			rows="1" 
 			spellcheck="false"
 		></textarea>

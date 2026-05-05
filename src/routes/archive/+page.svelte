@@ -27,7 +27,7 @@
                     <ArrowLeft size={24} />
                 </a>
                 <h1 class="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
-                    <Archive size={28} class="text-blue-600 dark:text-blue-500" /> 
+                    <Archive size={28} class="text-brand-600 dark:text-brand-500" /> 
                     Archiv
                 </h1>
             </div>
@@ -39,7 +39,7 @@
                     type="text" 
                     bind:value={searchQuery} 
                     placeholder="Im Archiv suchen..." 
-                    class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow text-slate-900 dark:text-white" 
+                    class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition-shadow text-slate-900 dark:text-white" 
                 />
             </div>
         </div>

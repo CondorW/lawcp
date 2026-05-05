@@ -17,7 +17,6 @@
 			pendingFocus = false;
 			await tick();
 			requestAnimationFrame(() => {
-				// FIX: Target die neue Navbar-Input ID statt des alten TaskInputs
 				const input = document.getElementById('nav-task-title');
 				if (input) input.focus();
 			});
@@ -112,10 +111,10 @@
 </script>
 
 {#if ($page.url.pathname as string) !== '/login'}
-	<!-- BRANDING: Der Button strahlt jetzt in solidem Royal Blue (blue-600) auf allen Themes -->
+	<!-- ORIGINAL BRANDING: brand Switch -->
 	<button
 		onclick={toggle}
-		class="fixed bottom-6 left-6 z-40 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-full shadow-xl shadow-blue-900/20 hover:scale-105 transition-all flex items-center gap-3 font-bold border border-blue-500 group print:hidden outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-50 dark:focus:ring-offset-slate-900"
+		class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-brand-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-all flex items-center gap-3 font-bold border border-slate-700 dark:border-brand-500 group print:hidden outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-slate-50 dark:focus:ring-offset-slate-900"
 		title="Befehlspalette öffnen (Strg+J)"
 	>
 		<Search size={20} />
@@ -141,7 +140,7 @@
 			transition:scale={{ duration: 150, start: 0.95 }}
 		>
 			<div class="flex items-center gap-3 p-4 border-b border-slate-100 dark:border-slate-800">
-				<Search class="text-blue-600 dark:text-blue-400" size={20} />
+				<Search class="text-brand-600 dark:text-brand-500" size={20} />
 				<input 
 					bind:this={inputEl}
 					bind:value={query}
@@ -157,16 +156,16 @@
 					<div class="p-4 text-center text-slate-500 text-sm font-medium">Keine Ergebnisse gefunden.</div>
 				{:else}
 					{#each filtered as item, i}
-						<!-- BRANDING: Hover / Selektion nutzt jetzt Royal Blue anstelle von Bernstein -->
+						<!-- ORIGINAL BRANDING: brand Selektion -->
 						<button 
-							class={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg transition-colors outline-none ${i === selectedIndex ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+							class={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg transition-colors outline-none ${i === selectedIndex ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-900 dark:text-brand-100' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
 							onclick={() => execute(item)}
 							onmouseenter={() => selectedIndex = i}
 						>
-							<svelte:component this={item.icon} size={18} class={i === selectedIndex ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'} />
+							<svelte:component this={item.icon} size={18} class={i === selectedIndex ? 'text-brand-600 dark:text-brand-500' : 'text-slate-400'} />
 							<span class="font-medium text-sm">{item.title}</span>
 							{#if i === selectedIndex}
-								<span class="ml-auto text-xs text-blue-600 dark:text-blue-400 font-bold">↵ Enter</span>
+								<span class="ml-auto text-xs text-brand-600 dark:text-brand-500 font-bold">↵ Enter</span>
 							{/if}
 						</button>
 					{/each}
@@ -175,7 +174,7 @@
 
 			<div class="p-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex justify-between px-4 font-medium uppercase tracking-wider">
 				<span><strong>↑↓</strong> zum Wählen</span>
-				<span><strong>Lawganized<span class="text-rose-400">F</span><span class="text-blue-400">L</span></strong> Cmd</span>
+				<span><strong>Lawganized</strong> Cmd</span>
 			</div>
 		</div>
 	</div>

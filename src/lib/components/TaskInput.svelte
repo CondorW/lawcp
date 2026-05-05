@@ -34,12 +34,12 @@
 	}
 </script>
 
-<!-- BRANDING: Royal Blue Focus States -->
-<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400">
+<!-- BRANDING: Royal brand Focus States -->
+<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-400">
 	<div class="flex flex-col gap-1 p-1 sm:flex-row sm:items-start">
 		
 		<div class="relative flex-grow">
-			<div class="absolute top-2.5 left-2.5 pointer-events-none text-blue-500 opacity-60">
+			<div class="absolute top-2.5 left-2.5 pointer-events-none text-brand-500 opacity-60">
 				<Plus size={18} />
 			</div>
 			<!-- TYPOGRAPHY: text-sm (14px) -->
@@ -61,21 +61,21 @@
 				type="text" 
 				onkeydown={onKeyDown} 
 				placeholder="Ref-Nr." 
-				class="w-24 rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-blue-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-blue-500/50 transition-colors" 
+				class="w-24 rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-brand-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-brand-500/50 transition-colors" 
 			/>
 			<!-- TYPOGRAPHY: text-xs (12px) -->
 			<input 
 				bind:value={inputDate} 
 				type="date" 
 				onkeydown={onKeyDown} 
-				class="rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 focus:bg-blue-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-blue-500/50 transition-colors dark:[color-scheme:dark]" 
+				class="rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 focus:bg-brand-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-brand-500/50 transition-colors dark:[color-scheme:dark]" 
 			/>
 			
-			<!-- BRANDING: Add-Button in Royal Blue -->
+			<!-- BRANDING: Add-Button in Royal brand -->
 			<button 
 				onclick={handleAdd} 
 				title="Strg+Enter zum Speichern" 
-				class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95 outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+				class="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-brand-700 transition-all active:scale-95 outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1"
 			>
 				<span>Add</span>
 				<CornerDownLeft size={12} class="opacity-60" />

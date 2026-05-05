@@ -117,7 +117,7 @@
 			</div>
 			<div class="flex items-center gap-3">
 				<div class="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-md">
-					<Activity size={16} class="text-blue-500"/><span class="text-sm font-bold">{globalMetrics.totalActive} <span class="text-slate-500 font-normal">Aktiv</span></span>
+					<Activity size={16} class="text-brand-500"/><span class="text-sm font-bold">{globalMetrics.totalActive} <span class="text-slate-500 font-normal">Aktiv</span></span>
 				</div>
 				<div class="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-md">
 					<CheckCircle2 size={16} class="text-purple-500"/><span class="text-sm font-bold">{globalMetrics.totalReview} <span class="text-slate-500 font-normal">Review</span></span>
@@ -154,9 +154,9 @@
 								<div class="text-xl font-bold text-slate-700 dark:text-slate-200">{data.todo}</div>
 								<div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">To Do</div>
 							</div>
-							<div class="p-3 text-center bg-amber-50/30 dark:bg-amber-900/5">
-								<div class="text-xl font-bold text-amber-600 dark:text-amber-500">{data.inArbeit}</div>
-								<div class="text-[10px] font-bold text-amber-500/70 uppercase tracking-wider mt-1">In Arbeit</div>
+							<div class="p-3 text-center bg-brand-50/30 dark:bg-brand-900/5">
+								<div class="text-xl font-bold text-brand-600 dark:text-brand-500">{data.inArbeit}</div>
+								<div class="text-[10px] font-bold text-brand-500/70 uppercase tracking-wider mt-1">In Arbeit</div>
 							</div>
 							<div class="p-3 text-center bg-purple-50/30 dark:bg-purple-900/5">
 								<div class="text-xl font-bold text-purple-600 dark:text-purple-500">{data.review}</div>
@@ -171,15 +171,15 @@
 									{#each data.urgentTasks as task}
 										{@const effStatus = hasSubtaskInReview(task.subtasks) && task.status !== 'DONE' ? 'REVIEW' : task.status}
 										{@const isMicro = effStatus === 'REVIEW' && task.status !== 'REVIEW'}
-										<button onclick={() => selectedTask = task} class="w-full text-left group flex flex-col gap-2 p-3.5 rounded-lg border bg-white dark:bg-slate-800 shadow-sm transition-all hover:border-amber-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+										<button onclick={() => selectedTask = task} class="w-full text-left group flex flex-col gap-2 p-3.5 rounded-lg border bg-white dark:bg-slate-800 shadow-sm transition-all hover:border-brand-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-500">
 											<div class="flex justify-between items-start gap-3 w-full">
-												<span class="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">{task.title}</span>
+												<span class="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug group-hover:text-brand-700 dark:group-hover:text-brand-400 transition-colors">{task.title}</span>
 												{#if task.matterRef}
 													<span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-500 whitespace-nowrap uppercase shrink-0">{task.matterRef}</span>
 												{/if}
 											</div>
 											<div class="flex justify-between items-center mt-1 border-t border-slate-100 dark:border-slate-700 pt-2.5 w-full">
-												<span class={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${effStatus === 'WAITING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+												<span class={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${effStatus === 'WAITING' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
 													{isMicro ? 'TEIL-REVIEW' : (effStatus === 'WAITING' ? 'IN ARBEIT' : effStatus)}
 												</span>
 												{#if task.flaggedDate}
@@ -212,7 +212,7 @@
 			<div class="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 rounded-t-2xl flex justify-between items-start gap-4">
 				<div class="flex-1">
 					<div class="flex items-center gap-3 mb-3">
-						<span class={`text-[10px] font-bold px-2 py-1 rounded tracking-widest uppercase ${effStatus === 'WAITING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+						<span class={`text-[10px] font-bold px-2 py-1 rounded tracking-widest uppercase ${effStatus === 'WAITING' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
 							{isMicro ? 'TEIL-REVIEW' : (effStatus === 'WAITING' ? 'IN ARBEIT' : effStatus)}
 						</span>
 						{#if selectedTask.matterRef}<span class="text-[10px] font-bold px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-500 uppercase tracking-wider">Ref: {selectedTask.matterRef}</span>{/if}

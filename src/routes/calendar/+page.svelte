@@ -137,18 +137,18 @@
                 <a href="/" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
                     <ArrowLeft size={24} />
                 </a>
-                <!-- KONTRAST FIX: blue-600 im Light Mode, blue-400 im Dark Mode für perfekten Kontrast -->
+                <!-- KONTRAST FIX: brand-600 im Light Mode, brand-400 im Dark Mode für perfekten Kontrast -->
                 <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-                    <Calendar size={28} class="text-blue-600 dark:text-blue-400" /> 
+                    <Calendar size={28} class="text-brand-600 dark:text-brand-400" /> 
                     {monthNames[month]} <span class="text-slate-400">{year}</span>
                 </h1>
             </div>
 
             <div class="flex gap-2">
-                <button onclick={prevMonth} class="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-colors outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
+                <button onclick={prevMonth} class="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-colors outline-none focus:ring-2 focus:ring-brand-500 dark:focus:ring-brand-400">
                     <ChevronLeft size={20} />
                 </button>
-                <button onclick={nextMonth} class="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-colors outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
+                <button onclick={nextMonth} class="p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-colors outline-none focus:ring-2 focus:ring-brand-500 dark:focus:ring-brand-400">
                     <ChevronRight size={20} />
                 </button>
             </div>
@@ -171,7 +171,7 @@
                         <div class="bg-slate-50/50 dark:bg-slate-900/50"></div>
                     {:else}
                         <div 
-                            class={`bg-white dark:bg-slate-900 flex flex-col min-h-0 p-2 transition-all relative group cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:focus:ring-blue-400 ${dragOverDate === cell.dateStr ? 'bg-blue-50/50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-500 dark:ring-blue-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'}`}
+                            class={`bg-white dark:bg-slate-900 flex flex-col min-h-0 p-2 transition-all relative group cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500 dark:focus:ring-brand-400 ${dragOverDate === cell.dateStr ? 'bg-brand-50/50 dark:bg-brand-900/20 ring-2 ring-inset ring-brand-500 dark:ring-brand-400' : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'}`}
                             onclick={() => openAddModal(cell.dateStr!)}
                             onkeydown={(e) => onDayKeyDown(e, cell.dateStr!)}
                             ondragover={(e) => handleDragOver(e, cell.dateStr!)}
@@ -180,8 +180,8 @@
                             tabindex="0"
                         >
                             <div class="shrink-0 flex justify-between items-start mb-1.5">
-                                <span class={`text-sm font-bold transition-colors ${dragOverDate === cell.dateStr ? 'text-blue-600 dark:text-blue-400 scale-110' : 'text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400'}`}>{cell.dayNum}</span>
-                                <div class="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 dark:text-blue-400">
+                                <span class={`text-sm font-bold transition-colors ${dragOverDate === cell.dateStr ? 'text-brand-600 dark:text-brand-400 scale-110' : 'text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400'}`}>{cell.dayNum}</span>
+                                <div class="opacity-0 group-hover:opacity-100 transition-opacity text-brand-600 dark:text-brand-400">
                                     <Plus size={16} />
                                 </div>
                             </div>
@@ -190,7 +190,7 @@
                             <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
                                 {#each cell.tasks as task (task.id)}
                                     <div 
-                                        class={`bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded-md border-l-[3px] border-slate-300 dark:border-slate-600 hover:border-blue-600 dark:hover:border-blue-400 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggingTaskId === task.id ? 'opacity-50 scale-95' : ''}`}
+                                        class={`bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded-md border-l-[3px] border-slate-300 dark:border-slate-600 hover:border-brand-600 dark:hover:border-brand-400 shadow-sm transition-all cursor-grab active:cursor-grabbing ${draggingTaskId === task.id ? 'opacity-50 scale-95' : ''}`}
                                         title={task.title}
                                         role="button"
                                         tabindex="0"
@@ -226,7 +226,7 @@
             <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg p-8 space-y-6" transition:scale={{ duration: 200, start: 0.95 }}>
                 <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
                     <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Plus size={20} class="text-blue-600 dark:text-blue-400" /> Schnelleingabe
+                        <Plus size={20} class="text-brand-600 dark:text-brand-400" /> Schnelleingabe
                     </h3>
                     <button onclick={closeModal} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none">
                         <X size={24} />
@@ -236,17 +236,17 @@
                 <div class="space-y-5">
                     <div>
                         <label class="block text-xs font-bold uppercase text-slate-500 mb-2" for="new-task-input">Aufgabe</label>
-                        <input id="new-task-input" type="text" bind:value={newTaskTitle} placeholder="Was ist zu tun?" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none p-3 text-sm shadow-sm" onkeydown={handleModalKeydown} />
+                        <input id="new-task-input" type="text" bind:value={newTaskTitle} placeholder="Was ist zu tun?" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 dark:focus:ring-brand-400 outline-none p-3 text-sm shadow-sm" onkeydown={handleModalKeydown} />
                     </div>
                     
                     <div class="grid grid-cols-2 gap-5">
                         <div>
                             <label class="block text-xs font-bold uppercase text-slate-500 mb-2" for="new-task-date">Frist (Intern)</label>
-                            <input id="new-task-date" type="date" bind:value={newTaskDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 dark:[color-scheme:dark] outline-none p-3 text-sm shadow-sm" />
+                            <input id="new-task-date" type="date" bind:value={newTaskDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 dark:focus:ring-brand-400 dark:[color-scheme:dark] outline-none p-3 text-sm shadow-sm" />
                         </div>
                         <div>
                             <label class="block text-xs font-bold uppercase text-slate-500 mb-2" for="new-task-ref">Aktenzeichen / Ref.</label>
-                            <input id="new-task-ref" type="text" bind:value={newTaskRef} placeholder="Optional" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none p-3 text-sm shadow-sm uppercase" onkeydown={handleModalKeydown} />
+                            <input id="new-task-ref" type="text" bind:value={newTaskRef} placeholder="Optional" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 dark:focus:ring-brand-400 outline-none p-3 text-sm shadow-sm uppercase" onkeydown={handleModalKeydown} />
                         </div>
                     </div>
                 </div>
@@ -255,7 +255,7 @@
                     <button onclick={closeModal} class="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg">
                         Abbrechen
                     </button>
-                    <button onclick={saveTask} disabled={!newTaskTitle.trim()} class="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none flex items-center gap-2">
+                    <button onclick={saveTask} disabled={!newTaskTitle.trim()} class="px-6 py-2.5 text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none flex items-center gap-2">
                         <Plus size={18} /> Speichern
                     </button>
                 </div>

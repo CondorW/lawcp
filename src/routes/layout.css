@@ -2,32 +2,46 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
+/* --- NEU: Zentrales Farbschema --- */
+@theme {
+  --color-brand-50: var(--color-amber-50);
+  --color-brand-100: var(--color-amber-100);
+  --color-brand-200: var(--color-amber-200);
+  --color-brand-300: var(--color-amber-300);
+  --color-brand-400: var(--color-amber-400);
+  --color-brand-500: var(--color-amber-500);
+  --color-brand-600: var(--color-amber-600);
+  --color-brand-700: var(--color-amber-700);
+  --color-brand-800: var(--color-amber-800);
+  --color-brand-900: var(--color-amber-900);
+  --color-brand-950: var(--color-amber-950);
+}
+
 /* Zwingt Tailwind v4, die .dark Klasse zu respektieren */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Professional Typography & Base */
 html, body {
-    @apply transition-colors duration-300 font-sans antialiased;
-    /* Aptos (modern, professionell) oder Fallbacks */
-    font-family: "Aptos", "Inter", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
-    /* Schrift etwas größer für bessere Lesbarkeit */
-    font-size: 17px; 
-    
-    @apply bg-slate-50 text-slate-900;
-    @apply dark:bg-slate-950 dark:text-slate-100;
+  @apply transition-colors duration-300 font-sans antialiased;
+  /* Aptos (modern, professionell) oder Fallbacks */
+  font-family: "Aptos", "Inter", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+  /* Schrift etwas größer für bessere Lesbarkeit */
+  font-size: 17px;
+  @apply bg-slate-50 text-slate-900;
+  @apply dark:bg-slate-950 dark:text-slate-100;
 }
 
 /* Custom Scrollbar for a cleaner look */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-    @apply bg-transparent;
+  @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-    @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
 }
 ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-400 dark:bg-slate-600;
+  @apply bg-slate-400 dark:bg-slate-600;
 }

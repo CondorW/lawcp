@@ -82,9 +82,9 @@
 	<div class="flex items-start gap-2 relative w-full">
 		<button
 			onclick={() => store.toggleSubtask(taskId, sub.id)}
-			class="text-gray-400 hover:text-blue-600 flex-shrink-0 mt-0.5"
+			class="text-gray-400 hover:text-brand-600 flex-shrink-0 mt-0.5"
 		>
-			{#if sub.done}<CheckSquare size={16} class="text-blue-500" />{:else}<Square size={16} />{/if}
+			{#if sub.done}<CheckSquare size={16} class="text-brand-500" />{:else}<Square size={16} />{/if}
 		</button>
 
 		{#if isEditing}
@@ -97,7 +97,7 @@
 				onkeydown={handleKeyDown}
 				rows="1"
 				spellcheck="false"
-				class="flex-grow min-w-0 w-full bg-white dark:bg-slate-800 border border-blue-300 rounded p-1 text-sm focus:ring-0 resize-none overflow-hidden leading-snug block min-h-[20px] whitespace-pre-wrap break-words"
+				class="flex-grow min-w-0 w-full bg-white dark:bg-slate-800 border border-brand-300 rounded p-1 text-sm focus:ring-0 resize-none overflow-hidden leading-snug block min-h-[20px] whitespace-pre-wrap break-words"
 			></textarea>
 		{:else}
 			<div
@@ -145,7 +145,7 @@
 				{/if}
 			{/if}
 
-			<button onclick={startAddChild} class="text-gray-300 hover:text-amber-600 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity" title="Subtask hinzufügen">
+			<button onclick={startAddChild} class="text-gray-300 hover:text-brand-600 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity" title="Subtask hinzufügen">
 				<ListPlus size={14} />
 			</button>
 
@@ -155,7 +155,7 @@
 				</button>
 			{/if}
 
-            <button onclick={(e) => { e.stopPropagation(); store.archiveSubtask(taskId, sub.id, !sub.archived); }} class="text-gray-300 hover:text-blue-500 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity ml-1" title={sub.archived ? "Wiederherstellen" : "Archivieren"}>
+            <button onclick={(e) => { e.stopPropagation(); store.archiveSubtask(taskId, sub.id, !sub.archived); }} class="text-gray-300 hover:text-brand-500 opacity-0 group-hover/sub:opacity-100 mt-0.5 transition-opacity ml-1" title={sub.archived ? "Wiederherstellen" : "Archivieren"}>
                 {#if sub.archived}
                     <ArchiveRestore size={14} />
                 {:else}
@@ -171,7 +171,7 @@
 
 	{#if !sub.done && sub.type === 'DOCUMENT'}
 		<div class="pl-7 flex gap-3">
-			<button onclick={() => navigator.clipboard.writeText(getFullFilename('Redline'))} class="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1"><Copy size={12} /> Redline</button>
+			<button onclick={() => navigator.clipboard.writeText(getFullFilename('Redline'))} class="text-xs text-gray-400 hover:text-brand-600 flex items-center gap-1"><Copy size={12} /> Redline</button>
 			<button onclick={() => navigator.clipboard.writeText(getFullFilename('Cleaned'))} class="text-xs text-gray-400 hover:text-green-600 flex items-center gap-1"><Copy size={12} /> Cleaned</button>
 		</div>
 	{/if}
@@ -184,11 +184,11 @@
 
 			{#if addingChild}
 				<div class="flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200 w-full">
-					<div class="text-amber-500 mt-1.5 flex-shrink-0"><CornerDownRight size={12} /></div>
+					<div class="text-brand-500 mt-1.5 flex-shrink-0"><CornerDownRight size={12} /></div>
 					<div class="flex-grow flex gap-2 items-start min-w-0">
-						<textarea use:autosize={newChildTitle} use:focusOnMount bind:value={newChildTitle} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAddChild(); } if (e.key === 'Escape') cancelAddChild(); }} onblur={() => { if (!newChildTitle.trim()) cancelAddChild(); }} rows="1" placeholder="Unterschritt..." class="flex-grow min-w-0 w-full bg-white dark:bg-slate-800 border border-amber-500 rounded p-2 text-xs focus:ring-0 text-gray-900 dark:text-white resize-none overflow-hidden leading-snug block min-h-[32px] shadow-sm whitespace-pre-wrap break-words"></textarea>
+						<textarea use:autosize={newChildTitle} use:focusOnMount bind:value={newChildTitle} onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmAddChild(); } if (e.key === 'Escape') cancelAddChild(); }} onblur={() => { if (!newChildTitle.trim()) cancelAddChild(); }} rows="1" placeholder="Unterschritt..." class="flex-grow min-w-0 w-full bg-white dark:bg-slate-800 border border-brand-500 rounded p-2 text-xs focus:ring-0 text-gray-900 dark:text-white resize-none overflow-hidden leading-snug block min-h-[32px] shadow-sm whitespace-pre-wrap break-words"></textarea>
 						<div class="flex-shrink-0 flex gap-1">
-							<button onclick={confirmAddChild} class="text-amber-600 hover:text-amber-700 bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded h-8 w-8 flex items-center justify-center"><Check size={14} /></button>
+							<button onclick={confirmAddChild} class="text-brand-600 hover:text-brand-700 bg-brand-50 dark:bg-brand-900/20 p-1.5 rounded h-8 w-8 flex items-center justify-center"><Check size={14} /></button>
 							<button onclick={cancelAddChild} class="text-slate-400 hover:text-slate-600 bg-slate-50 dark:bg-slate-800 p-1.5 rounded h-8 w-8 flex items-center justify-center"><X size={14} /></button>
 						</div>
 					</div>

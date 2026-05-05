@@ -196,7 +196,7 @@
             </a>
             <div>
                 <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
-                    <Clock class="text-blue-600" size={24}/> Zeiterfassung
+                    <Clock class="text-brand-600" size={24}/> Zeiterfassung
                 </h1>
             </div>
         </div>
@@ -213,7 +213,7 @@
                 <Plus size={18} /> Buchen
             </button>
 
-            <button onclick={exportToCSV} class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm shadow-sm transition-colors" title="Als CSV exportieren">
+            <button onclick={exportToCSV} class="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-bold text-sm shadow-sm transition-colors" title="Als CSV exportieren">
                 <FileDown size={18} /> Export
             </button>
         </div>
@@ -231,7 +231,7 @@
                             <div class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1.5">Gefilterte Zeit</div>
                             <div class="text-4xl font-bold text-slate-800 dark:text-white">{totalHours} <span class="text-xl font-medium text-slate-500">Stunden</span></div>
                         </div>
-                        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full">
+                        <div class="p-4 bg-brand-50 dark:bg-brand-900/20 text-brand-600 rounded-full">
                             <Clock size={32} />
                         </div>
                     </div>
@@ -274,7 +274,7 @@
                                                 <div class="text-xs text-slate-500">{new Date(log.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
                                             </td>
                                             <td class="px-6 py-4 align-top">
-                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 font-bold text-sm border border-blue-100 dark:border-blue-800/50">
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 font-bold text-sm border border-brand-100 dark:border-brand-800/50">
                                                     <Clock size={14} /> {log.minutes}m
                                                 </span>
                                             </td>
@@ -291,7 +291,7 @@
                                             </td>
                                             <td class="px-6 py-4 align-top text-right">
                                                 <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onclick={() => openEditModal(log)} class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors" title="Bearbeiten">
+                                                    <button onclick={() => openEditModal(log)} class="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-md transition-colors" title="Bearbeiten">
                                                         <Pencil size={16} />
                                                     </button>
                                                     <button onclick={() => deleteLog(log)} class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-md transition-colors" title="Löschen">
@@ -377,9 +377,9 @@
             <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
                 <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     {#if editLogId}
-                        <Pencil size={20} class="text-blue-600" /> Zeit bearbeiten
+                        <Pencil size={20} class="text-brand-600" /> Zeit bearbeiten
                     {:else}
-                        <Plus size={20} class="text-blue-600" /> Zeit buchen
+                        <Plus size={20} class="text-brand-600" /> Zeit buchen
                     {/if}
                 </h3>
                 <button onclick={() => showManualLog = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"><X size={24}/></button>
@@ -388,7 +388,7 @@
             <div class="space-y-5">
                 <div>
                     <label for="taskSelect" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Für welche Aufgabe?</label>
-                    <select id="taskSelect" bind:value={logTaskId} disabled={!!editLogId} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm disabled:opacity-50">
+                    <select id="taskSelect" bind:value={logTaskId} disabled={!!editLogId} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-brand-500 outline-none text-sm disabled:opacity-50">
                         <option value="" disabled selected>Bitte wählen...</option>
                         {#each myTasksForDropdown as t}
                             <option value={t.id}>[{t.matterRef || 'NO-REF'}] {t.title}</option>
@@ -399,12 +399,12 @@
                 <div class="grid grid-cols-2 gap-5">
                     <div>
                         <label for="logDateInput" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Datum</label>
-                        <input id="logDateInput" type="date" bind:value={logDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 dark:[color-scheme:dark] outline-none text-sm" />
+                        <input id="logDateInput" type="date" bind:value={logDate} class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-brand-500 dark:[color-scheme:dark] outline-none text-sm" />
                     </div>
 
                     <div>
                         <label for="logMinutesInput" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Dauer (Minuten)</label>
-                        <input id="logMinutesInput" type="number" bind:value={logMinutes} min="1" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                        <input id="logMinutesInput" type="number" bind:value={logMinutes} min="1" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-brand-500 outline-none text-sm" />
                     </div>
                 </div>
                 
@@ -416,7 +416,7 @@
 
                 <div>
                     <label for="logNoteInput" class="text-xs font-bold text-slate-500 uppercase mb-2 block">Tätigkeit / Bemerkung</label>
-                    <textarea id="logNoteInput" bind:value={logNote} rows="3" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm leading-relaxed" placeholder="Was wurde gemacht?"></textarea>
+                    <textarea id="logNoteInput" bind:value={logNote} rows="3" class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-slate-900 dark:text-white p-3 focus:ring-2 focus:ring-brand-500 outline-none resize-none text-sm leading-relaxed" placeholder="Was wurde gemacht?"></textarea>
                     
                     {#if recommendedNotes.length > 0 && !editLogId}
                         <div class="mt-4">
@@ -435,7 +435,7 @@
             
             <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button onclick={() => showManualLog = false} class="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg">Abbrechen</button>
-                <button onclick={saveManualLog} disabled={!logTaskId || logMinutes <= 0} class="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none">Speichern</button>
+                <button onclick={saveManualLog} disabled={!logTaskId || logMinutes <= 0} class="px-6 py-2.5 text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors outline-none">Speichern</button>
             </div>
         </div>
     </div>

@@ -130,7 +130,7 @@
 		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md",
 		isExpanded ? "p-3 gap-2.5 is-expanded col-span-full border border-slate-300 dark:border-slate-600" : "p-2 gap-1.5 h-full",
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
-		isStale && !isExpanded && "ring-2 ring-blue-600 dark:ring-blue-500 shadow-blue-500/10 border-transparent",
+		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
 		dragging && "opacity-50",
 	)}
@@ -153,13 +153,13 @@
 			</span>
 			
 			{#if isStale && !isExpanded}
-				<span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px] font-bold tracking-widest flex items-center gap-1" title="Seit über 7 Tagen inaktiv">
+				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1" title="Seit über 7 Tagen inaktiv">
 					<Clock size={10} /> STALE
 				</span>
 			{/if}
 			
 			{#if !isExpanded && !isOwner}
-				<span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded text-[10px] font-bold uppercase shrink-0">
+				<span class="px-1.5 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-[10px] font-bold uppercase shrink-0">
 					{ownerShortsign}
 				</span>
 			{/if}
@@ -217,7 +217,7 @@
 						<button onclick={() => assignTo('')} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
 						{#each $store.firmUsers as user}
 							{#if user.id !== myId && user.shortsign}
-								<button onclick={() => assignTo(user.id)} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
+								<button onclick={() => assignTo(user.id)} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-brand-50 text-brand-800 border-brand-300 dark:bg-brand-900/30 dark:text-brand-400 dark:border-brand-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
 							{/if}
 						{/each}
 					</div>
@@ -226,7 +226,7 @@
 
 			{#if !isMicroReviewForTL}
 				<div class="flex items-center mb-2 pb-2 border-b border-slate-50 dark:border-slate-700/50 group/input">
-					<div class="w-5 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-blue-500 pl-0.5 flex items-center">
+					<div class="w-5 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-brand-500 pl-0.5 flex items-center">
 						<Plus size={14} />
 					</div>
 					<input 
@@ -250,7 +250,7 @@
 				<div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
 					<button 
 						onclick={(e) => { e.stopPropagation(); showArchived = !showArchived; }}
-						class="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 uppercase tracking-widest outline-none transition-colors w-fit"
+						class="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 uppercase tracking-widest outline-none transition-colors w-fit"
 					>
 						<Archive size={11} />
 						{archivedSubtasks.length} Archiviert

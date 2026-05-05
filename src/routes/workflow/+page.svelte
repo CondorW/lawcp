@@ -165,13 +165,13 @@
                         linkingSourceId = null; 
                         setTimeout(() => autoCenterUnplaced(task.id), 10); 
                     }}
-                    class={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 group outline-none ${selectedTaskId === task.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500 shadow-sm' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-blue-300'}`}
+                    class={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 group outline-none ${selectedTaskId === task.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 ring-1 ring-brand-500 shadow-sm' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-brand-300'}`}
                 >
                     <div class="flex justify-between items-center mb-1.5">
-                        <span class={`text-[11px] font-bold uppercase tracking-wider ${selectedTaskId === task.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 group-hover:text-blue-500'}`}>{task.matterRef || 'REF'}</span>
+                        <span class={`text-[11px] font-bold uppercase tracking-wider ${selectedTaskId === task.id ? 'text-brand-600 dark:text-brand-400' : 'text-slate-500 group-hover:text-brand-500'}`}>{task.matterRef || 'REF'}</span>
                     </div>
                     <!-- TYPOGRAPHY: text-sm (14px) -->
-                    <div class={`font-bold text-sm truncate ${selectedTaskId === task.id ? 'text-blue-900 dark:text-blue-100' : 'text-slate-700 dark:text-slate-300'}`}>{task.title}</div>
+                    <div class={`font-bold text-sm truncate ${selectedTaskId === task.id ? 'text-brand-900 dark:text-brand-100' : 'text-slate-700 dark:text-slate-300'}`}>{task.title}</div>
                 </button>
             {/each}
         </div>
@@ -197,10 +197,10 @@
         {:else}
             <!-- ACTION BUTTONS -->
             <div class="absolute top-6 left-6 z-30 flex gap-4 print:hidden">
-                <!-- BRANDING: Royal Blue (blue-600) -->
+                <!-- BRANDING: Royal brand (brand-600) -->
                 <button 
                     onclick={(e) => { e.stopPropagation(); addStep(); }}
-                    class="bg-blue-600 text-white shadow-lg px-5 py-2.5 rounded-full font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2 outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    class="bg-brand-600 text-white shadow-lg px-5 py-2.5 rounded-full font-bold text-sm hover:bg-brand-700 transition-colors flex items-center gap-2 outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
                 >
                     <Plus size={18}/> Schritt hinzufügen
                 </button>
@@ -229,7 +229,7 @@
                     <marker id="arrow" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
                         <path d="M0,0 L0,6 L9,3 z" fill="#94a3b8" class="print:fill-black" />
                     </marker>
-                    <!-- BRANDING: Royal Blue (#003DA5 -> blue-600) -->
+                    <!-- BRANDING: Royal brand (#003DA5 -> brand-600) -->
                     <marker id="arrow-active" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
                         <path d="M0,0 L0,6 L9,3 z" fill="#2563eb" />
                     </marker>
@@ -282,7 +282,7 @@
                 {#if linkingSourceId}
                     {@const src = renderSubs.find(s => s.id === linkingSourceId)}
                     {#if src}
-                        <!-- BRANDING: Royal Blue (#003DA5 -> blue-600) -->
+                        <!-- BRANDING: Royal brand (#003DA5 -> brand-600) -->
                         <path 
                             d={getCurve(src.x + 220, src.y + 40, mouseX, mouseY)} 
                             stroke="#2563eb" 
@@ -301,7 +301,7 @@
                     role="button" 
                     tabindex="0" 
                     class={`absolute w-[220px] shadow-lg z-10 group transition-colors duration-200 print:shadow-none print:border-black
-                    ${linkingSourceId === sub.id ? 'border-blue-500 ring-4 ring-blue-500/20' : 'hover:border-blue-400'} 
+                    ${linkingSourceId === sub.id ? 'border-brand-500 ring-4 ring-brand-500/20' : 'hover:border-brand-400'} 
                     ${sub.level > 0 ? 'border-dashed border-[2px] rounded-tl-3xl rounded-br-3xl rounded-tr-sm rounded-bl-sm' : 'border border-slate-200 dark:border-slate-700 rounded-xl'} 
                     ${sub.done ? 'bg-slate-50 dark:bg-slate-900 border-emerald-500/50 opacity-80 grayscale-[0.2] print:bg-white print:border-slate-300' : 'bg-white dark:bg-slate-800 print:border-black'} `}
                     style="left: {sub.x || 0}px; top: {sub.y || 0}px;"
@@ -359,8 +359,8 @@
 
                     <!-- Output Port (Start) -->
                     <button 
-                        class={`absolute -right-3 top-10 -translate-y-1/2 w-6 h-6 border-2 rounded-full hover:scale-125 transition-all flex items-center justify-center z-20 cursor-pointer shadow-sm outline-none focus:ring-2 focus:ring-blue-500 print:hidden 
-                        ${linkingSourceId === sub.id ? 'bg-blue-600 border-blue-600' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-500 hover:border-blue-500'}`} 
+                        class={`absolute -right-3 top-10 -translate-y-1/2 w-6 h-6 border-2 rounded-full hover:scale-125 transition-all flex items-center justify-center z-20 cursor-pointer shadow-sm outline-none focus:ring-2 focus:ring-brand-500 print:hidden 
+                        ${linkingSourceId === sub.id ? 'bg-brand-600 border-brand-600' : 'bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-500 hover:border-brand-500'}`} 
                         onclick={(e) => startLink(e, sub.id)} 
                         title="Ausgang (Start)"
                     >

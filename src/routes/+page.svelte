@@ -96,17 +96,17 @@
 		<div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
 			<div class="flex h-20 justify-between items-center gap-6">
 				
-				<!-- BRANDING CONTRAST FIX: rose-400 and blue-400 provide brilliant dark-mode contrast -->
+				<!-- ORIGINAL BRANDING: brand & Lawganized -->
 				<div class="flex items-center gap-3 shrink-0">
-					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white font-serif font-bold text-xl shadow-sm border border-blue-500">L</div>
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-white font-serif font-bold text-xl shadow-sm border border-brand-500">L</div>
 					<span class="text-xl font-bold tracking-tight text-white font-sansserif hidden xl:block">
-						Lawganized<span class="text-rose-400">F</span><span class="text-blue-400">L</span>
+						Lawganized
 					</span>
 				</div>
 
-				<div class="flex-1 max-w-4xl flex items-center bg-slate-800/80 rounded-xl border border-slate-700 p-1.5 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all shadow-inner">
+				<div class="flex-1 max-w-4xl flex items-center bg-slate-800/80 rounded-xl border border-slate-700 p-1.5 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 transition-all shadow-inner">
 					<div class="flex-1 relative">
-						<div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-400 opacity-80">
+						<div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500 opacity-80">
 							<Plus size={18} />
 						</div>
 						<input 
@@ -140,7 +140,7 @@
 					
 					<button 
 						onclick={handleNavAdd}
-						class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1"
+						class="shrink-0 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1"
 					>
 						Add
 					</button>
@@ -148,11 +148,12 @@
 
 				<div class="flex items-center gap-1.5 shrink-0">
 					<div class="relative group hidden lg:block">
-						<Filter class="absolute left-3 top-2 text-slate-400 group-focus-within:text-blue-400 transition-colors" size={16}/>
-						<input type="text" bind:value={refFilter} placeholder="Filter..." class="pl-9 pr-3 py-2 rounded-lg border border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:ring-blue-500 outline-none w-28 focus:w-48 transition-all" />
+						<Filter class="absolute left-3 top-2 text-slate-400 group-focus-within:text-brand-500 transition-colors" size={16}/>
+						<input type="text" bind:value={refFilter} placeholder="Filter..." class="pl-9 pr-3 py-2 rounded-lg border border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:ring-brand-500 outline-none w-28 focus:w-48 transition-all" />
 					</div>
 					
-					<a href="/" class="p-2.5 ml-2 text-blue-400 bg-blue-900/30 transition-colors rounded-xl" title="Board"><LayoutGrid size={20} /></a>
+					<!-- Active Menu State: brand -->
+					<a href="/" class="p-2.5 ml-2 text-brand-500 bg-brand-900/20 transition-colors rounded-xl" title="Board"><LayoutGrid size={20} /></a>
 					<a href="/calendar" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Kalender"><Calendar size={20} /></a>
 					<a href="/workflow" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Workflow"><GitBranch size={20} /></a>
 					<a href="/resources" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Ressourcen"><Building2 size={20} /></a>
@@ -160,7 +161,7 @@
 					
 					{#if !pb.authStore.model?.teamLeader}
 						<div class="w-px h-5 bg-slate-700 mx-2"></div>
-						<a href="/team" class="p-2.5 text-blue-400 hover:text-blue-300 transition-colors hover:bg-slate-800 rounded-xl" title="Teamansicht"><Users size={20} /></a>
+						<a href="/team" class="p-2.5 text-brand-500 hover:text-brand-400 transition-colors hover:bg-slate-800 rounded-xl" title="Teamansicht"><Users size={20} /></a>
 					{/if}
 
 					<div class="w-px h-5 bg-slate-700 mx-2"></div>
@@ -175,10 +176,10 @@
 	<main class="flex-1 min-h-0 flex flex-col w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 gap-5 print:hidden">
 		
 		{#if refFilter}
-			<div class="shrink-0 flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-800 w-fit mx-auto shadow-sm">
-				<Filter size={16} class="text-blue-600"/>
+			<div class="shrink-0 flex items-center gap-2 text-sm text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 p-2.5 rounded-lg border border-brand-200 dark:border-brand-800 w-fit mx-auto shadow-sm">
+				<Filter size={16} class="text-brand-600"/>
 				<span>Gefiltert nach: <strong>{refFilter}</strong></span>
-				<button onclick={() => refFilter = ''} class="ml-3 hover:text-rose-600 font-bold">✕</button>
+				<button onclick={() => refFilter = ''} class="ml-3 hover:text-red-600 font-bold">✕</button>
 			</div>
 		{/if}
 

@@ -27,8 +27,8 @@
 <div class="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 font-sans">
     
     <div class="flex items-center gap-3 mb-8">
-        <div class="flex h-12 w-12 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-2xl shadow-md">L</div>
-        <span class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">LAW<span class="text-amber-600">Ganized</span></span>
+        <div class="flex h-12 w-12 items-center justify-center rounded bg-brand-600 text-white font-serif font-bold text-2xl shadow-md">L</div>
+        <span class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">LAW<span class="text-brand-600">Ganized</span></span>
     </div>
 
     <div class="w-full max-w-[400px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -48,13 +48,13 @@
                 <div class="space-y-1.5">
                     <label for="email" class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 ml-1">Benutzername / E-Mail</label>
                     <div class="relative group">
-                        <User class="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-amber-600 transition-colors" size={18} />
+                        <User class="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-brand-600 transition-colors" size={18} />
                         <input 
                             id="email"
                             bind:value={email} 
                             type="email" 
                             placeholder="kanzlei@email.ch" 
-                            class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 outline-none transition-all dark:text-white placeholder:text-slate-400" 
+                            class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all dark:text-white placeholder:text-slate-400" 
                         />
                     </div>
                 </div>
@@ -62,14 +62,14 @@
                 <div class="space-y-1.5">
                     <label for="password" class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 ml-1">Passwort</label>
                     <div class="relative group">
-                        <Lock class="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-amber-600 transition-colors" size={18} />
+                        <Lock class="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-brand-600 transition-colors" size={18} />
                         <input 
                             id="password"
                             bind:value={password} 
                             type="password" 
                             placeholder="••••••••" 
                             onkeydown={(e) => e.key === 'Enter' && login()}
-                            class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 outline-none transition-all dark:text-white placeholder:text-slate-400" 
+                            class="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600 outline-none transition-all dark:text-white placeholder:text-slate-400" 
                         />
                     </div>
                 </div>
@@ -78,7 +78,7 @@
             <button 
                 onclick={login} 
                 disabled={loading}
-                class="w-full mt-10 bg-slate-900 dark:bg-amber-600 hover:bg-slate-800 dark:hover:bg-amber-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-slate-200 dark:shadow-none disabled:opacity-50 active:scale-[0.98]"
+                class="w-full mt-10 bg-slate-900 dark:bg-brand-600 hover:bg-slate-800 dark:hover:bg-brand-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-slate-200 dark:shadow-none disabled:opacity-50 active:scale-[0.98]"
             >
                 {#if loading}
                     <div class="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

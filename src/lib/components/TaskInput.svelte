@@ -15,21 +15,18 @@
 	function handleAdd() {
 		if (!inputTitle.trim()) return;
 		store.addTask('TODO', inputTitle, inputRef, inputDate);
-
 		inputTitle = '';
 		inputRef = '';
 		inputDate = new Date().toISOString().split('T')[0];
-
+		
 		const textarea = document.getElementById('task-input') as HTMLTextAreaElement;
 		if (textarea) {
 			textarea.style.height = 'auto';
-			// Zwingt den Cursor sofort nach dem Feuern zurück in das leere Hauptfeld
 			setTimeout(() => textarea.focus(), 10);
 		}
 	}
 
 	function onKeyDown(e: KeyboardEvent) {
-		// Reagiert ausschließlich auf Strg+Enter oder Cmd+Enter
 		if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
 			e.preventDefault();
 			handleAdd();
@@ -37,45 +34,48 @@
 	}
 </script>
 
-<div
-	class="rounded-xl border border-amber-200/60 bg-[#FFFDF5] dark:bg-slate-900 dark:border-amber-900/30 p-0.5 shadow-sm transition-all focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-400"
->
-	<div class="flex flex-col gap-1 p-1.5 sm:flex-row sm:items-start">
+<!-- BRANDING: Royal Blue Focus States -->
+<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400">
+	<div class="flex flex-col gap-1 p-1 sm:flex-row sm:items-start">
+		
 		<div class="relative flex-grow">
-			<div class="absolute top-2 left-2 pointer-events-none text-amber-700/50 dark:text-amber-500/50">
+			<div class="absolute top-2.5 left-2.5 pointer-events-none text-blue-500 opacity-60">
 				<Plus size={18} />
 			</div>
-			<textarea
-				id="task-input"
-				bind:value={inputTitle}
-				oninput={resize}
-				onkeydown={onKeyDown}
-				rows="1"
-				placeholder="Neue Aufgabe erfassen... (Strg+Enter)"
-				class="w-full rounded-lg border-0 bg-transparent py-1.5 pl-9 pr-3 text-slate-900 placeholder:text-slate-400 focus:ring-0 text-sm font-medium resize-none overflow-hidden dark:text-slate-100"
+			<!-- TYPOGRAPHY: text-sm (14px) -->
+			<textarea 
+				id="task-input" 
+				bind:value={inputTitle} 
+				oninput={resize} 
+				onkeydown={onKeyDown} 
+				rows="1" 
+				placeholder="Neue Aufgabe erfassen... (Strg+Enter)" 
+				class="w-full rounded-lg border-0 bg-transparent py-2.5 pl-10 pr-3 text-slate-900 placeholder:text-slate-400 focus:ring-0 text-sm font-medium resize-none overflow-hidden dark:text-slate-100"
 			></textarea>
 		</div>
 
-		<div class="flex items-center gap-2 border-t border-amber-100 dark:border-slate-800 pt-1.5 sm:border-t-0 sm:pt-0 sm:border-l sm:pl-2">
-			<input
-				bind:value={inputRef}
-				type="text"
-				onkeydown={onKeyDown}
-				placeholder="Ref-Nr."
-				class="w-24 rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1 px-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-amber-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-amber-500/50 transition-colors"
+		<div class="flex items-center gap-2 border-t border-slate-100 dark:border-slate-700 pt-1.5 sm:border-t-0 sm:pt-1.5 sm:border-l sm:pl-2 sm:pr-1">
+			<!-- TYPOGRAPHY: text-[11px] -->
+			<input 
+				bind:value={inputRef} 
+				type="text" 
+				onkeydown={onKeyDown} 
+				placeholder="Ref-Nr." 
+				class="w-24 rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-blue-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-blue-500/50 transition-colors" 
 			/>
-
-			<input
-				bind:value={inputDate}
-				type="date"
-				onkeydown={onKeyDown}
-				class="rounded-md border-0 bg-white/50 dark:bg-slate-800 py-1 px-2 text-xs font-medium text-slate-700 dark:text-slate-300 focus:bg-amber-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-amber-500/50 transition-colors"
+			<!-- TYPOGRAPHY: text-xs (12px) -->
+			<input 
+				bind:value={inputDate} 
+				type="date" 
+				onkeydown={onKeyDown} 
+				class="rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 focus:bg-blue-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-blue-500/50 transition-colors dark:[color-scheme:dark]" 
 			/>
-
-			<button
-				onclick={handleAdd}
-				title="Strg+Enter zum Speichern"
-				class="flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:hover:bg-amber-500 transition-all active:scale-95"
+			
+			<!-- BRANDING: Add-Button in Royal Blue -->
+			<button 
+				onclick={handleAdd} 
+				title="Strg+Enter zum Speichern" 
+				class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95 outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
 			>
 				<span>Add</span>
 				<CornerDownLeft size={12} class="opacity-60" />

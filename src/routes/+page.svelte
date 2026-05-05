@@ -1,11 +1,29 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
-	import { Settings, Save, LayoutGrid, Calendar, GitBranch, Building2, Upload, Filter, Printer, Users, DollarSign, Archive, ArchiveIcon } from 'lucide-svelte';
-	import TaskInput from '$lib/components/TaskInput.svelte';
+	import { Settings, LayoutGrid, Calendar, GitBranch, Building2, Filter, Printer, Users, DollarSign, Archive, ArchiveIcon, Plus } from 'lucide-svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
 	import type { Task } from '$lib/types';
+
+	let navInputTitle = '';
+	let navInputRef = '';
+	let navInputDate = new Date().toISOString().split('T')[0];
+
+	function handleNavAdd() {
+		if (!navInputTitle.trim()) return;
+		store.addTask('TODO', navInputTitle, navInputRef, navInputDate);
+		navInputTitle = '';
+		navInputRef = '';
+		setTimeout(() => document.getElementById('nav-task-title')?.focus(), 10);
+	}
+
+	function onNavKeyDown(e: KeyboardEvent) {
+		if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+			e.preventDefault();
+			handleNavAdd();
+		}
+	}
 
 	let refFilter = '';
 	const byDateAndPriority = (a: any, b: any): number => {
@@ -49,7 +67,6 @@
 
 	$: showOnMainBoard = (t: Task) => isMyTask(t) || effectiveStatus(t) === 'REVIEW';
 	
-	// FIX: Filtert jetzt archivierte Tasks aus dem Board heraus (!t.archived)
 	$: todos = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
 	$: waiting = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
 	$: review = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
@@ -68,10 +85,7 @@
 <svelte:head>
 	<style>
 		@media print {
-			@page {
-				size: A4 portrait;
-				margin: 10mm;
-			}
+			@page { size: A4 portrait; margin: 10mm; }
 		}
 	</style>
 </svelte:head>
@@ -79,93 +93,110 @@
 <div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black print:h-auto print:overflow-visible">
 	
 	<nav class="shrink-0 sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden">
-		<div class="mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8">
-			<div class="flex h-16 justify-between items-center">
-				<div class="flex items-center gap-10">
-					<div class="flex items-center gap-2.5">
-						<div class="flex h-9 w-9 items-center justify-center rounded bg-amber-600 text-white font-serif font-bold text-xl shadow-sm">L</div>
-						<span class="text-xl font-bold tracking-tight text-white font-sansserif">Lawganized<span class="text-amber-500">FL</span></span>
-					</div>
-
-					<div class="hidden md:flex items-center gap-1">
-						<a href="/" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium bg-slate-800 text-white shadow-inner">
-							<LayoutGrid size={16} /> Board
-						</a>
-						<a href="/calendar" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-							<Calendar size={16} /> Kalender
-						</a>
-						<a href="/workflow" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-							<GitBranch size={16} /> Workflow
-						</a>
-						<a href="/resources" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-							<Building2 size={16} /> Ressourcen
-						</a>
-						<a href="/abrechnung" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-							<DollarSign size={16} /> Abrechnung
-						</a>
-						<a href="/archive" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-							<ArchiveIcon size={16} /> Archiv
-						</a>
-						
-						{#if !pb.authStore.model?.teamLeader}
-							<div class="w-px h-5 bg-slate-700 mx-1"></div>
-							<a href="/team" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-bold text-amber-500 hover:text-amber-400 hover:bg-slate-800 transition-colors bg-amber-500/10">
-								<Users size={16} /> Teamansicht
-							</a>
-						{/if}
-					</div>
+		<div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+			<div class="flex h-20 justify-between items-center gap-6">
+				
+				<!-- BRANDING CONTRAST FIX: rose-400 and blue-400 provide brilliant dark-mode contrast -->
+				<div class="flex items-center gap-3 shrink-0">
+					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white font-serif font-bold text-xl shadow-sm border border-blue-500">L</div>
+					<span class="text-xl font-bold tracking-tight text-white font-sansserif hidden xl:block">
+						Lawganized<span class="text-rose-400">F</span><span class="text-blue-400">L</span>
+					</span>
 				</div>
 
-				<div class="flex items-center gap-3">
-					<div class="relative hidden lg:block group">
-						<Filter class="absolute left-2.5 top-1.5 text-slate-500 group-focus-within:text-amber-500 transition-colors" size={14}/>
-						<input type="text" bind:value={refFilter} placeholder="Ref-Filter..." class="pl-8 pr-3 py-1.5 rounded-md border border-slate-600 bg-slate-800 text-xs text-white placeholder:text-slate-400 focus:ring-1 focus:ring-amber-500 outline-none w-32 focus:w-48 transition-all" />
+				<div class="flex-1 max-w-4xl flex items-center bg-slate-800/80 rounded-xl border border-slate-700 p-1.5 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all shadow-inner">
+					<div class="flex-1 relative">
+						<div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-400 opacity-80">
+							<Plus size={18} />
+						</div>
+						<input 
+							id="nav-task-title"
+							type="text" 
+							bind:value={navInputTitle} 
+							onkeydown={onNavKeyDown}
+							placeholder="Schnelleingabe... (Strg+Enter)" 
+							class="w-full bg-transparent border-0 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-400 focus:ring-0 outline-none"
+						/>
 					</div>
 					
-					<a href="/archive" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full" title="Zum Archiv">
-						<Archive size={20} />
-					</a>
+					<div class="w-px h-6 bg-slate-700 shrink-0 mx-1"></div>
 					
-					<button onclick={printAgenda} title="Tagesagenda drucken" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
-						<Printer size={20} />
+					<input 
+						type="text" 
+						bind:value={navInputRef} 
+						onkeydown={onNavKeyDown}
+						placeholder="REF" 
+						class="w-24 bg-transparent border-0 py-2.5 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-300 placeholder:text-slate-500 focus:ring-0 outline-none text-center"
+					/>
+					
+					<div class="w-px h-6 bg-slate-700 shrink-0 mx-1"></div>
+					
+					<input 
+						type="date" 
+						bind:value={navInputDate} 
+						onkeydown={onNavKeyDown}
+						class="w-36 bg-transparent border-0 py-2.5 px-3 text-sm text-slate-300 focus:ring-0 outline-none dark:[color-scheme:dark]"
+					/>
+					
+					<button 
+						onclick={handleNavAdd}
+						class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1"
+					>
+						Add
 					</button>
-					<a href="/settings" class="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-full">
-						<Settings size={20} />
-					</a>
+				</div>
+
+				<div class="flex items-center gap-1.5 shrink-0">
+					<div class="relative group hidden lg:block">
+						<Filter class="absolute left-3 top-2 text-slate-400 group-focus-within:text-blue-400 transition-colors" size={16}/>
+						<input type="text" bind:value={refFilter} placeholder="Filter..." class="pl-9 pr-3 py-2 rounded-lg border border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:ring-blue-500 outline-none w-28 focus:w-48 transition-all" />
+					</div>
+					
+					<a href="/" class="p-2.5 ml-2 text-blue-400 bg-blue-900/30 transition-colors rounded-xl" title="Board"><LayoutGrid size={20} /></a>
+					<a href="/calendar" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Kalender"><Calendar size={20} /></a>
+					<a href="/workflow" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Workflow"><GitBranch size={20} /></a>
+					<a href="/resources" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Ressourcen"><Building2 size={20} /></a>
+					<a href="/abrechnung" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Abrechnung"><DollarSign size={20} /></a>
+					
+					{#if !pb.authStore.model?.teamLeader}
+						<div class="w-px h-5 bg-slate-700 mx-2"></div>
+						<a href="/team" class="p-2.5 text-blue-400 hover:text-blue-300 transition-colors hover:bg-slate-800 rounded-xl" title="Teamansicht"><Users size={20} /></a>
+					{/if}
+
+					<div class="w-px h-5 bg-slate-700 mx-2"></div>
+					<a href="/archive" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-full" title="Archiv"><ArchiveIcon size={20} /></a>
+					<button onclick={printAgenda} title="Tagesagenda drucken" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-full"><Printer size={20} /></button>
+					<a href="/settings" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-full" title="Einstellungen"><Settings size={20} /></a>
 				</div>
 			</div>
 		</div>
 	</nav>
 
-	<main class="flex-1 overflow-hidden flex flex-col w-full max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6 print:hidden">
+	<main class="flex-1 min-h-0 flex flex-col w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 gap-5 print:hidden">
 		
 		{#if refFilter}
-			<div class="shrink-0 flex items-center gap-2 text-sm text-slate-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800 w-fit mx-auto">
-				<Filter size={14} class="text-amber-600"/>
+			<div class="shrink-0 flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-800 w-fit mx-auto shadow-sm">
+				<Filter size={16} class="text-blue-600"/>
 				<span>Gefiltert nach: <strong>{refFilter}</strong></span>
-				<button onclick={() => refFilter = ''} class="ml-2 hover:text-red-500 font-bold">✕</button>
+				<button onclick={() => refFilter = ''} class="ml-3 hover:text-rose-600 font-bold">✕</button>
 			</div>
 		{/if}
 
-		<div class="shrink-0 max-w-4xl mx-auto w-full">
-			<TaskInput />
-		</div>
-
-		<div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(320px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto custom-scrollbar">
+		<div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(280px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
 			
-			<div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full overflow-hidden">
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
 			</div>
 			
-			<div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full overflow-hidden">
-				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-amber-500" />
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
+				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-yellow-500" />
 			</div>
 			
-			<div class="p-4 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col h-full overflow-hidden">
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
 			</div>
 			
-			<div class="p-4 bg-white dark:bg-slate-900 flex flex-col h-full overflow-hidden">
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
 				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
 			</div>
 			

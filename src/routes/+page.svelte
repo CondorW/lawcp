@@ -100,7 +100,7 @@
 				<div class="flex items-center gap-3 shrink-0">
 					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-white font-serif font-bold text-xl shadow-sm border border-brand-500">L</div>
 					<span class="text-xl font-bold tracking-tight text-white font-sansserif hidden xl:block">
-						Lawganized
+						LAWganized
 					</span>
 				</div>
 

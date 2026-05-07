@@ -10,12 +10,31 @@
 	let navInputRef = '';
 	let navInputDate = new Date().toISOString().split('T')[0];
 
-	function handleNavAdd() {
+	async function handleNavAdd() {
 		if (!navInputTitle.trim()) return;
-		store.addTask('TODO', navInputTitle, navInputRef, navInputDate);
+		const title = navInputTitle;
+		const ref = navInputRef;
+		const date = navInputDate;
+
 		navInputTitle = '';
 		navInputRef = '';
-		setTimeout(() => document.getElementById('nav-task-title')?.focus(), 10);
+		
+		await store.addTask('TODO', title, ref, date);
+
+		setTimeout(() => {
+			const myCases = $store.tasks.filter(t => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId)));
+			// FIX: Nutzt jetzt strikt createdAt, um den Linter zufriedenzustellen
+			const newestCase = [...myCases].sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+			
+			if (newestCase) {
+				const input = document.getElementById(`new-subtask-${newestCase.id}`);
+				if (input) {
+					input.focus({ preventScroll: true });
+				}
+			} else {
+				document.getElementById('nav-task-title')?.focus();
+			}
+		}, 150);
 	}
 
 	function onNavKeyDown(e: KeyboardEvent) {
@@ -96,7 +115,6 @@
 		<div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
 			<div class="flex h-20 justify-between items-center gap-6">
 				
-				<!-- ORIGINAL BRANDING: brand & Lawganized -->
 				<div class="flex items-center gap-3 shrink-0">
 					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-white font-serif font-bold text-xl shadow-sm border border-brand-500">L</div>
 					<span class="text-xl font-bold tracking-tight text-white font-sansserif hidden xl:block">
@@ -114,7 +132,7 @@
 							type="text" 
 							bind:value={navInputTitle} 
 							onkeydown={onNavKeyDown}
-							placeholder="Schnelleingabe... (Strg+Enter)" 
+							placeholder="Neuen Case erfassen... (Strg+Enter)" 
 							class="w-full bg-transparent border-0 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-400 focus:ring-0 outline-none"
 						/>
 					</div>
@@ -140,7 +158,7 @@
 					
 					<button 
 						onclick={handleNavAdd}
-						class="shrink-0 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1"
+						class="shrink-0 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1 outline-none focus:ring-2 focus:ring-white"
 					>
 						Add
 					</button>
@@ -152,7 +170,6 @@
 						<input type="text" bind:value={refFilter} placeholder="Filter..." class="pl-9 pr-3 py-2 rounded-lg border border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 focus:ring-1 focus:ring-brand-500 outline-none w-28 focus:w-48 transition-all" />
 					</div>
 					
-					<!-- Active Menu State: brand -->
 					<a href="/" class="p-2.5 ml-2 text-brand-500 bg-brand-900/20 transition-colors rounded-xl" title="Board"><LayoutGrid size={20} /></a>
 					<a href="/calendar" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Kalender"><Calendar size={20} /></a>
 					<a href="/workflow" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Workflow"><GitBranch size={20} /></a>
@@ -179,28 +196,23 @@
 			<div class="shrink-0 flex items-center gap-2 text-sm text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 p-2.5 rounded-lg border border-brand-200 dark:border-brand-800 w-fit mx-auto shadow-sm">
 				<Filter size={16} class="text-brand-600"/>
 				<span>Gefiltert nach: <strong>{refFilter}</strong></span>
-				<button onclick={() => refFilter = ''} class="ml-3 hover:text-red-600 font-bold">✕</button>
+				<button onclick={() => refFilter = ''} class="ml-3 hover:text-rose-600 font-bold">✕</button>
 			</div>
 		{/if}
 
 		<div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(280px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
 			</div>
-			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
-				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-yellow-500" />
+				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" />
 			</div>
-			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
 			</div>
-			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
 				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
 			</div>
-			
 		</div>
 	</main>
 

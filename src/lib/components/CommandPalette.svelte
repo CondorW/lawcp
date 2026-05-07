@@ -6,11 +6,13 @@
 	import { fade, scale } from 'svelte/transition';
 	import { onMount, tick } from 'svelte';
 
-	let open = false;
-	let query = '';
-	let selectedIndex = 0;
-	let inputEl: HTMLInputElement;
-	let pendingFocus = false;
+	let open = $state(false);
+	let query = $state('');
+	let selectedIndex = $state(0);
+	
+	// FIX 1: Linter meckert nicht mehr, da als $state deklariert
+	let inputEl = $state<HTMLInputElement | null>(null);
+	let pendingFocus = $state(false);
 
 	afterNavigate(async () => {
 		if (pendingFocus) {
@@ -23,10 +25,10 @@
 		}
 	});
 
-	$: actions = [
+	let actions = $derived([
 		{
 			id: 'new-task',
-			title: 'Neue Aufgabe erfassen',
+			title: 'Neuen Case erfassen',
 			icon: PlusCircle,
 			action: async () => {
 				open = false;
@@ -50,9 +52,9 @@
 			icon: $store.settings.darkMode ? Sun : Moon,
 			action: () => store.toggleDarkMode()
 		},
-	];
+	]);
 
-	$: taskResults = query.trim().length > 0
+	let taskResults = $derived(query.trim().length > 0
 		? $store.tasks.filter(t => 
 			t.title.toLowerCase().includes(query.toLowerCase()) || 
 			(t.matterRef && t.matterRef.toLowerCase().includes(query.toLowerCase()))
@@ -60,13 +62,25 @@
 			id: t.id,
 			title: `${t.matterRef ? t.matterRef + ': ' : ''}${t.title}`,
 			icon: FileText,
-			action: () => {
-				goto('/');
+			action: async () => {
+				open = false; // Palette sofort schließen
+				
+				if ($page.url.pathname !== '/') {
+					await goto('/');
+					await tick();
+				}
+				
+				// Wir feuern das Event doppelt: Einmal sofort, und als Backup noch einmal leicht verzögert, 
+				// falls der DOM durch einen Page-Load (goto) noch blockiert ist.
+				window.dispatchEvent(new CustomEvent('lawganized-focus-task', { detail: t.id }));
+				setTimeout(() => {
+					window.dispatchEvent(new CustomEvent('lawganized-focus-task', { detail: t.id }));
+				}, 150);
 			}
 		}))
-		: [];
+		: []);
 
-	$: filtered = [...actions.filter(a => a.title.toLowerCase().includes(query.toLowerCase())), ...taskResults];
+	let filtered = $derived([...actions.filter(a => a.title.toLowerCase().includes(query.toLowerCase())), ...taskResults]);
 
 	function toggle() {
 		open = !open;
@@ -83,7 +97,7 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'j' && (e.metaKey || e.ctrlKey)) {
+		if ((e.key === 'j' || e.key === 'f') && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
 			toggle();
 		}
@@ -111,16 +125,15 @@
 </script>
 
 {#if ($page.url.pathname as string) !== '/login'}
-	<!-- ORIGINAL BRANDING: brand Switch -->
 	<button
 		onclick={toggle}
-		class="fixed bottom-6 left-6 z-40 bg-slate-900 dark:bg-brand-600 text-white px-4 py-3 rounded-full shadow-xl hover:scale-105 transition-all flex items-center gap-3 font-bold border border-slate-700 dark:border-brand-500 group print:hidden outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-slate-50 dark:focus:ring-offset-slate-900"
-		title="Befehlspalette öffnen (Strg+J)"
+		class="fixed bottom-6 left-6 z-40 bg-brand-600 hover:bg-brand-700 text-white px-4 py-3 rounded-full shadow-xl shadow-brand-900/20 hover:scale-105 transition-all flex items-center gap-3 font-bold border border-brand-500 group print:hidden outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-slate-50 dark:focus:ring-offset-slate-900"
+		title="Befehlspalette öffnen (Strg+J oder Strg+F)"
 	>
 		<Search size={20} />
 		<span class="hidden md:inline">Suche / Befehle</span>
 		<div class="flex items-center gap-1 text-[10px] bg-white/20 px-1.5 py-0.5 rounded ml-2 font-mono group-hover:bg-white/30 transition-colors">
-			<Command size={10} /> J
+			<Command size={10} /> F
 		</div>
 	</button>
 {/if}
@@ -140,12 +153,12 @@
 			transition:scale={{ duration: 150, start: 0.95 }}
 		>
 			<div class="flex items-center gap-3 p-4 border-b border-slate-100 dark:border-slate-800">
-				<Search class="text-brand-600 dark:text-brand-500" size={20} />
+				<Search class="text-brand-600 dark:text-brand-400" size={20} />
 				<input 
 					bind:this={inputEl}
 					bind:value={query}
 					type="text" 
-					placeholder="Wonach suchen Sie?" 
+					placeholder="Suchen oder Befehl eingeben..." 
 					class="flex-1 bg-transparent border-none focus:ring-0 text-lg font-medium text-slate-900 dark:text-white placeholder:text-slate-400 p-0 outline-none"
 				/>
 				<button onclick={() => open = false} class="text-xs font-bold bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">ESC</button>
@@ -156,16 +169,16 @@
 					<div class="p-4 text-center text-slate-500 text-sm font-medium">Keine Ergebnisse gefunden.</div>
 				{:else}
 					{#each filtered as item, i}
-						<!-- ORIGINAL BRANDING: brand Selektion -->
+						{@const Icon = item.icon}
 						<button 
 							class={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-lg transition-colors outline-none ${i === selectedIndex ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-900 dark:text-brand-100' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
 							onclick={() => execute(item)}
 							onmouseenter={() => selectedIndex = i}
 						>
-							<svelte:component this={item.icon} size={18} class={i === selectedIndex ? 'text-brand-600 dark:text-brand-500' : 'text-slate-400'} />
+							<Icon size={18} class={i === selectedIndex ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'} />
 							<span class="font-medium text-sm">{item.title}</span>
 							{#if i === selectedIndex}
-								<span class="ml-auto text-xs text-brand-600 dark:text-brand-500 font-bold">↵ Enter</span>
+								<span class="ml-auto text-xs text-brand-600 dark:text-brand-400 font-bold">↵ Enter</span>
 							{/if}
 						</button>
 					{/each}
@@ -174,7 +187,7 @@
 
 			<div class="p-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex justify-between px-4 font-medium uppercase tracking-wider">
 				<span><strong>↑↓</strong> zum Wählen</span>
-				<span><strong>Lawganized</strong> Cmd</span>
+				<span><strong>LAWganized</strong> Cmd</span>
 			</div>
 		</div>
 	</div>

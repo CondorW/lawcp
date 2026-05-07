@@ -5,8 +5,8 @@
 	import { Calendar, Flag, BrainCircuit, Trash2, Archive, ArchiveRestore } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils';
 
-	interface Props { task: Task; isOwner: boolean; ownerShortsign: string; }
-	let { task, isOwner, ownerShortsign }: Props = $props();
+	interface Props { task: Task; isOwner: boolean; ownerShortsign: string; isExpanded?: boolean; }
+	let { task, isOwner, ownerShortsign, isExpanded = false }: Props = $props();
 
 	let isEditingRef = $state(false);
 	let editRefBuffer = $state('');
@@ -85,15 +85,15 @@
 	</div>
 
 	<div class="flex flex-row items-center gap-0.5 h-full shrink-0">
-		<button type="button" onclick={(e) => { e.stopPropagation(); store.archiveTask(task.id, !task.archived); }} class="w-6 h-6 flex items-center justify-center rounded hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:text-brand-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-all outline-none focus:ring-0 shrink-0" title={task.archived ? "Wiederherstellen" : "Archivieren"}>
+		<button type="button" onclick={(e) => { e.stopPropagation(); store.archiveTask(task.id, !task.archived); }} class="w-6 h-6 flex items-center justify-center rounded hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:text-brand-600 text-slate-400 transition-all outline-none focus:ring-0 shrink-0" title={task.archived ? "Wiederherstellen" : "Archivieren"}>
 			{#if task.archived}<ArchiveRestore size={13} class="pointer-events-none" />{:else}<Archive size={13} class="pointer-events-none" />{/if}
 		</button>
 		
-		<button type="button" onclick={(e) => { e.stopPropagation(); store.deleteTask(task.id); }} class="w-6 h-6 flex items-center justify-center rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-all outline-none focus:ring-0 shrink-0" title="Löschen">
+		<button type="button" onclick={(e) => { e.stopPropagation(); store.deleteTask(task.id); }} class="w-6 h-6 flex items-center justify-center rounded hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 text-slate-400 transition-all outline-none focus:ring-0 shrink-0" title="Löschen">
 			<Trash2 size={13} class="pointer-events-none" />
 		</button>
 
-		<button type="button" class={task.flaggedDate ? "relative h-6 px-1.5 bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded border border-rose-200 dark:border-rose-800/50 text-[10px] font-bold flex items-center justify-center tracking-wide hover:bg-rose-100 transition-colors outline-none focus:ring-0 shrink-0" : "relative w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-rose-500 transition-colors rounded outline-none focus:ring-0 shrink-0"} onclick={openNativePicker} title={task.flaggedDate ? "Gerichtstermin anpassen" : "Gerichtstermin setzen"}>
+		<button type="button" class={task.flaggedDate ? "relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-rose-700 text-[10px] font-bold flex items-center justify-center tracking-wide hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink-0" : "relative w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-rose-500 transition-colors rounded outline-none focus:ring-0 shrink-0"} onclick={openNativePicker} title={task.flaggedDate ? "Gerichtstermin anpassen" : "Gerichtstermin setzen"}>
 			{#if task.flaggedDate}
 				<span class="pointer-events-none">{formatDate(task.flaggedDate)}</span>
 			{:else}
@@ -102,7 +102,7 @@
 			<input type="date" class="sr-only" tabindex="-1" value={task.flaggedDate ? task.flaggedDate.split('T')[0] : ''} onchange={updateCourtDate} onclick={(e) => e.stopPropagation()} />
 		</button>
 
-		<button type="button" class={task.dueDate ? "relative h-6 px-1.5 flex items-center gap-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink-0" : "relative w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-600 transition-colors rounded outline-none focus:ring-0 shrink-0"} onclick={openNativePicker} title={task.dueDate ? "Fälligkeit anpassen" : "Fälligkeit setzen"}>
+		<button type="button" class={task.dueDate ? "relative h-6 px-1.5 flex items-center gap-1 rounded font-medium text-slate-600 dark:text-slate-300 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink-0" : "relative w-6 h-6 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-600 transition-colors rounded outline-none focus:ring-0 shrink-0"} onclick={openNativePicker} title={task.dueDate ? "Fälligkeit anpassen" : "Fälligkeit setzen"}>
 			{#if task.dueDate}
 				<Calendar size={13} class="pointer-events-none" />
 				<span class="text-[10px] font-medium tracking-wide pointer-events-none">{formatDate(task.dueDate)}</span>

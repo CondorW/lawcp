@@ -4,6 +4,8 @@
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn } from '$lib/utils';
 	import { ChevronDown, ChevronUp, ListTodo, Eye, Archive, Plus, Flag, Calendar, Clock } from 'lucide-svelte';
+	// FIX: tick importiert
+	import { onMount, tick } from 'svelte';
 
 	import TaskTitle from './task/TaskTitle.svelte';
 	import SubtaskItem from './task/SubtaskItem.svelte';
@@ -21,13 +23,34 @@
 	let dragging = false;
 	let newSubtaskTitle = '';
 	let newSubtaskType: SubtaskType = 'GENERIC';
-	let isExpanded = false;
+
+	const isNewlyCreated = Date.now() - new Date(task.createdAt || Date.now()).getTime() < 3000;
+	let isExpanded = isNewlyCreated;
 	let showArchived = false;
 
-	// --- STALE LOGIC ---
+	// FIX: async Event Listener mit tick()
+	onMount(() => {
+		const handleFocusRequest = async (e: Event) => {
+			const customEvent = e as CustomEvent;
+			if (customEvent.detail === task.id) {
+				isExpanded = true;
+				// Zwingt Svelte, das DOM sofort zu aktualisieren (Input-Feld sichtbar machen)
+				await tick(); 
+				
+				const card = document.getElementById(`case-card-${task.id}`);
+				if (card) {
+					card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				}
+				
+				focusSubtaskInput();
+			}
+		};
+		window.addEventListener('lawganized-focus-task', handleFocusRequest);
+		return () => window.removeEventListener('lawganized-focus-task', handleFocusRequest);
+	});
+
 	$: isStale = (() => {
 		if (task.status === 'DONE' || task.archived) return false;
-		
 		const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 		const now = Date.now();
 		let lastActive = new Date(task.createdAt || Date.now()).getTime();
@@ -104,7 +127,6 @@
 		dragging = true;
 	}
 
-	// --- AUTO-FOCUS LOGIC ---
 	function focusSubtaskInput() {
 		setTimeout(() => {
 			document.getElementById(`new-subtask-${task.id}`)?.focus({ preventScroll: true });
@@ -125,6 +147,7 @@
 </script>
 
 <div
+	id={`case-card-${task.id}`}
 	role="listitem"
 	class={cn(
 		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md",
@@ -138,7 +161,6 @@
 	ondragstart={onDragStart}
 	ondragend={() => dragging = false}
 >
-	<!-- ALWAYS VISIBLE HEADER: items-center for perfect vertical alignment -->
 	<div 
 		class="flex justify-between items-center gap-1 outline-none w-full" 
 		role="button" 
@@ -147,7 +169,6 @@
 		onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
 	>
 		<div class="flex items-center gap-1.5 min-w-0">
-			<!-- TYPOGRAPHY: Bumped to text-[11px] for better readability -->
 			<span class="text-[11px] font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded uppercase tracking-wider truncate max-w-[85px]">
 				{task.matterRef || 'NO-REF'}
 			</span>
@@ -192,12 +213,11 @@
 		</div>
 	</div>
 
-	<!-- UNEXPANDED FOOTER -->
 	{#if !isExpanded}
 		<div class="flex items-center justify-between mt-auto pt-1.5 border-t border-slate-100 dark:border-slate-700/50">
 			<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
 				<ListTodo size={12} /> 
-				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0}
+				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0} Tasks
 				
 				{#if task.subtasks?.some(s => s.reviewState === 'REVISION')}
 					<span class="ml-1 text-rose-500 font-bold">(! Rev)</span>
@@ -206,7 +226,6 @@
 		</div>
 	{/if}
 
-	<!-- FULL EXPANDED VIEW -->
 	{#if isExpanded}
 		<div class="space-y-1.5 my-0.5 border-t border-slate-100 dark:border-slate-700 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
 			
@@ -233,7 +252,7 @@
 						id={`new-subtask-${task.id}`} 
 						type="text" 
 						bind:value={newSubtaskTitle} 
-						placeholder="Neuer Teilschritt..." 
+						placeholder="Neuer Task..." 
 						class="flex-grow bg-transparent border-0 focus:ring-0 px-1 py-0.5 text-[13px] placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none" 
 						onkeydown={(e) => e.key === 'Enter' && handleAddSubtask()} 
 					/>
@@ -270,7 +289,7 @@
 			{/if}
 			
 			<div class="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-				<TaskFooter {task} {isOwner} {ownerShortsign} />
+				<TaskFooter {task} {isOwner} {ownerShortsign} {isExpanded} />
 			</div>
 		</div>
 	{/if}

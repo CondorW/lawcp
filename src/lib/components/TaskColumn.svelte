@@ -32,11 +32,9 @@
 		</span>
 	</div>
 
-	<!-- DOUBLE STACK GRID: xl:grid-cols-2 verdoppelt die Kapazität auf großen Bildschirmen -->
-	<div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 pb-4">
+	<div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 pt-1 pb-4">
 		<div class="grid grid-cols-1 xl:grid-cols-2 gap-2 content-start min-h-full">
 			{#each tasks as task (task.id)}
-				<!-- Tailwind v4 Magic: Wenn die Kind-Karte .is-expanded hat, nimmt der Wrapper die volle Breite ein -->
 				<div 
 					animate:flip={{ duration: 250 }} 
 					in:fly={{ y: 20, duration: 300 }} 

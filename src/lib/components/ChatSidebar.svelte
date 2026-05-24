@@ -9,8 +9,10 @@
 	let { isOpen = $bindable(false) } = $props();
 	
 	let inputText = $state('');
-	let scrollContainer: HTMLElement;
-	let textareaEl: HTMLTextAreaElement;
+	
+	// FIX: DOM Referenzen mit $state(...) um Linter zu befriedigen und Reaktivität zu garantieren
+	let scrollContainer = $state<HTMLElement | null>(null);
+	let textareaEl = $state<HTMLTextAreaElement | null>(null);
 
 	let showMentions = $state(false);
 	let mentionQuery = $state('');
@@ -38,21 +40,18 @@
 		chatStore.init();
 	});
 
-	// --- FIX: Kugelsichere Scroll- und Mark-as-Read Logik ---
-	// 1. Wenn die Sidebar aufgemacht wird
 	$effect(() => {
 		chatStore.isChatOpen = isOpen;
 		if (isOpen) {
-			chatStore.markAsRead(); // Reset des roten Badges in der Navbar
+			chatStore.markAsRead();
 			tick().then(() => {
 				setTimeout(() => {
 					if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
-				}, 50); // Timeout garantiert, dass das DOM final gerendert wurde
+				}, 50);
 			});
 		}
 	});
 
-	// 2. Wenn eine neue Nachricht reinkommt, während die Sidebar schon offen ist
 	let msgLen = $derived(chatStore.messages.length);
 	$effect(() => {
 		if (msgLen > 0 && isOpen && scrollContainer) {
@@ -125,6 +124,7 @@
 	}
 
 	function handleInput() {
+		if (!textareaEl) return;
 		const text = inputText;
 		const cursorPos = textareaEl.selectionStart;
 		const textBeforeCursor = text.slice(0, cursorPos);
@@ -141,14 +141,17 @@
 	}
 
 	function insertMention(user: any) {
+		if (!textareaEl) return;
 		const before = inputText.slice(0, mentionStartIdx);
 		const after = inputText.slice(textareaEl.selectionStart);
 		inputText = before + `@${user.shortsign} ` + after;
 		showMentions = false;
 		
 		setTimeout(() => {
-			textareaEl.focus();
-			textareaEl.selectionStart = textareaEl.selectionEnd = before.length + user.shortsign.length + 2;
+			if(textareaEl) {
+				textareaEl.focus();
+				textareaEl.selectionStart = textareaEl.selectionEnd = before.length + user.shortsign.length + 2;
+			}
 		}, 10);
 	}
 
@@ -250,7 +253,6 @@
 		</div>
 
 		<div class="relative p-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
-			
 			{#if showMentions && filteredMentions.length > 0}
 				<div class="absolute bottom-full left-3 mb-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
 					{#each filteredMentions as user, i}
@@ -272,13 +274,8 @@
 			{/if}
 
 			<div class="flex items-end gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 transition-all min-h-[46px]">
-				
 				{#if recordState === 'idle'}
-					<button 
-						class="p-2 shrink-0 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors outline-none"
-						onclick={startRecording}
-						title="Voice Message aufnehmen"
-					>
+					<button class="p-2 shrink-0 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors outline-none" onclick={startRecording} title="Voice Message aufnehmen">
 						<Mic size={20} />
 					</button>
 					
@@ -292,36 +289,20 @@
 						rows="1"
 					></textarea>
 
-					<button 
-						onclick={handleSend}
-						disabled={!inputText.trim()}
-						class="p-2 shrink-0 bg-brand-600 hover:bg-brand-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1"
-					>
+					<button onclick={handleSend} disabled={!inputText.trim()} class="p-2 shrink-0 bg-brand-600 hover:bg-brand-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1">
 						<Send size={18} />
 					</button>
-
 				{:else if recordState === 'recording'}
-					<button 
-						class="p-2 shrink-0 rounded-lg text-rose-600 bg-rose-100 dark:bg-rose-900/30 hover:bg-rose-200 transition-colors outline-none animate-pulse"
-						onclick={stopRecording}
-						title="Aufnahme stoppen"
-					>
+					<button class="p-2 shrink-0 rounded-lg text-rose-600 bg-rose-100 dark:bg-rose-900/30 hover:bg-rose-200 transition-colors outline-none animate-pulse" onclick={stopRecording} title="Aufnahme stoppen">
 						<Square size={20} class="fill-current" />
 					</button>
 					
 					<div class="flex-1 flex items-center justify-center py-2 px-1">
-						<span class="text-sm font-bold text-rose-600 dark:text-rose-400 animate-pulse tracking-wide">
-							Aufnahme läuft...
-						</span>
+						<span class="text-sm font-bold text-rose-600 dark:text-rose-400 animate-pulse tracking-wide">Aufnahme läuft...</span>
 					</div>
 					<div class="p-2 shrink-0 w-10"></div>
-
 				{:else if recordState === 'preview'}
-					<button 
-						class="p-2 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors outline-none"
-						onclick={discardVoiceMessage}
-						title="Verwerfen"
-					>
+					<button class="p-2 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors outline-none" onclick={discardVoiceMessage} title="Verwerfen">
 						<Trash2 size={20} />
 					</button>
 					
@@ -331,15 +312,10 @@
 						{/if}
 					</div>
 
-					<button 
-						onclick={sendVoiceMessage}
-						class="p-2 shrink-0 bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-colors outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1"
-						title="Senden"
-					>
+					<button onclick={sendVoiceMessage} class="p-2 shrink-0 bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-colors outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1" title="Senden">
 						<Send size={18} />
 					</button>
 				{/if}
-
 			</div>
 			
 			<div class="text-center mt-1.5 text-[9px] text-slate-400 font-medium uppercase tracking-widest">

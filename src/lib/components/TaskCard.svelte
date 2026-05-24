@@ -24,9 +24,18 @@
 	let newSubtaskTitle = $state('');
 	let newSubtaskType: SubtaskType = $state('GENERIC');
 
-	const isNewlyCreated = Date.now() - new Date(task.createdAt || Date.now()).getTime() < 3000;
-	let isExpanded = $state(isNewlyCreated);
+	// FIX: Linter Error umgangen. Evaluierung findet sicher im onMount statt.
+	let isExpanded = $state(false);
 	let showArchived = $state(false);
+
+	function getLeaderId(userField: any): string | null {
+		if (!userField) return null;
+		if (Array.isArray(userField)) return userField.length > 0 ? userField[0] : null;
+		if (typeof userField === 'string' && userField.trim() !== '') return userField;
+		return null;
+	}
+
+	let myTeamMembers = $derived($store.firmUsers.filter(u => getLeaderId(u.teamLeader) === myId));
 
 	function focusSubtaskInput() {
 		let attempts = 0;
@@ -43,6 +52,11 @@
 	}
 
 	onMount(() => {
+		// Initiale Aufklapp-Prüfung bei komplett neu erstellten Tasks
+		if (Date.now() - new Date(task.createdAt || Date.now()).getTime() < 3000) {
+			isExpanded = true;
+		}
+
 		const handleFocusRequest = async (e: Event) => {
 			const customEvent = e as CustomEvent;
 			if (customEvent.detail === task.id) {
@@ -59,7 +73,6 @@
 		return () => window.removeEventListener('lawganized-focus-task', handleFocusRequest);
 	});
 
-	// FIX: Stale-Time auf 30 Tage hochgesetzt
 	let isStale = $derived((() => {
 		if (task.status === 'DONE' || task.archived) return false;
 		const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
@@ -80,6 +93,18 @@
 		checkSubtasks(task.subtasks);
 		return (now - lastActive) > THIRTY_DAYS;
 	})());
+
+	function getPendingSubtasksFlattened(subs: Subtask[] | undefined): Subtask[] {
+		if (!subs) return [];
+		let result: Subtask[] = [];
+		for (const s of subs) {
+			if (!s.done && !s.archived) result.push(s);
+			if (s.subtasks) result = result.concat(getPendingSubtasksFlattened(s.subtasks));
+		}
+		return result;
+	}
+
+	let pendingSubtasksList = $derived(getPendingSubtasksFlattened(task.subtasks));
 
 	function filterReviewSubtasks(subs: Subtask[]): Subtask[] {
 		if (!subs) return [];
@@ -155,8 +180,8 @@
 	id={`case-card-${task.id}`}
 	role="listitem"
 	class={cn(
-		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md",
-		isExpanded ? "p-3 gap-2.5 is-expanded col-span-full border border-slate-300 dark:border-slate-600" : "p-2 gap-1.5 h-full",
+		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit",
+		isExpanded ? "p-3 gap-2.5 is-expanded border border-slate-300 dark:border-slate-600" : "p-2 gap-1",
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
 		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
@@ -167,14 +192,14 @@
 	ondragend={() => dragging = false}
 >
 	<div 
-		class="flex justify-between items-center gap-1 outline-none w-full" 
+		class="flex justify-between items-center gap-1.5 outline-none w-full" 
 		role="button" 
 		tabindex="0" 
 		onclick={toggleExpand}
 		onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
 	>
-		<div class="flex items-center gap-1.5 min-w-0">
-			<span class="text-[11px] font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded uppercase tracking-wider truncate max-w-[85px] shrink-0">
+		<div class="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+			<span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded uppercase tracking-wider truncate block w-full">
 				{task.matterRef || 'NO-REF'}
 			</span>
 			
@@ -185,16 +210,20 @@
 			{/if}
 		</div>
 		
-		<div class="flex items-center gap-1.5 shrink-0 text-slate-400">
+		<div class="flex items-center gap-1 shrink-0 text-slate-400">
 			{#if task.flaggedDate && !isExpanded} 
-				<div class="flex items-center gap-1 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider shadow-sm">
-					<Flag size={10} class="fill-rose-600 dark:fill-rose-400" /> FRIST
+				<div class="flex items-center justify-center bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-700 w-5 h-5 rounded shadow-sm shrink-0" title="Gerichtstermin">
+					<Flag size={10} class="fill-rose-600 dark:fill-rose-400" /> 
 				</div>
 			{/if}
 			
-			{#if task.dueDate && !isExpanded} <Calendar size={13} /> {/if}
+			{#if task.dueDate && !isExpanded} 
+				<div class="flex items-center justify-center w-5 h-5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0" title="Fälligkeit">
+					<Calendar size={12} />
+				</div>
+			{/if}
 			
-			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
+			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0">
 				{#if isExpanded} <ChevronUp size={16} /> {:else} <ChevronDown size={16} /> {/if}
 			</div>
 		</div>
@@ -213,19 +242,36 @@
 	</div>
 
 	{#if !isExpanded}
+		{#if pendingSubtasksList.length > 0}
+			<div class="mt-1.5 flex flex-col gap-0.5 mb-0.5">
+				{#each pendingSubtasksList as sub (sub.id)}
+					<button 
+						class="flex items-start gap-2 text-left px-1 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group/mini outline-none focus:ring-1 focus:ring-brand-500"
+						onclick={(e) => { e.stopPropagation(); store.toggleSubtask(task.id, sub.id); }}
+						title={sub.title}
+					>
+						<div class="w-3.5 h-3.5 rounded-sm border border-slate-300 dark:border-slate-500 mt-0.5 shrink-0 flex items-center justify-center group-hover/mini:border-brand-500 transition-colors"></div>
+						<span class="text-[11px] text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">{sub.title}</span>
+						
+						{#if sub.reviewState === 'REQUESTED'}
+							<span class="ml-auto text-[8px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">Rev</span>
+						{:else if sub.reviewState === 'REVISION'}
+							<span class="ml-auto text-[8px] bg-rose-100 text-rose-700 px-1 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">!</span>
+						{/if}
+					</button>
+				{/each}
+			</div>
+		{/if}
+
 		<div class="flex items-center justify-between mt-auto pt-1.5 border-t border-slate-100 dark:border-slate-700/50">
-			<div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-				<ListTodo size={12} /> 
-				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0} Tasks
-				
-				{#if task.subtasks?.some(s => s.reviewState === 'REVISION')}
-					<span class="ml-1 text-rose-500 font-bold">(! Rev)</span>
-				{/if}
+			<div class="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+				<ListTodo size={11} /> 
+				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0}
 			</div>
 			
 			{#if isStale}
-				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
-					<Clock size={10} /> STALE
+				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[9px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
+					<Clock size={9} /> STALE
 				</span>
 			{/if}
 		</div>
@@ -239,7 +285,7 @@
 					<span class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
 					<div class="flex flex-wrap gap-1">
 						<button onclick={() => assignTo('')} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
-						{#each $store.firmUsers as user}
+						{#each myTeamMembers as user}
 							{#if user.id !== myId && user.shortsign}
 								<button onclick={() => assignTo(user.id)} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-brand-50 text-brand-800 border-brand-300 dark:bg-brand-900/30 dark:text-brand-400 dark:border-brand-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
 							{/if}

@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
-	import { chatStore } from '$lib/stores/chat.svelte'; // Chat Store importiert für den Badge
+	import { chatStore } from '$lib/stores/chat.svelte';
 	import { pb } from '$lib/pocketbase';
 	import { Settings, LayoutGrid, Calendar, GitBranch, Building2, Filter, Printer, Users, DollarSign, ArchiveIcon, Plus, MessageSquare } from 'lucide-svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
 	import ChatSidebar from '$lib/components/ChatSidebar.svelte';
-	import type { Task } from '$lib/types';
+	import type { Task, Subtask } from '$lib/types';
 
 	let navInputTitle = $state('');
 	let navInputRef = $state('');
@@ -16,9 +16,8 @@
 
 	let currentUserId = $derived(pb.authStore.model?.id || '');
 	let currentUserSign = $derived(pb.authStore.model?.shortsign || 'ME');
+	let isTeamLeader = $derived(!pb.authStore.model?.teamLeader);
 
-	// [Restliche handleNavAdd, Filter- und Sortier-Funktionen exakt wie vorher]
-	
 	async function handleNavAdd() {
 		if (!navInputTitle.trim()) return;
 		const title = navInputTitle;
@@ -68,24 +67,17 @@
 		return t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
 	}
 
-	function hasSubtaskInReview(subtasks: any[]): boolean {
-		if (!subtasks || !Array.isArray(subtasks)) return false;
-		for (const sub of subtasks) {
-			if (sub.reviewState === 'REQUESTED') return true;
-			if (sub.subtasks && hasSubtaskInReview(sub.subtasks)) return true;
-		}
-		return false;
-	}
-
 	function effectiveStatus(t: Task) {
-		const isMine = isMyTask(t);
-		const hasReview = hasSubtaskInReview(t.subtasks);
-		if (!isMine && hasReview && t.status !== 'DONE') return 'REVIEW';
+		if (!isTeamLeader && t.status === 'REVIEW') {
+			return 'WAITING';
+		}
 		return t.status;
 	}
 
 	function showOnMainBoard(t: Task) {
-		return isMyTask(t) || effectiveStatus(t) === 'REVIEW';
+		// FIX: Explizite Linter-Typisierung mit (sub: any)
+		const hasReview = t.subtasks?.some(s => s.reviewState === 'REQUESTED' || s.subtasks?.some((sub: any) => sub.reviewState === 'REQUESTED'));
+		return isMyTask(t) || hasReview;
 	}
 	
 	let todos = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
@@ -111,8 +103,8 @@
 
 <div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black print:h-auto print:overflow-visible">
 	
-	<nav class="shrink-0 sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden">
-		<div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+	<nav class="shrink-0 sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden w-full">
+		<div class="w-full px-3 sm:px-6">
 			<div class="flex h-20 justify-between items-center gap-6">
 				
 				<div class="flex items-center gap-3 shrink-0">
@@ -143,15 +135,17 @@
 					<div class="w-px h-5 bg-slate-700 mx-1"></div>
 					<button 
 						onclick={() => isChatOpen = !isChatOpen} 
-						class={`p-2.5 transition-colors rounded-xl outline-none focus:ring-2 focus:ring-brand-500 relative ${isChatOpen ? 'text-brand-500 bg-brand-900/30' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`} 
+						class={`p-2.5 transition-colors rounded-xl outline-none focus:ring-2 focus:ring-brand-500 flex items-center justify-center ${isChatOpen ? 'text-brand-500 bg-brand-900/30' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`} 
 						title="Team Chat öffnen"
 					>
-						<MessageSquare size={20} />
-						{#if chatStore.unreadCount > 0}
-							<div class="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-slate-900 animate-in zoom-in">
-								{chatStore.unreadCount > 9 ? '9+' : chatStore.unreadCount}
-							</div>
-						{/if}
+						<div class="relative flex items-center justify-center">
+							<MessageSquare size={20} />
+							{#if chatStore.unreadCount > 0}
+								<div class="absolute -top-1.5 -right-2 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-slate-900 animate-in zoom-in">
+									{chatStore.unreadCount > 9 ? '9+' : chatStore.unreadCount}
+								</div>
+							{/if}
+						</div>
 					</button>
 					<div class="w-px h-5 bg-slate-700 mx-1"></div>
 
@@ -160,7 +154,7 @@
 					<a href="/resources" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Ressourcen"><Building2 size={20} /></a>
 					<a href="/abrechnung" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Abrechnung"><DollarSign size={20} /></a>
 					
-					{#if !pb.authStore.model?.teamLeader}
+					{#if isTeamLeader}
 						<div class="w-px h-5 bg-slate-700 mx-2"></div>
 						<a href="/team" class="p-2.5 text-brand-500 hover:text-brand-400 transition-colors hover:bg-slate-800 rounded-xl" title="Teamansicht"><Users size={20} /></a>
 					{/if}
@@ -174,7 +168,7 @@
 		</div>
 	</nav>
 
-	<main class="flex-1 min-h-0 flex flex-col w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 gap-5 print:hidden">
+	<main class="flex-1 min-h-0 flex flex-col w-full px-3 sm:px-6 py-4 gap-4 print:hidden">
 		{#if refFilter}
 			<div class="shrink-0 flex items-center gap-2 text-sm text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 p-2.5 rounded-lg border border-brand-200 dark:border-brand-800 w-fit mx-auto shadow-sm">
 				<Filter size={16} class="text-brand-600"/>
@@ -183,10 +177,12 @@
 			</div>
 		{/if}
 
-		<div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(280px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+		<div class={`flex-1 min-h-0 grid ${isTeamLeader ? 'grid-cols-[repeat(4,minmax(280px,1fr))]' : 'grid-cols-[repeat(3,minmax(280px,1fr))]'} divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden`}>
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" /></div>
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900"><TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" /></div>
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" /></div>
+			{#if isTeamLeader}
+				<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" /></div>
+			{/if}
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900"><TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" /></div>
 		</div>
 	</main>

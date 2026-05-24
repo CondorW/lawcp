@@ -2,6 +2,8 @@ import { pb } from '$lib/pocketbase';
 import { v4 as uuidv4 } from 'uuid';
 import type { AppData, Task, SubtaskType, Resource, Subtask } from '$lib/types';
 import { recursiveAdd, recursiveUpdate } from '$lib/utils';
+// NEU: Import des Chat-Stores für die System-Pings
+import { chatStore } from '$lib/stores/chat.svelte'; 
 
 // --- HELPER: Deterministic Identity ---
 const generatePbId = () => {
@@ -20,17 +22,15 @@ export const sortSubtasksDeep = (nodes: Subtask[]): Subtask[] => {
 			cloned[i] = { ...n, subtasks: sortSubtasksDeep(n.subtasks) };
 		}
 	});
+
 	return cloned.sort((a, b) => {
 		if (a.done !== b.done) return Number(a.done) - Number(b.done);
-		
 		const aReq = a.reviewState === 'REQUESTED' ? 1 : 0;
 		const bReq = b.reviewState === 'REQUESTED' ? 1 : 0;
 		if (aReq !== bReq) return bReq - aReq;
-
 		const aRev = a.reviewState === 'REVISION' ? 1 : 0;
 		const bRev = b.reviewState === 'REVISION' ? 1 : 0;
 		if (aRev !== bRev) return bRev - aRev;
-
 		return 0;
 	});
 };
@@ -40,9 +40,7 @@ export const addResource = async (update: any, resData: Omit<Resource, 'id' | 'c
 	const userModel = pb.authStore.model;
 	const userId = userModel?.id;
 	if (!userId || !userModel) return;
-
 	const finalId = generatePbId();
-
 	update((s: AppData) => {
 		const newRes: Resource = {
 			...resData,
@@ -90,7 +88,21 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 
 	update((s: AppData) => {
 		const newTask: Task = {
-			id: finalId, title, status: status as Task['status'], matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', archived: false, createdAt: new Date().toISOString(), timeTracked: 0, timeLogs: [], dependencies: [], flaggedDate: null,
+			id: finalId,
+			title,
+			status: status as Task['status'],
+			matterRef: ref,
+			dueDate,
+			subtasks: [],
+			owner: userId,
+			assignees: assignedTo ? [assignedTo] : [userId],
+			priority: 'MEDIUM',
+			archived: false,
+			createdAt: new Date().toISOString(),
+			timeTracked: 0,
+			timeLogs: [],
+			dependencies: [],
+			flaggedDate: null,
 			expand: { owner: { shortsign: userModel.shortsign || 'ME' } as any }
 		};
 		return { ...s, tasks: [newTask, ...s.tasks] };
@@ -98,7 +110,19 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 
 	try {
 		await pb.collection('tasks').create({
-			id: finalId, title, status, matterRef: ref, dueDate, subtasks: [], owner: userId, assignees: assignedTo ? [assignedTo] : [userId], priority: 'MEDIUM', archived: false, timeTracked: 0, dependencies: [], flaggedDate: null
+			id: finalId,
+			title,
+			status,
+			matterRef: ref,
+			dueDate,
+			subtasks: [],
+			owner: userId,
+			assignees: assignedTo ? [assignedTo] : [userId],
+			priority: 'MEDIUM',
+			archived: false,
+			timeTracked: 0,
+			dependencies: [],
+			flaggedDate: null
 		});
 	} catch (e) {
 		console.error('Task creation failed:', e);
@@ -107,7 +131,10 @@ export const addTask = async (update: any, status: string, title: string, ref?: 
 };
 
 export const assignTask = async (update: (fn: (s: AppData) => AppData) => void, taskId: string, assigneeId: string) => {
-	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, assignees: assigneeId ? [assigneeId] : [] } : t)) }));
+	update((s) => ({
+		...s,
+		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, assignees: assigneeId ? [assigneeId] : [] } : t))
+	}));
 	pb.collection('tasks').update(taskId, { assignees: assigneeId ? [assigneeId] : [] }).catch((e) => console.error(e));
 };
 
@@ -116,7 +143,6 @@ export const deleteTask = async (update: (fn: (s: AppData) => AppData) => void, 
 	pb.collection('tasks').delete(id).catch((e) => console.error(e));
 };
 
-// NEU: Archivieren von Hauptaufgaben
 export const archiveTask = async (update: (fn: (s: AppData) => AppData) => void, id: string, archived: boolean) => {
 	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived } : t)) }));
 	pb.collection('tasks').update(id, { archived }).catch((e) => console.error(e));
@@ -147,6 +173,7 @@ export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id
 	update((s) => {
 		const task = s.tasks.find((t) => t.id === id);
 		if (!task) return s;
+
 		const isOwner = task.owner === myId;
 		const isAssignee = task.assignees?.includes(myId);
 		const isTeamLeader = task.expand?.owner?.teamLeader === myId;
@@ -180,12 +207,10 @@ export const toggleSubtask = async (update: any, get: any, taskId: string, subId
 			}))
 		} : t))
 	}));
-
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
 };
 
-// NEU: Archivieren von Subtasks
 export const archiveSubtask = async (update: any, get: any, taskId: string, subId: string, archived: boolean) => {
 	update((s: AppData) => ({
 		...s,
@@ -201,7 +226,10 @@ export const archiveSubtask = async (update: any, get: any, taskId: string, subI
 export const updateSubtaskTitle = async (update: any, get: any, taskId: string, subId: string, title: string) => {
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, title })) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, title }))
+		} : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -211,7 +239,10 @@ export const addSubSubtask = async (update: any, get: any, taskId: string, paren
 	const newSub: Subtask = { id: uuidv4(), title, done: false, archived: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep(recursiveAdd(t.subtasks, parentSubId, newSub)) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: sortSubtasksDeep(recursiveAdd(t.subtasks, parentSubId, newSub))
+		} : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -247,7 +278,10 @@ export const updateSubtaskPos = async (update: any, get: any, taskId: string, su
 	isDraggingLock = true;
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, x, y })) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, x, y }))
+		} : t))
 	}));
 	clearTimeout(moveTimer);
 	moveTimer = setTimeout(async () => {
@@ -260,7 +294,10 @@ export const updateSubtaskPos = async (update: any, get: any, taskId: string, su
 export const connectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, sourceId, (sub) => ({ ...sub, next: [...new Set([...sub.next, targetId])] })) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: recursiveUpdate(t.subtasks, sourceId, (sub) => ({ ...sub, next: [...new Set([...sub.next, targetId])] }))
+		} : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -269,7 +306,10 @@ export const connectSubtasks = async (update: any, get: any, taskId: string, sou
 export const disconnectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
 	update((s: AppData) => ({
 		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: recursiveUpdate(t.subtasks, sourceId, (sub) => ({ ...sub, next: sub.next.filter((id: string) => id !== targetId) })) } : t))
+		tasks: s.tasks.map((t) => (t.id === taskId ? {
+			...t,
+			subtasks: recursiveUpdate(t.subtasks, sourceId, (sub) => ({ ...sub, next: sub.next.filter((id: string) => id !== targetId) }))
+		} : t))
 	}));
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
@@ -340,16 +380,48 @@ export const outdentSubtask = async (update: any, get: any, taskId: string, subI
 	}
 };
 
+// --- CHAT INTEGRATION: Das Herzstück des Auto-Pings ---
 export const setSubtaskReviewState = async (update: any, get: any, taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) => {
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { 
-			...t, 
-			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, reviewState: state }))) 
-		} : t))
-	}));
+	let caseName = '';
+	let subtaskName = '';
+
+	update((s: AppData) => {
+		// 1. Wir holen uns den Case und den Namen des Subtasks aus dem Store, um ihn später im Chat posten zu können
+		const task = s.tasks.find((t) => t.id === taskId);
+		if (task) {
+			caseName = task.matterRef || task.title;
+			
+			const findTitle = (nodes: Subtask[]): string => {
+				for (const node of nodes) {
+					if (node.id === subId) return node.title;
+					if (node.subtasks) {
+						const found = findTitle(node.subtasks);
+						if (found) return found;
+					}
+				}
+				return '';
+			};
+			subtaskName = findTitle(task.subtasks);
+		}
+
+		// 2. Reguläres Update des Status
+		return {
+			...s,
+			tasks: s.tasks.map((t) => (t.id === taskId ? {
+				...t,
+				subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, reviewState: state })))
+			} : t))
+		};
+	});
+
+	// 3. Datenbank Sync für den Task
 	const task = get().tasks.find((t: Task) => t.id === taskId);
 	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
+
+	// 4. CHAT PING: Feuert eine automatische Systemnachricht in den Chat ab, wenn ein Review angefragt wird
+	if (state === 'REQUESTED' && caseName && subtaskName) {
+		chatStore.sendReviewPing(caseName, subtaskName);
+	}
 };
 
 export const fetchContext = async (matterRef: string) => {
@@ -378,30 +450,21 @@ export const saveContext = async (matterRef: string, content: string, contextId?
 export const addTimeLog = async (update: any, get: any, taskId: string, minutes: number, note: string, dateStr: string) => {
 	const userId = pb.authStore.model?.id;
 	if (!userId) return;
-
 	const newLog = {
 		id: uuidv4(),
 		userId: userId,
-		date: new Date(dateStr).toISOString(), // Nutzt das manuell gewählte Datum
+		date: new Date(dateStr).toISOString(),
 		minutes: minutes,
 		note: note
 	};
-
 	let payloadToSync: any[] | null = null;
-
 	update((s: AppData) => {
 		const task = s.tasks.find((t) => t.id === taskId);
 		if (!task) return s;
-		
 		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
 		payloadToSync = [...currentLogs, newLog];
-		
-		return {
-			...s,
-			tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t))
-		};
+		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t)) };
 	});
-
 	if (payloadToSync !== null) {
 		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
 	}
@@ -409,22 +472,13 @@ export const addTimeLog = async (update: any, get: any, taskId: string, minutes:
 
 export const updateTimeLog = async (update: any, get: any, taskId: string, logId: string, minutes: number, note: string, dateStr: string) => {
 	let payloadToSync: any[] | null = null;
-	
 	update((s: AppData) => {
 		const task = s.tasks.find((t) => t.id === taskId);
 		if (!task) return s;
-		
 		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
-		payloadToSync = currentLogs.map(log => 
-			log.id === logId ? { ...log, minutes, note, date: new Date(dateStr).toISOString() } : log
-		);
-		
-		return {
-			...s,
-			tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t))
-		};
+		payloadToSync = currentLogs.map(log => log.id === logId ? { ...log, minutes, note, date: new Date(dateStr).toISOString() } : log);
+		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t)) };
 	});
-
 	if (payloadToSync !== null) {
 		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
 	}
@@ -432,20 +486,13 @@ export const updateTimeLog = async (update: any, get: any, taskId: string, logId
 
 export const deleteTimeLog = async (update: any, get: any, taskId: string, logId: string) => {
 	let payloadToSync: any[] | null = null;
-	
 	update((s: AppData) => {
 		const task = s.tasks.find((t) => t.id === taskId);
 		if (!task) return s;
-		
 		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
 		payloadToSync = currentLogs.filter(log => log.id !== logId);
-		
-		return {
-			...s,
-			tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t))
-		};
+		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t)) };
 	});
-
 	if (payloadToSync !== null) {
 		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
 	}

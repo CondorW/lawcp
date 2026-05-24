@@ -1,14 +1,21 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
-	import { Settings, LayoutGrid, Calendar, GitBranch, Building2, Filter, Printer, Users, DollarSign, Archive, ArchiveIcon, Plus } from 'lucide-svelte';
+	import { Settings, LayoutGrid, Calendar, GitBranch, Building2, Filter, Printer, Users, DollarSign, ArchiveIcon, Plus, MessageSquare } from 'lucide-svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
+	import ChatSidebar from '$lib/components/ChatSidebar.svelte';
 	import type { Task } from '$lib/types';
 
-	let navInputTitle = '';
-	let navInputRef = '';
-	let navInputDate = new Date().toISOString().split('T')[0];
+	// SVELTE 5: Native States
+	let navInputTitle = $state('');
+	let navInputRef = $state('');
+	let navInputDate = $state(new Date().toISOString().split('T')[0]);
+	let refFilter = $state('');
+	let isChatOpen = $state(false);
+
+	let currentUserId = $derived(pb.authStore.model?.id || '');
+	let currentUserSign = $derived(pb.authStore.model?.shortsign || 'ME');
 
 	async function handleNavAdd() {
 		if (!navInputTitle.trim()) return;
@@ -18,12 +25,11 @@
 
 		navInputTitle = '';
 		navInputRef = '';
-		
+
 		await store.addTask('TODO', title, ref, date);
 
 		setTimeout(() => {
 			const myCases = $store.tasks.filter(t => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId)));
-			// FIX: Nutzt jetzt strikt createdAt, um den Linter zufriedenzustellen
 			const newestCase = [...myCases].sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
 			
 			if (newestCase) {
@@ -44,7 +50,6 @@
 		}
 	}
 
-	let refFilter = '';
 	const byDateAndPriority = (a: any, b: any): number => {
 		const aIsCourtDeadline = a.flaggedDate !== null;
 		const bIsCourtDeadline = b.flaggedDate !== null;
@@ -57,45 +62,47 @@
 		return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 	};
 
-	$: matchesFilter = (t: Task) => {
+	function matchesFilter(t: Task) {
 		if (!refFilter.trim()) return true;
 		return t.matterRef && t.matterRef.toLowerCase().includes(refFilter.toLowerCase());
-	};
+	}
 
-	$: currentUserId = pb.authStore.model?.id || '';
-	$: currentUserSign = pb.authStore.model?.shortsign || 'ME';
+	function isMyTask(t: Task) {
+		return t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
+	}
 
-	$: isMyTask = (t: Task) => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId));
-	
-	const hasSubtaskInReview = (subtasks: any[]): boolean => {
+	function hasSubtaskInReview(subtasks: any[]): boolean {
 		if (!subtasks || !Array.isArray(subtasks)) return false;
 		for (const sub of subtasks) {
 			if (sub.reviewState === 'REQUESTED') return true;
 			if (sub.subtasks && hasSubtaskInReview(sub.subtasks)) return true;
 		}
 		return false;
-	};
+	}
 
-	$: effectiveStatus = (t: Task) => {
+	function effectiveStatus(t: Task) {
 		const isMine = isMyTask(t);
 		const hasReview = hasSubtaskInReview(t.subtasks);
 		
 		if (!isMine && hasReview && t.status !== 'DONE') return 'REVIEW';
 		return t.status;
-	};
+	}
 
-	$: showOnMainBoard = (t: Task) => isMyTask(t) || effectiveStatus(t) === 'REVIEW';
+	function showOnMainBoard(t: Task) {
+		return isMyTask(t) || effectiveStatus(t) === 'REVIEW';
+	}
 	
-	$: todos = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: waiting = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: review = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
-	$: done = $store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority);
+	// SVELTE 5: Native Derived Arrays
+	let todos = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
+	let waiting = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
+	let review = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
+	let done = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	
-	$: myActiveTasks = $store.tasks.filter(t => 
+	let myActiveTasks = $derived($store.tasks.filter(t => 
 		!t.archived &&
 		['TODO', 'WAITING', 'REVIEW'].includes(effectiveStatus(t)) && 
 		showOnMainBoard(t)
-	).sort(byDateAndPriority);
+	).sort(byDateAndPriority));
 
 	const printAgenda = () => window.print();
 	const today = new Intl.DateTimeFormat('de-CH', { dateStyle: 'full' }).format(new Date());
@@ -108,6 +115,8 @@
 		}
 	</style>
 </svelte:head>
+
+<ChatSidebar bind:isOpen={isChatOpen} />
 
 <div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black print:h-auto print:overflow-visible">
 	
@@ -171,6 +180,17 @@
 					</div>
 					
 					<a href="/" class="p-2.5 ml-2 text-brand-500 bg-brand-900/20 transition-colors rounded-xl" title="Board"><LayoutGrid size={20} /></a>
+					
+					<div class="w-px h-5 bg-slate-700 mx-1"></div>
+					<button 
+						onclick={() => isChatOpen = !isChatOpen} 
+						class={`p-2.5 transition-colors rounded-xl outline-none focus:ring-2 focus:ring-brand-500 relative ${isChatOpen ? 'text-brand-500 bg-brand-900/30' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`} 
+						title="Team Chat öffnen"
+					>
+						<MessageSquare size={20} />
+					</button>
+					<div class="w-px h-5 bg-slate-700 mx-1"></div>
+
 					<a href="/calendar" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Kalender"><Calendar size={20} /></a>
 					<a href="/workflow" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Workflow"><GitBranch size={20} /></a>
 					<a href="/resources" class="p-2.5 text-slate-300 hover:text-white transition-colors hover:bg-slate-800 rounded-xl" title="Ressourcen"><Building2 size={20} /></a>
@@ -201,18 +221,23 @@
 		{/if}
 
 		<div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(280px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
 			</div>
+			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
 				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" />
 			</div>
+			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
 			</div>
+			
 			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
 				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
 			</div>
+			
 		</div>
 	</main>
 

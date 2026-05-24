@@ -1,5 +1,5 @@
 import { pb } from '$lib/pocketbase';
-import type { RecordModel } from 'pocketbase';
+import { browser } from '$app/environment';
 
 export interface ChatMessage {
 	id: string;
@@ -11,12 +11,16 @@ export interface ChatMessage {
 	created: string;
 	isSystem: boolean;
 	audioUrl?: string;
+	isNew?: boolean; // NEU: Flag für ungelesene Nachrichten
 }
 
 class ChatStore {
-	// SVELTE 5 RUNE: State ist jetzt global und direkt reaktiv
 	messages = $state<ChatMessage[]>([]);
+	unreadCount = $state(0);
+	isChatOpen = $state(false);
+	
 	private initialized = false;
+	private lastReadTime = 0; // Speichert den Unix-Timestamp des letzten Besuchs
 
 	async init() {
 		if (this.initialized) return;
@@ -25,34 +29,58 @@ class ChatStore {
 		
 		const teamId = user.teamLeader || user.id;
 
+		// Lade den letzten Besuchs-Zeitstempel aus dem Browser
+		if (browser) {
+			const stored = localStorage.getItem(`lawcp_chat_read_${teamId}`);
+			this.lastReadTime = stored ? parseInt(stored, 10) : 0;
+		}
+
 		try {
-			// Lade die Historie aus PocketBase
 			const records = await pb.collection('chat_messages').getFullList({
 				filter: `teamId = "${teamId}"`,
-				sort: 'created', // Älteste zuerst, damit unten die neusten stehen
+				sort: 'created',
 				expand: 'senderId'
 			});
 			
-			this.messages = records.map(r => this.mapRecordToMessage(r));
+			let unread = 0;
+			this.messages = records.map(r => {
+				const msg = this.mapRecordToMessage(r, user.id);
+				if (msg.isNew) unread++;
+				return msg;
+			});
+			
+			this.unreadCount = unread;
 			this.initialized = true;
 
-			// Realtime-Abonnement für Nachrichten von anderen Teammitgliedern
 			pb.collection('chat_messages').subscribe('*', (e) => {
 				if (e.action === 'create' && e.record.teamId === teamId) {
-					const newMsg = this.mapRecordToMessage(e.record);
-					// Verhindern, dass unsere eigenen (bereits hinzugefügten) Nachrichten doppelt auftauchen
+					const newMsg = this.mapRecordToMessage(e.record, user.id);
+					
+					// Wenn die Nachricht reinkommt, während der Chat zu ist, ist sie garantiert neu
+					if (new Date(newMsg.created).getTime() > this.lastReadTime && newMsg.senderId !== user.id) {
+						newMsg.isNew = true;
+					}
+
 					if (!this.messages.some(m => m.id === newMsg.id)) {
 						this.messages.push(newMsg);
+						
+						if (newMsg.isNew && !this.isChatOpen) {
+							this.unreadCount++;
+						}
 					}
 				}
 			}, { expand: 'senderId' });
 
 		} catch (err) {
-			console.error("Chat Init Error. Gibt es die Collection 'chat_messages' in PocketBase?", err);
+			console.error("Chat Init Error:", err);
 		}
 	}
 
-	private mapRecordToMessage(r: any): ChatMessage {
+	private mapRecordToMessage(r: any, myUserId: string): ChatMessage {
+		const createdTime = new Date(r.created).getTime();
+		// Prüft, ob die Nachricht nach dem letzten Besuch geschrieben wurde UND nicht von mir selbst ist
+		const isNew = createdTime > this.lastReadTime && r.senderId !== myUserId;
+
 		return {
 			id: r.id,
 			text: r.text,
@@ -62,8 +90,24 @@ class ChatStore {
 			teamId: r.teamId,
 			created: r.created,
 			isSystem: r.isSystem,
-			audioUrl: r.audio ? pb.files.getUrl(r, r.audio) : undefined
+			audioUrl: r.audio ? pb.files.getUrl(r, r.audio) : undefined,
+			isNew
 		};
+	}
+
+	// Wird aufgerufen, wenn die Sidebar öffnet
+	markAsRead() {
+		if (!browser) return;
+		const user = pb.authStore.model;
+		if (!user) return;
+		const teamId = user.teamLeader || user.id;
+
+		this.unreadCount = 0;
+		this.lastReadTime = Date.now();
+		localStorage.setItem(`lawcp_chat_read_${teamId}`, this.lastReadTime.toString());
+		
+		// Die isNew Flags in this.messages bleiben für die aktuelle Sitzung erhalten (damit man sieht, was neu war).
+		// Beim Neuladen der Seite sind sie dann weg.
 	}
 
 	async sendMessage(text: string, audioBlob?: Blob) {
@@ -79,16 +123,13 @@ class ChatStore {
 		if (audioBlob) formData.append('audio', audioBlob);
 
 		try {
-			// Speichern in PocketBase
 			const record = await pb.collection('chat_messages').create(formData, { expand: 'senderId' });
-			
-			// Optimistic UI: Sofort lokal hinzufügen, um Latenz zu vermeiden
-			const newMsg = this.mapRecordToMessage(record);
+			const newMsg = this.mapRecordToMessage(record, user.id);
 			if (!this.messages.some(m => m.id === newMsg.id)) {
 				this.messages.push(newMsg);
 			}
 		} catch (err) {
-			console.error("Fehler beim Senden der Nachricht an PocketBase:", err);
+			console.error("Fehler beim Senden:", err);
 		}
 	}
 
@@ -107,7 +148,7 @@ class ChatStore {
 				isSystem: true
 			}, { expand: 'senderId' });
 			
-			const newMsg = this.mapRecordToMessage(record);
+			const newMsg = this.mapRecordToMessage(record, user.id);
 			if (!this.messages.some(m => m.id === newMsg.id)) {
 				this.messages.push(newMsg);
 			}

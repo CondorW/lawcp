@@ -12,13 +12,11 @@
 	let scrollContainer: HTMLElement;
 	let textareaEl: HTMLTextAreaElement;
 
-	// Mentions State
 	let showMentions = $state(false);
 	let mentionQuery = $state('');
 	let mentionIndex = $state(0);
 	let mentionStartIdx = $state(-1);
 
-	// VOICE RECORDING & PREVIEW STATE
 	type RecordState = 'idle' | 'recording' | 'preview';
 	let recordState = $state<RecordState>('idle');
 	let mediaRecorder = $state<MediaRecorder | null>(null);
@@ -40,10 +38,28 @@
 		chatStore.init();
 	});
 
+	// --- FIX: Kugelsichere Scroll- und Mark-as-Read Logik ---
+	// 1. Wenn die Sidebar aufgemacht wird
 	$effect(() => {
-		if (chatStore.messages.length > 0 && scrollContainer) {
+		chatStore.isChatOpen = isOpen;
+		if (isOpen) {
+			chatStore.markAsRead(); // Reset des roten Badges in der Navbar
 			tick().then(() => {
-				scrollContainer.scrollTop = scrollContainer.scrollHeight;
+				setTimeout(() => {
+					if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+				}, 50); // Timeout garantiert, dass das DOM final gerendert wurde
+			});
+		}
+	});
+
+	// 2. Wenn eine neue Nachricht reinkommt, während die Sidebar schon offen ist
+	let msgLen = $derived(chatStore.messages.length);
+	$effect(() => {
+		if (msgLen > 0 && isOpen && scrollContainer) {
+			tick().then(() => {
+				setTimeout(() => {
+					if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+				}, 50);
 			});
 		}
 	});
@@ -73,17 +89,10 @@
 
 	async function startRecording() {
 		try {
-			// FIX: Erzwingt Studio-ähnliche Audioverbesserungen vom Browser/OS
 			const stream = await navigator.mediaDevices.getUserMedia({ 
-				audio: {
-					echoCancellation: true,
-					noiseSuppression: true,
-					autoGainControl: true,
-					sampleRate: 48000
-				} 
+				audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 } 
 			});
 
-			// FIX: Nutzt den hochwertigen Opus-Codec für WebM, falls vom Browser unterstützt
 			const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
 				? { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 } 
 				: undefined;
@@ -98,31 +107,26 @@
 			mediaRecorder.onstop = () => {
 				previewAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
 				previewAudioUrl = URL.createObjectURL(previewAudioBlob);
-				
-				// Stream hart beenden (entfernt den roten Recording-Punkt im Tab)
 				stream.getTracks().forEach(track => track.stop());
 				mediaRecorder = null;
-				recordState = 'preview'; // Wechsel in den Preview-Modus
+				recordState = 'preview';
 			};
 
 			mediaRecorder.start();
 			recordState = 'recording';
 		} catch (err) {
-			console.error("Mikrofon-Zugriff verweigert oder Hardware fehlerhaft:", err);
+			console.error("Mikrofon-Zugriff verweigert:", err);
 			alert("Bitte erlaube den Mikrofon-Zugriff im Browser, um Sprachnachrichten aufzunehmen.");
 		}
 	}
 
 	function stopRecording() {
-		if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-			mediaRecorder.stop();
-		}
+		if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
 	}
 
 	function handleInput() {
 		const text = inputText;
 		const cursorPos = textareaEl.selectionStart;
-
 		const textBeforeCursor = text.slice(0, cursorPos);
 		const match = textBeforeCursor.match(/(?:^|\s)@(\w*)$/);
 
@@ -175,14 +179,10 @@
 	}
 
 	function formatMessage(text: string) {
-		let formatted = text
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;");
-		
+		let formatted = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 		formatted = formatted.replace(/@(\w+)/g, "<span class='bg-black/10 dark:bg-white/10 font-bold px-1.5 py-0.5 rounded'>@$1</span>");
 		formatted = formatted.replace(/"([^"]+)"/g, "<span class='bg-black/10 dark:bg-white/10 italic font-medium px-1.5 py-0.5 rounded'>&quot;$1&quot;</span>");
 		formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
 		return formatted;
 	}
 </script>
@@ -201,7 +201,7 @@
 		class="fixed inset-y-0 right-0 w-full sm:w-[400px] bg-white dark:bg-slate-900 shadow-2xl z-[200] border-l border-slate-200 dark:border-slate-800 flex flex-col"
 		transition:fly={{ x: '100%', duration: 250, opacity: 1 }}
 	>
-		<div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+		<div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 z-10">
 			<div class="flex items-center gap-2 text-slate-800 dark:text-white">
 				<MessageSquare class="text-brand-600 dark:text-brand-400" size={20} />
 				<h2 class="font-bold text-lg">Team Chat</h2>
@@ -221,14 +221,20 @@
 
 			{#each chatStore.messages as msg}
 				{#if msg.isSystem}
-					<div class="flex items-start gap-2 bg-brand-50 dark:bg-brand-900/10 border border-brand-200 dark:border-brand-800/50 p-3 rounded-lg text-sm text-brand-900 dark:text-brand-100 shadow-sm mx-4">
+					<div class="relative flex items-start gap-2 bg-brand-50 dark:bg-brand-900/10 border border-brand-200 dark:border-brand-800/50 p-3 rounded-lg text-sm text-brand-900 dark:text-brand-100 shadow-sm mx-4">
+						{#if msg.isNew}
+							<span class="absolute -top-2 -right-2 bg-rose-500 text-white px-1.5 py-0.5 rounded shadow-sm font-bold text-[8px] uppercase tracking-wider animate-pulse">Neu</span>
+						{/if}
 						<AlertCircle size={16} class="text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
 						<div class="leading-snug">{@html formatMessage(msg.text)}</div>
 					</div>
 				{:else}
 					<div class={`flex flex-col ${msg.senderId === myId ? 'items-end' : 'items-start'}`}>
-						<span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1">
+						<span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 px-1 flex items-center gap-1.5">
 							{msg.senderSign} • {new Date(msg.created).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+							{#if msg.isNew}
+								<span class="bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400 px-1.5 py-0.5 rounded-sm font-bold text-[8px] animate-pulse">Neu</span>
+							{/if}
 						</span>
 						
 						<div class={`px-3.5 py-2.5 rounded-xl max-w-[85%] text-sm shadow-sm leading-snug border ${msg.senderId === myId ? 'bg-brand-100 dark:bg-brand-900/40 text-brand-900 dark:text-brand-50 border-brand-200 dark:border-brand-800 rounded-tr-sm' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 rounded-tl-sm'}`}>
@@ -308,8 +314,9 @@
 							Aufnahme läuft...
 						</span>
 					</div>
+					<div class="p-2 shrink-0 w-10"></div>
 
-					<div class="p-2 shrink-0 w-10"></div> {:else if recordState === 'preview'}
+				{:else if recordState === 'preview'}
 					<button 
 						class="p-2 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors outline-none"
 						onclick={discardVoiceMessage}

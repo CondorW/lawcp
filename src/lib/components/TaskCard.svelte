@@ -4,43 +4,53 @@
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn } from '$lib/utils';
 	import { ChevronDown, ChevronUp, ListTodo, Eye, Archive, Plus, Flag, Calendar, Clock } from 'lucide-svelte';
-	// FIX: tick importiert
 	import { onMount, tick } from 'svelte';
 
 	import TaskTitle from './task/TaskTitle.svelte';
 	import SubtaskItem from './task/SubtaskItem.svelte';
 	import TaskFooter from './task/TaskFooter.svelte';
 
-	export let task: Task;
+	let { task }: { task: Task } = $props();
 
 	const myId = pb.authStore.model?.id || '';
-	const isOwner = task.owner === myId || (task.assignees && task.assignees.includes(myId));
-	const ownerShortsign = task.expand?.owner?.shortsign || '?';
+	
+	let isOwner = $derived(task.owner === myId || (task.assignees && task.assignees.includes(myId)));
+	let ownerShortsign = $derived(task.expand?.owner?.shortsign || '?');
 	const isTeamLeader = !pb.authStore.model?.teamLeader;
 
-	$: currentAssignee = task.assignees && task.assignees.length > 0 ? task.assignees[0] : '';
+	let currentAssignee = $derived(task.assignees && task.assignees.length > 0 ? task.assignees[0] : '');
 
-	let dragging = false;
-	let newSubtaskTitle = '';
-	let newSubtaskType: SubtaskType = 'GENERIC';
+	let dragging = $state(false);
+	let newSubtaskTitle = $state('');
+	let newSubtaskType: SubtaskType = $state('GENERIC');
 
 	const isNewlyCreated = Date.now() - new Date(task.createdAt || Date.now()).getTime() < 3000;
-	let isExpanded = isNewlyCreated;
-	let showArchived = false;
+	let isExpanded = $state(isNewlyCreated);
+	let showArchived = $state(false);
 
-	// FIX: async Event Listener mit tick()
+	function focusSubtaskInput() {
+		let attempts = 0;
+		const tryFocus = () => {
+			const input = document.getElementById(`new-subtask-${task.id}`) as HTMLInputElement;
+			if (input) {
+				input.focus({ preventScroll: true });
+			} else if (attempts < 20) { 
+				attempts++;
+				setTimeout(tryFocus, 50);
+			}
+		};
+		tryFocus();
+	}
+
 	onMount(() => {
 		const handleFocusRequest = async (e: Event) => {
 			const customEvent = e as CustomEvent;
 			if (customEvent.detail === task.id) {
 				isExpanded = true;
-				// Zwingt Svelte, das DOM sofort zu aktualisieren (Input-Feld sichtbar machen)
 				await tick(); 
 				
 				const card = document.getElementById(`case-card-${task.id}`);
-				if (card) {
-					card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-				}
+				if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
 				
 				focusSubtaskInput();
 			}
@@ -49,9 +59,10 @@
 		return () => window.removeEventListener('lawganized-focus-task', handleFocusRequest);
 	});
 
-	$: isStale = (() => {
+	// FIX: Stale-Time auf 30 Tage hochgesetzt
+	let isStale = $derived((() => {
 		if (task.status === 'DONE' || task.archived) return false;
-		const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+		const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 		const now = Date.now();
 		let lastActive = new Date(task.createdAt || Date.now()).getTime();
 
@@ -67,8 +78,8 @@
 		};
 
 		checkSubtasks(task.subtasks);
-		return (now - lastActive) > SEVEN_DAYS;
-	})();
+		return (now - lastActive) > THIRTY_DAYS;
+	})());
 
 	function filterReviewSubtasks(subs: Subtask[]): Subtask[] {
 		if (!subs) return [];
@@ -101,10 +112,10 @@
 		return archived;
 	}
 
-	$: activeSubtasksRaw = getActiveSubtasks(task.subtasks || []);
-	$: archivedSubtasks = getArchivedSubtasks(task.subtasks || []);
-	$: isMicroReviewForTL = !isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks || []).length > 0;
-	$: displaySubtasks = isMicroReviewForTL ? filterReviewSubtasks(activeSubtasksRaw) : activeSubtasksRaw;
+	let activeSubtasksRaw = $derived(getActiveSubtasks(task.subtasks || []));
+	let archivedSubtasks = $derived(getArchivedSubtasks(task.subtasks || []));
+	let isMicroReviewForTL = $derived(!isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks || []).length > 0);
+	let displaySubtasks = $derived(isMicroReviewForTL ? filterReviewSubtasks(activeSubtasksRaw) : activeSubtasksRaw);
 
 	function handleAddSubtask() {
 		if (!newSubtaskTitle.trim()) return;
@@ -125,12 +136,6 @@
 		}
 		e.dataTransfer?.setData('text/plain', task.id);
 		dragging = true;
-	}
-
-	function focusSubtaskInput() {
-		setTimeout(() => {
-			document.getElementById(`new-subtask-${task.id}`)?.focus({ preventScroll: true });
-		}, 100);
 	}
 
 	function toggleExpand(e: MouseEvent | KeyboardEvent) {
@@ -169,15 +174,9 @@
 		onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
 	>
 		<div class="flex items-center gap-1.5 min-w-0">
-			<span class="text-[11px] font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded uppercase tracking-wider truncate max-w-[85px]">
+			<span class="text-[11px] font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded uppercase tracking-wider truncate max-w-[85px] shrink-0">
 				{task.matterRef || 'NO-REF'}
 			</span>
-			
-			{#if isStale && !isExpanded}
-				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1" title="Seit über 7 Tagen inaktiv">
-					<Clock size={10} /> STALE
-				</span>
-			{/if}
 			
 			{#if !isExpanded && !isOwner}
 				<span class="px-1.5 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-[10px] font-bold uppercase shrink-0">
@@ -223,6 +222,12 @@
 					<span class="ml-1 text-rose-500 font-bold">(! Rev)</span>
 				{/if}
 			</div>
+			
+			{#if isStale}
+				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
+					<Clock size={10} /> STALE
+				</span>
+			{/if}
 		</div>
 	{/if}
 

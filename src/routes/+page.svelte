@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
+	import { chatStore } from '$lib/stores/chat.svelte'; // Chat Store importiert für den Badge
 	import { pb } from '$lib/pocketbase';
 	import { Settings, LayoutGrid, Calendar, GitBranch, Building2, Filter, Printer, Users, DollarSign, ArchiveIcon, Plus, MessageSquare } from 'lucide-svelte';
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
@@ -7,7 +8,6 @@
 	import ChatSidebar from '$lib/components/ChatSidebar.svelte';
 	import type { Task } from '$lib/types';
 
-	// SVELTE 5: Native States
 	let navInputTitle = $state('');
 	let navInputRef = $state('');
 	let navInputDate = $state(new Date().toISOString().split('T')[0]);
@@ -17,6 +17,8 @@
 	let currentUserId = $derived(pb.authStore.model?.id || '');
 	let currentUserSign = $derived(pb.authStore.model?.shortsign || 'ME');
 
+	// [Restliche handleNavAdd, Filter- und Sortier-Funktionen exakt wie vorher]
+	
 	async function handleNavAdd() {
 		if (!navInputTitle.trim()) return;
 		const title = navInputTitle;
@@ -34,9 +36,7 @@
 			
 			if (newestCase) {
 				const input = document.getElementById(`new-subtask-${newestCase.id}`);
-				if (input) {
-					input.focus({ preventScroll: true });
-				}
+				if (input) input.focus({ preventScroll: true });
 			} else {
 				document.getElementById('nav-task-title')?.focus();
 			}
@@ -53,12 +53,9 @@
 	const byDateAndPriority = (a: any, b: any): number => {
 		const aIsCourtDeadline = a.flaggedDate !== null;
 		const bIsCourtDeadline = b.flaggedDate !== null;
-
 		if (aIsCourtDeadline && !bIsCourtDeadline) return -1;
 		if (!aIsCourtDeadline && bIsCourtDeadline) return 1;
-		if (aIsCourtDeadline && bIsCourtDeadline) {
-			return new Date(a.flaggedDate).getTime() - new Date(b.flaggedDate).getTime();
-		}
+		if (aIsCourtDeadline && bIsCourtDeadline) return new Date(a.flaggedDate).getTime() - new Date(b.flaggedDate).getTime();
 		return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
 	};
 
@@ -83,7 +80,6 @@
 	function effectiveStatus(t: Task) {
 		const isMine = isMyTask(t);
 		const hasReview = hasSubtaskInReview(t.subtasks);
-		
 		if (!isMine && hasReview && t.status !== 'DONE') return 'REVIEW';
 		return t.status;
 	}
@@ -92,17 +88,12 @@
 		return isMyTask(t) || effectiveStatus(t) === 'REVIEW';
 	}
 	
-	// SVELTE 5: Native Derived Arrays
 	let todos = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	let waiting = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	let review = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	let done = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	
-	let myActiveTasks = $derived($store.tasks.filter(t => 
-		!t.archived &&
-		['TODO', 'WAITING', 'REVIEW'].includes(effectiveStatus(t)) && 
-		showOnMainBoard(t)
-	).sort(byDateAndPriority));
+	let myActiveTasks = $derived($store.tasks.filter(t => !t.archived && ['TODO', 'WAITING', 'REVIEW'].includes(effectiveStatus(t)) && showOnMainBoard(t)).sort(byDateAndPriority));
 
 	const printAgenda = () => window.print();
 	const today = new Intl.DateTimeFormat('de-CH', { dateStyle: 'full' }).format(new Date());
@@ -126,51 +117,19 @@
 				
 				<div class="flex items-center gap-3 shrink-0">
 					<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-white font-serif font-bold text-xl shadow-sm border border-brand-500">L</div>
-					<span class="text-xl font-bold tracking-tight text-white font-sansserif hidden xl:block">
-						LAWganized
-					</span>
+					<span class="text-xl font-bold tracking-tight text-white font-sansserif hidden xl:block">LAWganized</span>
 				</div>
 
 				<div class="flex-1 max-w-4xl flex items-center bg-slate-800/80 rounded-xl border border-slate-700 p-1.5 focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 transition-all shadow-inner">
 					<div class="flex-1 relative">
-						<div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500 opacity-80">
-							<Plus size={18} />
-						</div>
-						<input 
-							id="nav-task-title"
-							type="text" 
-							bind:value={navInputTitle} 
-							onkeydown={onNavKeyDown}
-							placeholder="Neuen Case erfassen... (Strg+Enter)" 
-							class="w-full bg-transparent border-0 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-400 focus:ring-0 outline-none"
-						/>
+						<div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-500 opacity-80"><Plus size={18} /></div>
+						<input id="nav-task-title" type="text" bind:value={navInputTitle} onkeydown={onNavKeyDown} placeholder="Neuen Case erfassen... (Strg+Enter)" class="w-full bg-transparent border-0 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-400 focus:ring-0 outline-none" />
 					</div>
-					
 					<div class="w-px h-6 bg-slate-700 shrink-0 mx-1"></div>
-					
-					<input 
-						type="text" 
-						bind:value={navInputRef} 
-						onkeydown={onNavKeyDown}
-						placeholder="REF" 
-						class="w-24 bg-transparent border-0 py-2.5 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-300 placeholder:text-slate-500 focus:ring-0 outline-none text-center"
-					/>
-					
+					<input type="text" bind:value={navInputRef} onkeydown={onNavKeyDown} placeholder="REF" class="w-24 bg-transparent border-0 py-2.5 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-300 placeholder:text-slate-500 focus:ring-0 outline-none text-center" />
 					<div class="w-px h-6 bg-slate-700 shrink-0 mx-1"></div>
-					
-					<input 
-						type="date" 
-						bind:value={navInputDate} 
-						onkeydown={onNavKeyDown}
-						class="w-36 bg-transparent border-0 py-2.5 px-3 text-sm text-slate-300 focus:ring-0 outline-none dark:[color-scheme:dark]"
-					/>
-					
-					<button 
-						onclick={handleNavAdd}
-						class="shrink-0 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1 outline-none focus:ring-2 focus:ring-white"
-					>
-						Add
-					</button>
+					<input type="date" bind:value={navInputDate} onkeydown={onNavKeyDown} class="w-36 bg-transparent border-0 py-2.5 px-3 text-sm text-slate-300 focus:ring-0 outline-none dark:[color-scheme:dark]" />
+					<button onclick={handleNavAdd} class="shrink-0 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-lg transition-colors flex items-center gap-1.5 shadow-sm ml-1 outline-none focus:ring-2 focus:ring-white">Add</button>
 				</div>
 
 				<div class="flex items-center gap-1.5 shrink-0">
@@ -188,6 +147,11 @@
 						title="Team Chat öffnen"
 					>
 						<MessageSquare size={20} />
+						{#if chatStore.unreadCount > 0}
+							<div class="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-slate-900 animate-in zoom-in">
+								{chatStore.unreadCount > 9 ? '9+' : chatStore.unreadCount}
+							</div>
+						{/if}
 					</button>
 					<div class="w-px h-5 bg-slate-700 mx-1"></div>
 
@@ -211,7 +175,6 @@
 	</nav>
 
 	<main class="flex-1 min-h-0 flex flex-col w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 gap-5 print:hidden">
-		
 		{#if refFilter}
 			<div class="shrink-0 flex items-center gap-2 text-sm text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 p-2.5 rounded-lg border border-brand-200 dark:border-brand-800 w-fit mx-auto shadow-sm">
 				<Filter size={16} class="text-brand-600"/>
@@ -221,23 +184,10 @@
 		{/if}
 
 		<div class="flex-1 min-h-0 grid grid-cols-[repeat(4,minmax(280px,1fr))] divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-			
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
-				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
-			</div>
-			
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
-				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" />
-			</div>
-			
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
-				<TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
-			</div>
-			
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
-				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
-			</div>
-			
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" /></div>
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900"><TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" /></div>
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" /></div>
+			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900"><TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" /></div>
 		</div>
 	</main>
 

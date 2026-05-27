@@ -24,7 +24,6 @@
 	let newSubtaskTitle = $state('');
 	let newSubtaskType: SubtaskType = $state('GENERIC');
 
-	// FIX: Linter Error umgangen. Evaluierung findet sicher im onMount statt.
 	let isExpanded = $state(false);
 	let showArchived = $state(false);
 
@@ -52,7 +51,6 @@
 	}
 
 	onMount(() => {
-		// Initiale Aufklapp-Prüfung bei komplett neu erstellten Tasks
 		if (Date.now() - new Date(task.createdAt || Date.now()).getTime() < 3000) {
 			isExpanded = true;
 		}
@@ -181,12 +179,13 @@
 	role="listitem"
 	class={cn(
 		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit",
-		isExpanded ? "p-3 gap-2.5 is-expanded border border-slate-300 dark:border-slate-600" : "p-2 gap-1",
+		isExpanded ? "p-3 gap-2.5 is-expanded border border-slate-300 dark:border-slate-600 z-50 shadow-xl" : "p-2 gap-1",
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
 		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
 		dragging && "opacity-50",
 	)}
+	style:break-inside={isExpanded ? 'avoid' : 'auto'}
 	draggable="true"
 	ondragstart={onDragStart}
 	ondragend={() => dragging = false}
@@ -223,7 +222,7 @@
 				</div>
 			{/if}
 			
-			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0">
+			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0 expand-chevron">
 				{#if isExpanded} <ChevronUp size={16} /> {:else} <ChevronDown size={16} /> {/if}
 			</div>
 		</div>
@@ -242,8 +241,35 @@
 	</div>
 
 	{#if !isExpanded}
+		<!-- Quick Add Feld direkt unter dem Case Namen -->
+		{#if !isMicroReviewForTL}
+			<div 
+				class="mt-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 py-1 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text"
+				onclick={(e) => { e.stopPropagation(); document.getElementById(`quick-add-${task.id}`)?.focus(); }}
+				onkeydown={(e) => e.stopPropagation()}
+				role="button"
+				tabindex="-1"
+			>
+				<Plus size={11} class="text-slate-400 shrink-0" />
+				<input 
+					id={`quick-add-${task.id}`}
+					type="text" 
+					bind:value={newSubtaskTitle} 
+					placeholder="quick add" 
+					class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none" 
+					onkeydown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							e.stopPropagation();
+							handleAddSubtask();
+						}
+					}} 
+				/>
+			</div>
+		{/if}
+
 		{#if pendingSubtasksList.length > 0}
-			<div class="mt-1.5 flex flex-col gap-0.5 mb-0.5">
+			<div class="mt-1 flex flex-col gap-0.5 mb-0.5">
 				{#each pendingSubtasksList as sub (sub.id)}
 					<button 
 						class="flex items-start gap-2 text-left px-1 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group/mini outline-none focus:ring-1 focus:ring-brand-500"
@@ -305,7 +331,13 @@
 						bind:value={newSubtaskTitle} 
 						placeholder="Neuer Task..." 
 						class="flex-grow bg-transparent border-0 focus:ring-0 px-1 py-0.5 text-[13px] placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none" 
-						onkeydown={(e) => e.key === 'Enter' && handleAddSubtask()} 
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								e.stopPropagation();
+								handleAddSubtask();
+							}
+						}} 
 					/>
 				</div>
 			{/if}

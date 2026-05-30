@@ -255,7 +255,7 @@
 					id={`quick-add-${task.id}`}
 					type="text" 
 					bind:value={newSubtaskTitle} 
-					placeholder="quick add" 
+					placeholder="" 
 					class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none" 
 					onkeydown={(e) => {
 						if (e.key === 'Enter') {

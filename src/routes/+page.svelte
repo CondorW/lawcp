@@ -34,7 +34,7 @@
 			const newestCase = [...myCases].sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
 			
 			if (newestCase) {
-				const input = document.getElementById(`new-subtask-${newestCase.id}`);
+				const input = document.getElementById(`quick-add-${newestCase.id}`) || document.getElementById(`new-subtask-${newestCase.id}`);
 				if (input) input.focus({ preventScroll: true });
 			} else {
 				document.getElementById('nav-task-title')?.focus();
@@ -50,12 +50,22 @@
 	}
 
 	const byDateAndPriority = (a: any, b: any): number => {
-		const aIsCourtDeadline = a.flaggedDate !== null;
-		const bIsCourtDeadline = b.flaggedDate !== null;
+		const aIsCourtDeadline = !!a.flaggedDate;
+		const bIsCourtDeadline = !!b.flaggedDate;
+		
 		if (aIsCourtDeadline && !bIsCourtDeadline) return -1;
 		if (!aIsCourtDeadline && bIsCourtDeadline) return 1;
-		if (aIsCourtDeadline && bIsCourtDeadline) return new Date(a.flaggedDate).getTime() - new Date(b.flaggedDate).getTime();
-		return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+		if (aIsCourtDeadline && bIsCourtDeadline) {
+			return new Date(a.flaggedDate).getTime() - new Date(b.flaggedDate).getTime();
+		}
+		
+		const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+		const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+		if (aDue !== bDue) return aDue - bDue;
+		
+		const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+		const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+		return bCreated - aCreated;
 	};
 
 	function matchesFilter(t: Task) {
@@ -75,7 +85,6 @@
 	}
 
 	function showOnMainBoard(t: Task) {
-		// FIX: Explizite Linter-Typisierung mit (sub: any)
 		const hasReview = t.subtasks?.some(s => s.reviewState === 'REQUESTED' || s.subtasks?.some((sub: any) => sub.reviewState === 'REQUESTED'));
 		return isMyTask(t) || hasReview;
 	}
@@ -103,7 +112,7 @@
 
 <div class="h-screen overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans print:bg-white print:text-black print:h-auto print:overflow-visible">
 	
-	<nav class="shrink-0 sticky top-0 z-50 bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden w-full">
+	<nav class="shrink-0 sticky top-0 z-[100] bg-slate-900 text-white shadow-lg border-b border-slate-800 print:hidden w-full">
 		<div class="w-full px-3 sm:px-6">
 			<div class="flex h-20 justify-between items-center gap-6">
 				
@@ -133,11 +142,7 @@
 					<a href="/" class="p-2.5 ml-2 text-brand-500 bg-brand-900/20 transition-colors rounded-xl" title="Board"><LayoutGrid size={20} /></a>
 					
 					<div class="w-px h-5 bg-slate-700 mx-1"></div>
-					<button 
-						onclick={() => isChatOpen = !isChatOpen} 
-						class={`p-2.5 transition-colors rounded-xl outline-none focus:ring-2 focus:ring-brand-500 flex items-center justify-center ${isChatOpen ? 'text-brand-500 bg-brand-900/30' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`} 
-						title="Team Chat öffnen"
-					>
+					<button onclick={() => isChatOpen = !isChatOpen} class={`p-2.5 transition-colors rounded-xl outline-none focus:ring-2 focus:ring-brand-500 flex items-center justify-center ${isChatOpen ? 'text-brand-500 bg-brand-900/30' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`} title="Team Chat öffnen" >
 						<div class="relative flex items-center justify-center">
 							<MessageSquare size={20} />
 							{#if chatStore.unreadCount > 0}

@@ -1,9 +1,14 @@
+<script module>
+	const expandedTasks = new Set<string>();
+	let activeFocusId: string | null = null;
+</script>
+
 <script lang="ts">
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn } from '$lib/utils';
-	import { ChevronDown, ChevronUp, ListTodo, Eye, Archive, Plus, Flag, Calendar, Clock } from 'lucide-svelte';
+	import { ChevronDown, ChevronUp, ListTodo, Archive, Plus, Flag, Calendar, Clock } from 'lucide-svelte';
 	import { onMount, tick } from 'svelte';
 
 	import TaskTitle from './task/TaskTitle.svelte';
@@ -24,8 +29,19 @@
 	let newSubtaskTitle = $state('');
 	let newSubtaskType: SubtaskType = $state('GENERIC');
 
-	let isExpanded = $state(false);
+	// FIX 3: Zweizeilige Initialisierung verhindert die "state_referenced_locally" Warnung
+	let initialExpanded = expandedTasks.has(task.id);
+	let isExpanded = $state(initialExpanded);
+	
 	let showArchived = $state(false);
+
+	let isEditingRef = $state(false);
+	let editRefBuffer = $state('');
+
+	$effect(() => {
+		if (isExpanded) expandedTasks.add(task.id);
+		else expandedTasks.delete(task.id);
+	});
 
 	function getLeaderId(userField: any): string | null {
 		if (!userField) return null;
@@ -39,7 +55,7 @@
 	function focusSubtaskInput() {
 		let attempts = 0;
 		const tryFocus = () => {
-			const input = document.getElementById(`new-subtask-${task.id}`) as HTMLInputElement;
+			const input = document.getElementById(isExpanded ? `new-subtask-${task.id}` : `quick-add-${task.id}`) as HTMLInputElement;
 			if (input) {
 				input.focus({ preventScroll: true });
 			} else if (attempts < 20) { 
@@ -55,15 +71,17 @@
 			isExpanded = true;
 		}
 
+		if (activeFocusId === task.id) {
+			tick().then(() => setTimeout(focusSubtaskInput, 50));
+		}
+
 		const handleFocusRequest = async (e: Event) => {
 			const customEvent = e as CustomEvent;
 			if (customEvent.detail === task.id) {
 				isExpanded = true;
 				await tick(); 
-				
 				const card = document.getElementById(`case-card-${task.id}`);
 				if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-				
 				focusSubtaskInput();
 			}
 		};
@@ -71,79 +89,87 @@
 		return () => window.removeEventListener('lawganized-focus-task', handleFocusRequest);
 	});
 
-	let isStale = $derived((() => {
+	let isStale = $derived.by(() => {
 		if (task.status === 'DONE' || task.archived) return false;
 		const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-		const now = Date.now();
 		let lastActive = new Date(task.createdAt || Date.now()).getTime();
 
 		const checkSubtasks = (subs: Subtask[] | undefined) => {
 			if (!subs) return;
-			for (const sub of subs) {
+			for (let i = 0; i < subs.length; i++) {
+				const sub = subs[i];
 				if (sub.done && sub.completedAt) {
 					const compTime = new Date(sub.completedAt).getTime();
 					if (compTime > lastActive) lastActive = compTime;
 				}
-				checkSubtasks(sub.subtasks);
+				if (sub.subtasks && sub.subtasks.length > 0) checkSubtasks(sub.subtasks);
 			}
 		};
-
 		checkSubtasks(task.subtasks);
-		return (now - lastActive) > THIRTY_DAYS;
-	})());
+		return (Date.now() - lastActive) > THIRTY_DAYS;
+	});
 
-	function getPendingSubtasksFlattened(subs: Subtask[] | undefined): Subtask[] {
+	let pendingSubtasksList = $derived.by(() => {
+		const result: Subtask[] = [];
+		const traverse = (subs: Subtask[] | undefined) => {
+			if (!subs) return;
+			for (let i = 0; i < subs.length; i++) {
+				const s = subs[i];
+				if (!s.done && !s.archived) result.push(s);
+				if (s.subtasks && s.subtasks.length > 0) traverse(s.subtasks);
+			}
+		};
+		traverse(task.subtasks);
+		return result;
+	});
+
+	function filterReviewSubtasks(subs: Subtask[] | undefined): Subtask[] {
 		if (!subs) return [];
-		let result: Subtask[] = [];
-		for (const s of subs) {
-			if (!s.done && !s.archived) result.push(s);
-			if (s.subtasks) result = result.concat(getPendingSubtasksFlattened(s.subtasks));
+		const result: Subtask[] = [];
+		for (let i = 0; i < subs.length; i++) {
+			const sub = subs[i];
+			const filteredChildren = filterReviewSubtasks(sub.subtasks);
+			if (sub.reviewState === 'REQUESTED' || filteredChildren.length > 0) {
+				result.push({ ...sub, subtasks: filteredChildren });
+			}
 		}
 		return result;
 	}
 
-	let pendingSubtasksList = $derived(getPendingSubtasksFlattened(task.subtasks));
-
-	function filterReviewSubtasks(subs: Subtask[]): Subtask[] {
+	function getActiveSubtasks(subs: Subtask[] | undefined): Subtask[] {
 		if (!subs) return [];
-		return subs.reduce((acc, sub) => {
-			const filteredChildren = filterReviewSubtasks(sub.subtasks || []);
-			if (sub.reviewState === 'REQUESTED' || filteredChildren.length > 0) {
-				acc.push({ ...sub, subtasks: filteredChildren });
-			}
-			return acc;
-		}, [] as Subtask[]);
-	}
-
-	function getActiveSubtasks(subs: Subtask[]): Subtask[] {
-		if (!subs) return [];
-		return subs
-			.filter(s => !s.archived)
-			.map(s => ({ ...s, subtasks: getActiveSubtasks(s.subtasks || []) }));
-	}
-
-	function getArchivedSubtasks(subs: Subtask[]): Subtask[] {
-		if (!subs) return [];
-		let archived: Subtask[] = [];
-		for (const s of subs) {
-			if (s.archived) {
-				archived.push(s);
-			} else {
-				archived = archived.concat(getArchivedSubtasks(s.subtasks || []));
+		const result: Subtask[] = [];
+		for (let i = 0; i < subs.length; i++) {
+			const s = subs[i];
+			if (!s.archived) {
+				result.push({ ...s, subtasks: getActiveSubtasks(s.subtasks) });
 			}
 		}
-		return archived;
+		return result;
 	}
 
-	let activeSubtasksRaw = $derived(getActiveSubtasks(task.subtasks || []));
-	let archivedSubtasks = $derived(getArchivedSubtasks(task.subtasks || []));
-	let isMicroReviewForTL = $derived(!isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks || []).length > 0);
+	function getArchivedSubtasks(subs: Subtask[] | undefined): Subtask[] {
+		if (!subs) return [];
+		const result: Subtask[] = [];
+		for (let i = 0; i < subs.length; i++) {
+			const s = subs[i];
+			if (s.archived) result.push(s);
+			else result.push(...getArchivedSubtasks(s.subtasks));
+		}
+		return result;
+	}
+
+	let activeSubtasksRaw = $derived(getActiveSubtasks(task.subtasks));
+	let archivedSubtasks = $derived(getArchivedSubtasks(task.subtasks));
+	let isMicroReviewForTL = $derived(!isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks).length > 0);
 	let displaySubtasks = $derived(isMicroReviewForTL ? filterReviewSubtasks(activeSubtasksRaw) : activeSubtasksRaw);
 
-	function handleAddSubtask() {
+	async function handleAddSubtask() {
 		if (!newSubtaskTitle.trim()) return;
+		activeFocusId = task.id;
 		store.addSubtask(task.id, newSubtaskTitle, newSubtaskType);
 		newSubtaskTitle = '';
+		setTimeout(() => focusSubtaskInput(), 50);
 	}
 
 	function assignTo(userId: string) {
@@ -172,6 +198,19 @@
 		isExpanded = !isExpanded;
 		if (isExpanded) focusSubtaskInput();
 	}
+
+	function startEditRef() {
+		editRefBuffer = task.matterRef || '';
+		isEditingRef = true;
+		setTimeout(() => document.getElementById(`edit-ref-${task.id}`)?.focus(), 10);
+	}
+
+	function saveEditRef() {
+		if (editRefBuffer !== task.matterRef) {
+			store.updateTaskRef(task.id, editRefBuffer);
+		}
+		isEditingRef = false;
+	}
 </script>
 
 <div
@@ -179,7 +218,7 @@
 	role="listitem"
 	class={cn(
 		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit",
-		isExpanded ? "p-3 gap-2.5 is-expanded border border-slate-300 dark:border-slate-600 z-50 shadow-xl" : "p-2 gap-1",
+		isExpanded ? "p-3 gap-3 is-expanded border border-slate-300 dark:border-slate-600 z-50 shadow-xl" : "p-2.5 gap-1.5",
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
 		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
@@ -191,39 +230,55 @@
 	ondragend={() => dragging = false}
 >
 	<div 
-		class="flex justify-between items-center gap-1.5 outline-none w-full" 
+		class="flex justify-between items-center gap-2 outline-none w-full" 
 		role="button" 
 		tabindex="0" 
 		onclick={toggleExpand}
 		onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
 	>
-		<div class="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
-			<span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded uppercase tracking-wider truncate block w-full">
-				{task.matterRef || 'NO-REF'}
-			</span>
+		<div class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+			{#if isEditingRef}
+				<input 
+					id={`edit-ref-${task.id}`}
+					type="text" 
+					bind:value={editRefBuffer} 
+					onblur={saveEditRef} 
+					onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEditRef(); } }} 
+					class="text-xs font-bold px-1.5 py-0.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded uppercase tracking-wider border border-brand-500 focus:outline-none w-[10ch] text-center shrink-0" 
+					onclick={(e) => e.stopPropagation()}
+				/>
+			{:else}
+				<button 
+					class="text-xs font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase tracking-wider truncate block w-[10ch] text-center shrink-0 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-text"
+					onclick={(e) => { e.stopPropagation(); startEditRef(); }}
+					title="Referenz bearbeiten"
+				>
+					{task.matterRef || 'NO-REF'}
+				</button>
+			{/if}
 			
+			{#if task.flaggedDate && !isExpanded} 
+				<div class="flex items-center justify-center bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-700 w-5 h-5 rounded shadow-sm shrink-0" title="Gerichtstermin">
+					<Flag size={11} class="fill-rose-600 dark:fill-rose-400" /> 
+				</div>
+			{/if}
+
 			{#if !isExpanded && !isOwner}
-				<span class="px-1.5 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-[10px] font-bold uppercase shrink-0">
+				<span class="px-2 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-xs font-bold uppercase shrink-0 ml-0.5">
 					{ownerShortsign}
 				</span>
 			{/if}
 		</div>
 		
-		<div class="flex items-center gap-1 shrink-0 text-slate-400">
-			{#if task.flaggedDate && !isExpanded} 
-				<div class="flex items-center justify-center bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-700 w-5 h-5 rounded shadow-sm shrink-0" title="Gerichtstermin">
-					<Flag size={10} class="fill-rose-600 dark:fill-rose-400" /> 
-				</div>
-			{/if}
-			
+		<div class="flex items-center gap-1.5 shrink-0 text-slate-400">
 			{#if task.dueDate && !isExpanded} 
-				<div class="flex items-center justify-center w-5 h-5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0" title="Fälligkeit">
-					<Calendar size={12} />
+				<div class="flex items-center justify-center w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0" title="Fälligkeit">
+					<Calendar size={14} />
 				</div>
 			{/if}
 			
-			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0 expand-chevron">
-				{#if isExpanded} <ChevronUp size={16} /> {:else} <ChevronDown size={16} /> {/if}
+			<div class="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0 expand-chevron">
+				{#if isExpanded} <ChevronUp size={18} /> {:else} <ChevronDown size={18} /> {/if}
 			</div>
 		</div>
 	</div>
@@ -235,28 +290,27 @@
 		onclick={!isExpanded ? toggleExpand : undefined}
 		onkeydown={undefined}
 	>
-		<div class={cn("w-full transition-all", !isExpanded ? "text-sm line-clamp-3" : "text-base whitespace-normal break-words")}>
+		<div class={cn("w-full transition-all", !isExpanded ? "text-base font-medium line-clamp-3" : "text-lg font-medium whitespace-normal break-words")}>
 			<TaskTitle {task} />
 		</div>
 	</div>
 
 	{#if !isExpanded}
-		<!-- Quick Add Feld direkt unter dem Case Namen -->
 		{#if !isMicroReviewForTL}
 			<div 
-				class="mt-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 py-1 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text"
+				class="mt-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text h-5"
 				onclick={(e) => { e.stopPropagation(); document.getElementById(`quick-add-${task.id}`)?.focus(); }}
 				onkeydown={(e) => e.stopPropagation()}
 				role="button"
 				tabindex="-1"
 			>
-				<Plus size={11} class="text-slate-400 shrink-0" />
+				<Plus size={10} class="text-slate-400 shrink-0" />
 				<input 
 					id={`quick-add-${task.id}`}
 					type="text" 
 					bind:value={newSubtaskTitle} 
-					placeholder="" 
-					class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none" 
+					placeholder="Task hinzufügen..." 
+					class="flex-1 bg-transparent border-none focus:ring-0 text-[10px] p-0 m-0 h-full text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none leading-none" 
 					onkeydown={(e) => {
 						if (e.key === 'Enter') {
 							e.preventDefault();
@@ -264,56 +318,58 @@
 							handleAddSubtask();
 						}
 					}} 
+					onfocus={() => activeFocusId = task.id}
+					onblur={() => { if(activeFocusId === task.id) activeFocusId = null; }}
 				/>
 			</div>
 		{/if}
 
 		{#if pendingSubtasksList.length > 0}
-			<div class="mt-1 flex flex-col gap-0.5 mb-0.5">
+			<div class="mt-1.5 flex flex-col gap-1 mb-1">
 				{#each pendingSubtasksList as sub (sub.id)}
 					<button 
-						class="flex items-start gap-2 text-left px-1 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group/mini outline-none focus:ring-1 focus:ring-brand-500"
+						class="flex items-start gap-2 text-left px-1.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group/mini outline-none focus:ring-1 focus:ring-brand-500"
 						onclick={(e) => { e.stopPropagation(); store.toggleSubtask(task.id, sub.id); }}
 						title={sub.title}
 					>
-						<div class="w-3.5 h-3.5 rounded-sm border border-slate-300 dark:border-slate-500 mt-0.5 shrink-0 flex items-center justify-center group-hover/mini:border-brand-500 transition-colors"></div>
-						<span class="text-[11px] text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">{sub.title}</span>
+						<div class="w-4 h-4 rounded-sm border border-slate-300 dark:border-slate-500 mt-0.5 shrink-0 flex items-center justify-center group-hover/mini:border-brand-500 transition-colors"></div>
+						<span class="text-sm text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">{sub.title}</span>
 						
 						{#if sub.reviewState === 'REQUESTED'}
-							<span class="ml-auto text-[8px] bg-purple-100 text-purple-700 px-1 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">Rev</span>
+							<span class="ml-auto text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">Rev</span>
 						{:else if sub.reviewState === 'REVISION'}
-							<span class="ml-auto text-[8px] bg-rose-100 text-rose-700 px-1 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">!</span>
+							<span class="ml-auto text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">!</span>
 						{/if}
 					</button>
 				{/each}
 			</div>
 		{/if}
 
-		<div class="flex items-center justify-between mt-auto pt-1.5 border-t border-slate-100 dark:border-slate-700/50">
-			<div class="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-				<ListTodo size={11} /> 
+		<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50">
+			<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+				<ListTodo size={14} /> 
 				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0}
 			</div>
 			
 			{#if isStale}
-				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[9px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
-					<Clock size={9} /> STALE
+				<span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
+					<Clock size={11} /> STALE
 				</span>
 			{/if}
 		</div>
 	{/if}
 
 	{#if isExpanded}
-		<div class="space-y-1.5 my-0.5 border-t border-slate-100 dark:border-slate-700 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
+		<div class="space-y-2 my-1 border-t border-slate-100 dark:border-slate-700 pt-3 animate-in fade-in slide-in-from-top-2 duration-200">
 			
 			{#if isOwner && isTeamLeader}
-				<div class="flex items-center gap-1.5 mb-2">
-					<span class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
-					<div class="flex flex-wrap gap-1">
-						<button onclick={() => assignTo('')} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
+				<div class="flex items-center gap-2 mb-3">
+					<span class="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
+					<div class="flex flex-wrap gap-1.5">
+						<button onclick={() => assignTo('')} class={cn("px-2.5 py-1 text-xs font-bold rounded border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
 						{#each myTeamMembers as user}
 							{#if user.id !== myId && user.shortsign}
-								<button onclick={() => assignTo(user.id)} class={cn("px-2 py-0.5 text-[10px] font-bold rounded border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-brand-50 text-brand-800 border-brand-300 dark:bg-brand-900/30 dark:text-brand-400 dark:border-brand-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
+								<button onclick={() => assignTo(user.id)} class={cn("px-2.5 py-1 text-xs font-bold rounded border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-brand-50 text-brand-800 border-brand-300 dark:bg-brand-900/30 dark:text-brand-400 dark:border-brand-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
 							{/if}
 						{/each}
 					</div>
@@ -321,48 +377,50 @@
 			{/if}
 
 			{#if !isMicroReviewForTL}
-				<div class="flex items-center mb-2 pb-2 border-b border-slate-50 dark:border-slate-700/50 group/input">
-					<div class="w-5 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-brand-500 pl-0.5 flex items-center">
-						<Plus size={14} />
+				<div class="flex items-center mb-3 pb-3 border-b border-slate-50 dark:border-slate-700/50 group/input">
+					<div class="w-6 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-brand-500 pl-0.5 flex items-center">
+						<Plus size={16} />
 					</div>
 					<input 
 						id={`new-subtask-${task.id}`} 
 						type="text" 
 						bind:value={newSubtaskTitle} 
 						placeholder="Neuer Task..." 
-						class="flex-grow bg-transparent border-0 focus:ring-0 px-1 py-0.5 text-[13px] placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none" 
+						class="flex-grow bg-transparent border-0 focus:ring-0 px-2 py-1 text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none" 
 						onkeydown={(e) => {
 							if (e.key === 'Enter') {
 								e.preventDefault();
 								e.stopPropagation();
 								handleAddSubtask();
 							}
-						}} 
+						}}
+						onfocus={() => activeFocusId = task.id}
+						onblur={() => { if(activeFocusId === task.id) activeFocusId = null; }} 
 					/>
 				</div>
 			{/if}
 
-			<div class="space-y-1">
+			<div class="space-y-1.5">
 				{#each displaySubtasks as sub (sub.id)}
 					<SubtaskItem taskId={task.id} {sub} />
 				{/each}
 			</div>
 
 			{#if archivedSubtasks.length > 0}
-				<div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+				<div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
 					<button 
 						onclick={(e) => { e.stopPropagation(); showArchived = !showArchived; }}
-						class="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 uppercase tracking-widest outline-none transition-colors w-fit"
+						class="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 uppercase tracking-widest outline-none transition-colors w-fit"
 					>
-						<Archive size={11} />
+						<Archive size={14} />
 						{archivedSubtasks.length} Archiviert
-						<div class="ml-0.5 opacity-70">
-							{#if showArchived}<ChevronUp size={11} />{:else}<ChevronDown size={11} />{/if}
+						<div class="ml-1 opacity-70">
+							{#if showArchived}<ChevronUp size={14} />{:else}<ChevronDown size={14} />{/if}
 						</div>
 					</button>
 
 					{#if showArchived}
-						<div class="mt-2 space-y-1.5 opacity-75 grayscale-[50%] border-l-2 border-slate-200 dark:border-slate-700 pl-2 ml-1">
+						<div class="mt-3 space-y-2 opacity-75 grayscale-[50%] border-l-2 border-slate-200 dark:border-slate-700 pl-3 ml-1.5">
 							{#each archivedSubtasks as sub (sub.id)}
 								<SubtaskItem taskId={task.id} {sub} />
 							{/each}
@@ -371,7 +429,7 @@
 				</div>
 			{/if}
 			
-			<div class="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+			<div class="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700/50">
 				<TaskFooter {task} {isOwner} {ownerShortsign} {isExpanded} />
 			</div>
 		</div>

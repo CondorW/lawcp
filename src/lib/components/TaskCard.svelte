@@ -29,7 +29,6 @@
 	let newSubtaskTitle = $state('');
 	let newSubtaskType: SubtaskType = $state('GENERIC');
 
-	// FIX 3: Zweizeilige Initialisierung verhindert die "state_referenced_locally" Warnung
 	let initialExpanded = expandedTasks.has(task.id);
 	let isExpanded = $state(initialExpanded);
 	
@@ -230,13 +229,13 @@
 	ondragend={() => dragging = false}
 >
 	<div 
-		class="flex justify-between items-center gap-2 outline-none w-full" 
+		class="flex justify-between items-center gap-1 outline-none w-full" 
 		role="button" 
 		tabindex="0" 
 		onclick={toggleExpand}
 		onkeydown={(e) => e.key === 'Enter' && toggleExpand(e as KeyboardEvent)}
 	>
-		<div class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+		<div class="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
 			{#if isEditingRef}
 				<input 
 					id={`edit-ref-${task.id}`}
@@ -244,12 +243,12 @@
 					bind:value={editRefBuffer} 
 					onblur={saveEditRef} 
 					onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEditRef(); } }} 
-					class="text-xs font-bold px-1.5 py-0.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded uppercase tracking-wider border border-brand-500 focus:outline-none w-[10ch] text-center shrink-0" 
+					class="text-[10px] font-bold px-1.5 py-0.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded uppercase tracking-wider border border-brand-500 focus:outline-none w-[75px] shrink-0 text-left" 
 					onclick={(e) => e.stopPropagation()}
 				/>
 			{:else}
 				<button 
-					class="text-xs font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase tracking-wider truncate block w-[10ch] text-center shrink-0 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-text"
+					class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase tracking-wider truncate block w-fit max-w-[75px] text-left shrink-0 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-text"
 					onclick={(e) => { e.stopPropagation(); startEditRef(); }}
 					title="Referenz bearbeiten"
 				>
@@ -264,21 +263,21 @@
 			{/if}
 
 			{#if !isExpanded && !isOwner}
-				<span class="px-2 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-xs font-bold uppercase shrink-0 ml-0.5">
+				<span class="px-1.5 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-[10px] font-bold uppercase shrink-0">
 					{ownerShortsign}
 				</span>
 			{/if}
 		</div>
 		
-		<div class="flex items-center gap-1.5 shrink-0 text-slate-400">
+		<div class="flex items-center gap-1 shrink-0 text-slate-400">
 			{#if task.dueDate && !isExpanded} 
 				<div class="flex items-center justify-center w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0" title="Fälligkeit">
 					<Calendar size={14} />
 				</div>
 			{/if}
 			
-			<div class="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0 expand-chevron">
-				{#if isExpanded} <ChevronUp size={18} /> {:else} <ChevronDown size={18} /> {/if}
+			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0 expand-chevron">
+				{#if isExpanded} <ChevronUp size={16} /> {:else} <ChevronDown size={16} /> {/if}
 			</div>
 		</div>
 	</div>
@@ -298,19 +297,19 @@
 	{#if !isExpanded}
 		{#if !isMicroReviewForTL}
 			<div 
-				class="mt-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text h-5"
+				class="mt-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text h-6"
 				onclick={(e) => { e.stopPropagation(); document.getElementById(`quick-add-${task.id}`)?.focus(); }}
 				onkeydown={(e) => e.stopPropagation()}
 				role="button"
 				tabindex="-1"
 			>
-				<Plus size={10} class="text-slate-400 shrink-0" />
+				<Plus size={11} class="text-slate-400 shrink-0" />
 				<input 
 					id={`quick-add-${task.id}`}
 					type="text" 
 					bind:value={newSubtaskTitle} 
 					placeholder="Task hinzufügen..." 
-					class="flex-1 bg-transparent border-none focus:ring-0 text-[10px] p-0 m-0 h-full text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none leading-none" 
+					class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 m-0 h-full text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none leading-none" 
 					onkeydown={(e) => {
 						if (e.key === 'Enter') {
 							e.preventDefault();
@@ -333,7 +332,7 @@
 						title={sub.title}
 					>
 						<div class="w-4 h-4 rounded-sm border border-slate-300 dark:border-slate-500 mt-0.5 shrink-0 flex items-center justify-center group-hover/mini:border-brand-500 transition-colors"></div>
-						<span class="text-sm text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">{sub.title}</span>
+						<span class="text-xs text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">{sub.title}</span>
 						
 						{#if sub.reviewState === 'REQUESTED'}
 							<span class="ml-auto text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">Rev</span>
@@ -347,13 +346,13 @@
 
 		<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50">
 			<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400">
-				<ListTodo size={14} /> 
+				<ListTodo size={13} /> 
 				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0}
 			</div>
 			
 			{#if isStale}
 				<span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
-					<Clock size={11} /> STALE
+					<Clock size={10} /> STALE
 				</span>
 			{/if}
 		</div>

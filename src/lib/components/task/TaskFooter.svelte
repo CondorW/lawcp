@@ -5,8 +5,9 @@
 	import { Calendar, Flag, BrainCircuit, Trash2, Archive, ArchiveRestore } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils';
 
-	interface Props { task: Task; isOwner: boolean; ownerShortsign: string; isExpanded?: boolean; }
-	let { task, isOwner, ownerShortsign, isExpanded = false }: Props = $props();
+	// FIX: onOpenContext Callback hinzugefügt
+	interface Props { task: Task; isOwner: boolean; ownerShortsign: string; isExpanded?: boolean; onOpenContext?: () => void; }
+	let { task, isOwner, ownerShortsign, isExpanded = false, onOpenContext }: Props = $props();
 
 	function openNativePicker(e: MouseEvent) {
 		e.stopPropagation();
@@ -35,8 +36,9 @@
 
 <div class="flex flex-row items-center justify-between flex-grow min-w-0 pr-0.5 h-6">
 	<div class="flex flex-row items-center gap-1 h-full">
-		{#if task.matterRef}
-			<button type="button" onclick={(e) => { e.stopPropagation(); store.openMatterNotes(task.matterRef!); }} class="w-6 h-6 flex items-center justify-center rounded hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-600 text-slate-400 transition-colors outline-none focus:ring-0 shrink-0" title="Akten-Notizen öffnen">
+		<!-- FIX: Brain-Icon wird versteckt, wenn isExpanded === true (weil das Modal die Notizen dann ohnehin zeigt) -->
+		{#if task.matterRef && !isExpanded}
+			<button type="button" onclick={(e) => { e.stopPropagation(); if (onOpenContext) onOpenContext(); else store.openMatterNotes(task.matterRef!); }} class="w-6 h-6 flex items-center justify-center rounded hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-600 text-slate-400 transition-colors outline-none focus:ring-0 shrink-0" title="Akten-Notizen öffnen">
 				<BrainCircuit size={13} class="pointer-events-none" />
 			</button>
 		{/if}

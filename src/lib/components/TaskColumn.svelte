@@ -33,7 +33,7 @@
 	<div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
 		<div class="columns-[185px] gap-3 px-3 pt-1 pb-4 w-full">
 			{#each tasks as task (task.id)}
-				<div class="break-inside-avoid block w-full mb-3 has-[.is-expanded]:[column-span:all] has-[.is-expanded]:my-4">
+				<div class="break-inside-avoid block w-full mb-3">
 					<TaskCard {task} />
 				</div>
 			{/each}
@@ -41,7 +41,7 @@
 			<div 
 				role="region" 
 				aria-label="Drop-Zone Puffer" 
-				class="break-inside-avoid block w-full min-h-[4rem] border-2 border-transparent border-dashed rounded-xl transition-colors opacity-50 shrink-0 [column-span:all] mt-2" 
+				class="break-inside-avoid block w-full min-h-[4rem] border-2 border-transparent border-dashed rounded-xl transition-colors opacity-50 shrink-0 mt-2" 
 				ondragenter={(e) => e.currentTarget.classList.add('border-slate-300', 'dark:border-slate-700')} 
 				ondragleave={(e) => e.currentTarget.classList.remove('border-slate-300', 'dark:border-slate-700')} 
 				ondrop={(e) => e.currentTarget.classList.remove('border-slate-300', 'dark:border-slate-700')}

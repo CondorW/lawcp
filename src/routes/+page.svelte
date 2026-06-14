@@ -7,7 +7,7 @@
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
 	import ChatSidebar from '$lib/components/ChatSidebar.svelte';
 	import { cn } from '$lib/utils';
-	import type { Task, Subtask } from '$lib/types';
+	import type { Task } from '$lib/types';
 
 	let navInputTitle = $state('');
 	let navInputRef = $state('');
@@ -79,7 +79,8 @@
 	}
 
 	function effectiveStatus(t: Task) {
-		if (!isTeamLeader && t.status === 'REVIEW') {
+		// FIX: REVIEW existiert als Board-Spalte nicht mehr. Wird für alle wie In Arbeit (WAITING) behandelt.
+		if (t.status === 'REVIEW') {
 			return 'WAITING';
 		}
 		return t.status;
@@ -92,10 +93,9 @@
 	
 	let todos = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'TODO' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	let waiting = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
-	let review = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'REVIEW' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	let done = $derived($store.tasks.filter(t => !t.archived && effectiveStatus(t) === 'DONE' && matchesFilter(t) && showOnMainBoard(t)).sort(byDateAndPriority));
 	
-	let myActiveTasks = $derived($store.tasks.filter(t => !t.archived && ['TODO', 'WAITING', 'REVIEW'].includes(effectiveStatus(t)) && showOnMainBoard(t)).sort(byDateAndPriority));
+	let myActiveTasks = $derived($store.tasks.filter(t => !t.archived && ['TODO', 'WAITING'].includes(effectiveStatus(t)) && showOnMainBoard(t)).sort(byDateAndPriority));
 
 	const printAgenda = () => window.print();
 	const today = new Intl.DateTimeFormat('de-CH', { dateStyle: 'full' }).format(new Date());
@@ -183,10 +183,8 @@
 			</div>
 		{/if}
 
-		<div class={cn(
-			"flex-1 min-h-0 grid divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden",
-			isTeamLeader ? "grid-cols-6" : "grid-cols-4"
-		)}>
+		<!-- FIX: Ein sauberes, stures 4-Spalten-Layout (1:2:1 Ratio) für ALLE (Leader & Member). Keine Review Spalte mehr. -->
+		<div class="flex-1 min-h-0 grid grid-cols-4 divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
 			<div class="col-span-1 flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
 				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
 			</div>
@@ -194,12 +192,6 @@
 			<div class="col-span-2 flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
 				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" />
 			</div>
-			
-			{#if isTeamLeader}
-				<div class="col-span-2 flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
-					<TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
-				</div>
-			{/if}
 			
 			<div class="col-span-1 flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
 				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />

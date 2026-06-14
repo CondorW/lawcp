@@ -400,7 +400,7 @@
 	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-1 flex-nowrap w-full">
 		<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 shrink-0">
 			<ListTodo size={13} /> 
-			{activeDoneCount} / {activeTotalCount}
+			{activeDoneCount}/{activeTotalCount}
 		</div>
 
 		<div class="flex items-center gap-1 ml-auto flex-nowrap justify-end shrink-0">

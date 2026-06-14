@@ -7,7 +7,7 @@
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
-	import { cn } from '$lib/utils';
+	import { cn, formatDate } from '$lib/utils';
 	import { ChevronDown, ChevronUp, ListTodo, Archive, Plus, Flag, Calendar, Clock } from 'lucide-svelte';
 	import { onMount, tick } from 'svelte';
 
@@ -188,7 +188,7 @@
 
 	function toggleExpand(e: MouseEvent | KeyboardEvent) {
 		const target = e.target as HTMLElement;
-		if (target.closest('.expand-chevron')) {
+		if (target.closest('.expand-chevron') || target.closest('input[type="date"]')) {
 			isExpanded = !isExpanded;
 			if (isExpanded) focusSubtaskInput();
 			return;
@@ -210,6 +210,30 @@
 		}
 		isEditingRef = false;
 	}
+
+	function openNativePicker(e: MouseEvent) {
+		e.stopPropagation();
+		const btn = e.currentTarget as HTMLElement;
+		const input = btn.querySelector('input[type="date"]') as HTMLInputElement;
+		if (input) {
+			try { input.showPicker(); } 
+			catch (err) { input.focus(); input.click(); }
+		}
+	}
+
+	async function updateCourtDate(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const newDate = target.value ? new Date(target.value).toISOString() : null;
+		try { await pb.collection('tasks').update(task.id, { flaggedDate: newDate }); } 
+		catch (err) { console.error(err); }
+	}
+
+	async function updateInternalDate(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const newDate = target.value ? new Date(target.value).toISOString() : null;
+		try { await pb.collection('tasks').update(task.id, { dueDate: newDate }); } 
+		catch (err) { console.error(err); }
+	}
 </script>
 
 <div
@@ -217,7 +241,7 @@
 	role="listitem"
 	class={cn(
 		"group relative flex flex-col cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit",
-		isExpanded ? "p-3 gap-3 is-expanded border border-slate-300 dark:border-slate-600 z-50 shadow-xl" : "p-2.5 gap-1.5",
+		isExpanded ? "p-3 gap-3 is-expanded border border-slate-300 dark:border-slate-600 z-[60] shadow-2xl w-[340px] sm:w-[380px]" : "p-2.5 gap-1.5 w-full",
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
 		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
@@ -256,12 +280,6 @@
 				</button>
 			{/if}
 			
-			{#if task.flaggedDate && !isExpanded} 
-				<div class="flex items-center justify-center bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-700 w-5 h-5 rounded shadow-sm shrink-0" title="Gerichtstermin">
-					<Flag size={11} class="fill-rose-600 dark:fill-rose-400" /> 
-				</div>
-			{/if}
-
 			{#if !isExpanded && !isOwner}
 				<span class="px-1.5 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-[10px] font-bold uppercase shrink-0">
 					{ownerShortsign}
@@ -270,12 +288,6 @@
 		</div>
 		
 		<div class="flex items-center gap-1 shrink-0 text-slate-400">
-			{#if task.dueDate && !isExpanded} 
-				<div class="flex items-center justify-center w-6 h-6 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0" title="Fälligkeit">
-					<Calendar size={14} />
-				</div>
-			{/if}
-			
 			<div class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors shrink-0 expand-chevron">
 				{#if isExpanded} <ChevronUp size={16} /> {:else} <ChevronDown size={16} /> {/if}
 			</div>
@@ -349,22 +361,50 @@
 			</div>
 		{/if}
 
-		<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50">
-			<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+		<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-2">
+			<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 shrink-0">
 				<ListTodo size={13} /> 
 				{task.subtasks?.filter(s=>s.done).length || 0} / {task.subtasks?.length || 0}
 			</div>
-			
-			{#if isStale}
-				<span class="px-2 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-[10px] font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
-					<Clock size={10} /> STALE
-				</span>
-			{/if}
+
+			<div class="flex items-center gap-1.5 shrink-0 ml-auto flex-nowrap overflow-hidden">
+				{#if task.flaggedDate}
+					<button type="button" class="relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-rose-700 flex items-center gap-1.5 hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink min-w-0" onclick={openNativePicker} title="Gerichtstermin anpassen">
+						<Flag size={13} class="pointer-events-none shrink-0" />
+						<span class="text-xs font-bold tracking-wide pointer-events-none whitespace-nowrap">{formatDate(task.flaggedDate)}</span>
+						<input type="date" class="sr-only" tabindex="-1" value={task.flaggedDate.split('T')[0]} onchange={updateCourtDate} onclick={(e) => e.stopPropagation()} />
+					</button>
+				{:else}
+					<button type="button" class="relative w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-rose-500 transition-colors rounded outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Gerichtstermin setzen">
+						<Flag size={13} class="pointer-events-none shrink-0" />
+						<input type="date" class="sr-only" tabindex="-1" value="" onchange={updateCourtDate} onclick={(e) => e.stopPropagation()} />
+					</button>
+				{/if}
+
+				{#if task.dueDate}
+					<button type="button" class="relative h-6 px-1.5 flex items-center gap-1.5 rounded text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink min-w-0" onclick={openNativePicker} title="Fälligkeit anpassen">
+						<Calendar size={13} class="pointer-events-none shrink-0" />
+						<span class="text-xs tracking-wide pointer-events-none whitespace-nowrap">{formatDate(task.dueDate)}</span>
+						<input type="date" class="sr-only" tabindex="-1" value={task.dueDate.split('T')[0]} onchange={updateInternalDate} onclick={(e) => e.stopPropagation()} />
+					</button>
+				{:else}
+					<button type="button" class="relative w-6 h-6 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-600 transition-colors rounded outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Fälligkeit setzen">
+						<Calendar size={13} class="pointer-events-none shrink-0" />
+						<input type="date" class="sr-only" tabindex="-1" value="" onchange={updateInternalDate} onclick={(e) => e.stopPropagation()} />
+					</button>
+				{/if}
+
+				{#if isStale}
+					<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-xs font-bold tracking-widest flex items-center gap-1.5 shrink-0" title="Seit über 30 Tagen inaktiv">
+						<Clock size={13} /> STALE
+					</span>
+				{/if}
+			</div>
 		</div>
 	{/if}
 
 	{#if isExpanded}
-		<div class="space-y-2 my-1 border-t border-slate-100 dark:border-slate-700 pt-3">
+		<div class="space-y-2 my-1 border-t border-slate-100 dark:border-slate-700 pt-3 animate-in fade-in duration-150">
 			
 			{#if isOwner && isTeamLeader}
 				<div class="flex items-center gap-2 mb-3">
@@ -381,16 +421,16 @@
 			{/if}
 
 			{#if !isMicroReviewForTL}
-				<div class="flex items-center mb-3 pb-3 border-b border-slate-50 dark:border-slate-700/50 group/input">
-					<div class="w-6 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-brand-500 pl-0.5 flex items-center">
+				<div class="flex items-start mb-3 pb-3 border-b border-slate-50 dark:border-slate-700/50 group/input">
+					<div class="w-6 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-brand-500 pl-0.5 mt-[3px] flex items-center">
 						<Plus size={16} />
 					</div>
 					<textarea 
 						id={`new-subtask-${task.id}`} 
 						bind:value={newSubtaskTitle} 
 						placeholder="Neuer Task..." 
-						class="flex-grow bg-transparent border-0 focus:ring-0 px-2 py-1 w-full text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none resize-none leading-snug overflow-hidden" 
-						rows="1"
+						class="flex-grow bg-transparent border-0 focus:ring-0 px-2 py-1 w-full text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none resize-none leading-snug min-h-[44px]" 
+						rows="2"
 						oninput={(e) => {
 							e.currentTarget.style.height = 'auto';
 							e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';

@@ -6,6 +6,7 @@
 	import TaskColumn from '$lib/components/TaskColumn.svelte';
 	import PrintAgenda from '$lib/components/PrintAgenda.svelte';
 	import ChatSidebar from '$lib/components/ChatSidebar.svelte';
+	import { cn } from '$lib/utils';
 	import type { Task, Subtask } from '$lib/types';
 
 	let navInputTitle = $state('');
@@ -182,13 +183,27 @@
 			</div>
 		{/if}
 
-		<div class={`flex-1 min-h-0 grid ${isTeamLeader ? 'grid-cols-[repeat(4,minmax(280px,1fr))]' : 'grid-cols-[repeat(3,minmax(280px,1fr))]'} divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden`}>
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" /></div>
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900"><TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" /></div>
+		<div class={cn(
+			"flex-1 min-h-0 grid divide-x divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden",
+			isTeamLeader ? "grid-cols-6" : "grid-cols-4"
+		)}>
+			<div class="col-span-1 flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
+				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
+			</div>
+			
+			<div class="col-span-2 flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
+				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" />
+			</div>
+			
 			{#if isTeamLeader}
-				<div class="flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"><TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" /></div>
+				<div class="col-span-2 flex flex-col h-full min-h-0 overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
+					<TaskColumn id="REVIEW" title="Review" tasks={review} color="bg-purple-600" />
+				</div>
 			{/if}
-			<div class="flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900"><TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" /></div>
+			
+			<div class="col-span-1 flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-slate-900">
+				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
+			</div>
 		</div>
 	</main>
 

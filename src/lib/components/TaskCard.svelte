@@ -54,7 +54,7 @@
 	function focusSubtaskInput() {
 		let attempts = 0;
 		const tryFocus = () => {
-			const input = document.getElementById(isExpanded ? `new-subtask-${task.id}` : `quick-add-${task.id}`) as HTMLInputElement;
+			const input = document.getElementById(isExpanded ? `new-subtask-${task.id}` : `quick-add-${task.id}`) as HTMLTextAreaElement;
 			if (input) {
 				input.focus({ preventScroll: true });
 			} else if (attempts < 20) { 
@@ -221,7 +221,7 @@
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
 		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
-		dragging && "opacity-50"
+		dragging && "opacity-50",
 	)}
 	style:break-inside={isExpanded ? 'avoid' : 'auto'}
 	draggable="true"
@@ -289,7 +289,7 @@
 		onclick={!isExpanded ? toggleExpand : undefined}
 		onkeydown={undefined}
 	>
-		<div class={cn("w-full", !isExpanded ? "text-base font-medium line-clamp-3" : "text-lg font-medium whitespace-normal break-words")}>
+		<div class={cn("w-full", !isExpanded ? "text-sm font-medium whitespace-normal break-words" : "text-base font-medium whitespace-normal break-words")}>
 			<TaskTitle {task} />
 		</div>
 	</div>
@@ -297,29 +297,34 @@
 	{#if !isExpanded}
 		{#if !isMicroReviewForTL}
 			<div 
-				class="mt-1 flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text h-6"
+				class="mt-1 flex items-start gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 py-1 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text min-h-[28px]"
 				onclick={(e) => { e.stopPropagation(); document.getElementById(`quick-add-${task.id}`)?.focus(); }}
 				onkeydown={(e) => e.stopPropagation()}
 				role="button"
 				tabindex="-1"
 			>
-				<Plus size={11} class="text-slate-400 shrink-0" />
-				<input 
+				<Plus size={11} class="text-slate-400 shrink-0 mt-0.5" />
+				<textarea 
 					id={`quick-add-${task.id}`}
-					type="text" 
 					bind:value={newSubtaskTitle} 
 					placeholder="Task hinzufügen..." 
-					class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 m-0 h-full text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none leading-none" 
+					class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 m-0 w-full text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none resize-none leading-snug overflow-hidden" 
+					rows="1"
+					oninput={(e) => {
+						e.currentTarget.style.height = 'auto';
+						e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
+					}}
 					onkeydown={(e) => {
-						if (e.key === 'Enter') {
+						if (e.key === 'Enter' && !e.shiftKey) {
 							e.preventDefault();
 							e.stopPropagation();
 							handleAddSubtask();
+							e.currentTarget.style.height = 'auto';
 						}
 					}} 
 					onfocus={() => activeFocusId = task.id}
 					onblur={() => { if(activeFocusId === task.id) activeFocusId = null; }}
-				/>
+				></textarea>
 			</div>
 		{/if}
 
@@ -332,7 +337,7 @@
 						title={sub.title}
 					>
 						<div class="w-4 h-4 rounded-sm border border-slate-300 dark:border-slate-500 mt-0.5 shrink-0 flex items-center justify-center group-hover/mini:border-brand-500 transition-colors"></div>
-						<span class="text-xs text-slate-700 dark:text-slate-300 leading-snug line-clamp-2">{sub.title}</span>
+						<span class="text-xs text-slate-700 dark:text-slate-300 leading-snug whitespace-normal break-words">{sub.title}</span>
 						
 						{#if sub.reviewState === 'REQUESTED'}
 							<span class="ml-auto text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">Rev</span>
@@ -380,22 +385,27 @@
 					<div class="w-6 shrink-0 text-slate-300 dark:text-slate-600 group-focus-within/input:text-brand-500 pl-0.5 flex items-center">
 						<Plus size={16} />
 					</div>
-					<input 
+					<textarea 
 						id={`new-subtask-${task.id}`} 
-						type="text" 
 						bind:value={newSubtaskTitle} 
 						placeholder="Neuer Task..." 
-						class="flex-grow bg-transparent border-0 focus:ring-0 px-2 py-1 text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none" 
+						class="flex-grow bg-transparent border-0 focus:ring-0 px-2 py-1 w-full text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none resize-none leading-snug overflow-hidden" 
+						rows="1"
+						oninput={(e) => {
+							e.currentTarget.style.height = 'auto';
+							e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
+						}}
 						onkeydown={(e) => {
-							if (e.key === 'Enter') {
+							if (e.key === 'Enter' && !e.shiftKey) {
 								e.preventDefault();
 								e.stopPropagation();
 								handleAddSubtask();
+								e.currentTarget.style.height = 'auto';
 							}
 						}}
 						onfocus={() => activeFocusId = task.id}
 						onblur={() => { if(activeFocusId === task.id) activeFocusId = null; }} 
-					/>
+					></textarea>
 				</div>
 			{/if}
 

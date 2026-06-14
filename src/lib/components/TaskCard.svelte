@@ -216,12 +216,12 @@
 	id={`case-card-${task.id}`}
 	role="listitem"
 	class={cn(
-		"group relative flex flex-col transition-all cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit",
+		"group relative flex flex-col cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit",
 		isExpanded ? "p-3 gap-3 is-expanded border border-slate-300 dark:border-slate-600 z-50 shadow-xl" : "p-2.5 gap-1.5",
 		!isExpanded && !isStale && "border border-slate-200 dark:border-slate-700",
 		isStale && !isExpanded && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
 		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
-		dragging && "opacity-50",
+		dragging && "opacity-50"
 	)}
 	style:break-inside={isExpanded ? 'avoid' : 'auto'}
 	draggable="true"
@@ -289,7 +289,7 @@
 		onclick={!isExpanded ? toggleExpand : undefined}
 		onkeydown={undefined}
 	>
-		<div class={cn("w-full transition-all", !isExpanded ? "text-base font-medium line-clamp-3" : "text-lg font-medium whitespace-normal break-words")}>
+		<div class={cn("w-full", !isExpanded ? "text-base font-medium line-clamp-3" : "text-lg font-medium whitespace-normal break-words")}>
 			<TaskTitle {task} />
 		</div>
 	</div>
@@ -359,7 +359,7 @@
 	{/if}
 
 	{#if isExpanded}
-		<div class="space-y-2 my-1 border-t border-slate-100 dark:border-slate-700 pt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+		<div class="space-y-2 my-1 border-t border-slate-100 dark:border-slate-700 pt-3">
 			
 			{#if isOwner && isTeamLeader}
 				<div class="flex items-center gap-2 mb-3">

@@ -2,8 +2,6 @@
 	import { store } from '$lib/stores/tasks';
 	import type { Task } from '$lib/types';
 	import TaskCard from './TaskCard.svelte';
-	import { flip } from 'svelte/animate';
-	import { fade, fly } from 'svelte/transition';
 
 	let { title, id, tasks, color = 'bg-slate-400' }: { title: string, id: Task['status'], tasks: Task[], color?: string } = $props();
 
@@ -35,16 +33,11 @@
 	<div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
 		<div class="columns-[185px] gap-3 px-3 pt-1 pb-4 w-full">
 			{#each tasks as task (task.id)}
-				<div 
-					animate:flip={{ duration: 250 }} 
-					in:fly={{ y: 20, duration: 300 }} 
-					out:fade={{ duration: 150 }} 
-					class="break-inside-avoid block w-full mb-3 has-[.is-expanded]:[column-span:all] has-[.is-expanded]:my-4"
-				>
+				<div class="break-inside-avoid block w-full mb-3 has-[.is-expanded]:[column-span:all] has-[.is-expanded]:my-4">
 					<TaskCard {task} />
 				</div>
 			{/each}
-			
+
 			<div 
 				role="region" 
 				aria-label="Drop-Zone Puffer" 

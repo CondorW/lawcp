@@ -396,18 +396,17 @@
 		</div>
 	{/if}
 
-	<!-- FIX 3: Minimized Footer: 'truncate' & 'overflow-hidden' restlos entfernt. 'tracking-tight' integriert. -->
-	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-1 flex-nowrap w-full">
+	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-2 flex-nowrap w-full overflow-hidden">
 		<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 shrink-0">
 			<ListTodo size={13} /> 
-			{activeDoneCount}/{activeTotalCount}
+			{activeDoneCount} / {activeTotalCount}
 		</div>
 
-		<div class="flex items-center gap-1 ml-auto flex-nowrap justify-end shrink-0">
+		<div class="flex items-center gap-1.5 ml-auto flex-nowrap justify-end shrink-0">
 			{#if task.flaggedDate}
-				<button type="button" class="relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-slate-700 flex items-center gap-1 hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Gerichtstermin anpassen">
+				<button type="button" class="relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-slate-700 flex items-center gap-1.5 hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink min-w-0" onclick={openNativePicker} title="Gerichtstermin anpassen">
 					<Flag size={13} class="pointer-events-none shrink-0" />
-					<span class="text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap shrink-0">{formatDate(task.flaggedDate)}</span>
+					<span class="text-xs font-bold tracking-wide pointer-events-none whitespace-nowrap">{formatDate(task.flaggedDate)}</span>
 					<input type="date" class="sr-only" tabindex="-1" value={task.flaggedDate.split('T')[0]} onchange={updateCourtDate} onclick={(e) => e.stopPropagation()} />
 				</button>
 			{:else}
@@ -418,9 +417,9 @@
 			{/if}
 
 			{#if task.dueDate}
-				<button type="button" class="relative h-6 px-1.5 flex items-center gap-1 rounded text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Fälligkeit anpassen">
+				<button type="button" class="relative h-6 px-1.5 flex items-center gap-1.5 rounded text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink min-w-0" onclick={openNativePicker} title="Fälligkeit anpassen">
 					<Calendar size={13} class="pointer-events-none shrink-0" />
-					<span class="text-xs tracking-tight pointer-events-none whitespace-nowrap shrink-0">{formatDate(task.dueDate)}</span>
+					<span class="text-xs tracking-wide pointer-events-none whitespace-nowrap">{formatDate(task.dueDate)}</span>
 					<input type="date" class="sr-only" tabindex="-1" value={task.dueDate.split('T')[0]} onchange={updateInternalDate} onclick={(e) => e.stopPropagation()} />
 				</button>
 			{:else}
@@ -428,12 +427,6 @@
 					<Calendar size={13} class="pointer-events-none shrink-0" />
 					<input type="date" class="sr-only" tabindex="-1" value="" onchange={updateInternalDate} onclick={(e) => e.stopPropagation()} />
 				</button>
-			{/if}
-
-			{#if isStale}
-				<span class="px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 text-xs font-bold tracking-widest flex items-center gap-1 shrink-0" title="Seit über 30 Tagen inaktiv">
-					<Clock size={13} class="shrink-0" /> <span class="whitespace-nowrap">STALE</span>
-				</span>
 			{/if}
 		</div>
 	</div>
@@ -443,7 +436,6 @@
 <!-- FULL SCREEN COMBINED MODAL (Task + Context) -->
 <!-- ============================================== -->
 {#if isExpanded}
-	<!-- FIX 1: z-[150] Overlay Navbar -->
 	<div 
 		class="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm overflow-y-auto" 
 		role="presentation"
@@ -457,7 +449,7 @@
 		>
 			<div 
 				class={cn("bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800", task.matterRef ? "max-w-6xl" : "max-w-3xl")}
-				style="max-height: 90vh;" 
+				style="height: 85vh;" 
 				role="dialog"
 				aria-modal="true"
 				tabindex="-1"
@@ -470,7 +462,6 @@
 					}
 				}}
 			>
-				<!-- Global Modal Header -->
 				<div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
 					<div class="flex items-center gap-3">
 						<span class="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 uppercase tracking-wider">{task.matterRef || 'NO-REF'}</span>
@@ -483,10 +474,8 @@
 					</button>
 				</div>
 
-				<!-- Split Body Layout -->
 				<div class="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
 					
-					<!-- LEFT COLUMN: Task Details -->
 					<div class="flex-1 p-5 sm:p-6 md:overflow-y-auto custom-scrollbar flex flex-col gap-5 shrink-0 md:shrink">
 						<div class="text-lg sm:text-xl font-bold whitespace-normal break-words text-slate-900 dark:text-slate-100">
 							<TaskTitle {task} />
@@ -496,10 +485,10 @@
 							<div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-1 shrink-0">
 								<span class="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
 								<div class="flex flex-wrap gap-1.5">
-									<button onclick={() => assignTo('')} class={cn("px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
+									<button onclick={() => assignTo('')} class={cn("px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-slate-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
 									{#each myTeamMembers as user}
 										{#if user.id !== myId && user.shortsign}
-											<button onclick={() => assignTo(user.id)} class={cn("px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-brand-50 text-brand-800 border-brand-300 dark:bg-brand-900/30 dark:text-brand-400 dark:border-brand-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
+											<button onclick={() => assignTo(user.id)} class={cn("px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm uppercase", currentAssignee === user.id ? "bg-brand-50 text-brand-800 border-brand-300 dark:bg-brand-900/30 dark:text-brand-400 dark:border-slate-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>{user.shortsign}</button>
 										{/if}
 									{/each}
 								</div>
@@ -533,7 +522,6 @@
 							</div>
 						{/if}
 
-						<!-- FIX 2: Subtasks in einem 2-Spalten Layout innerhalb des Modals mit erzwungenem Zeilenumbruch -->
 						<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start shrink-0 [&_span]:whitespace-normal [&_span]:break-words">
 							{#each displaySubtasks as sub (sub.id)}
 								<SubtaskItem taskId={task.id} {sub} />
@@ -554,7 +542,6 @@
 								</button>
 
 								{#if showArchived}
-									<!-- FIX 2: Auch archivierte Subtasks im 2-Spalten Layout -->
 									<div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start opacity-75 grayscale-[50%] border-l-2 border-slate-200 dark:border-slate-700 pl-4 ml-2 [&_span]:whitespace-normal [&_span]:break-words">
 										{#each archivedSubtasks as sub (sub.id)}
 											<SubtaskItem taskId={task.id} {sub} />
@@ -569,7 +556,6 @@
 						</div>
 					</div>
 
-					<!-- RIGHT COLUMN: Matter Context / Notes -->
 					{#if task.matterRef}
 						<div class="w-full md:w-[380px] lg:w-[450px] min-h-[300px] md:min-h-0 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col shrink-0">
 							<div class="flex items-center gap-2 px-5 py-3 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">

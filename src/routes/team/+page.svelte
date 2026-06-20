@@ -40,10 +40,11 @@
 	let userMetrics = $derived(
 		teamMembers.map((user) => {
 			const tasks = $store.tasks.filter(
-				(t) => t.owner === user.id || t.assignees?.includes(user.id)
+				(t) => !t.archived && (t.owner === user.id || t.assignees?.includes(user.id))
 			);
 
-			const getEffectiveStatus = (t: Task) => hasSubtaskInReview(t.subtasks) && t.status !== 'DONE' ? 'REVIEW' : t.status;
+			const getEffectiveStatus = (t: Task) =>
+				hasSubtaskInReview(t.subtasks) && t.status !== 'DONE' ? 'REVIEW' : t.status;
 
 			const todo = tasks.filter((t) => getEffectiveStatus(t) === 'TODO').length;
 			const inArbeit = tasks.filter((t) => getEffectiveStatus(t) === 'WAITING').length;
@@ -72,12 +73,21 @@
 					const dateB = b.flaggedDate || b.dueDate;
 					if (!dateA) return 1;
 					if (!dateB) return -1;
-
 					return new Date(dateA).getTime() - new Date(dateB).getTime();
 				})
 				.slice(0, 5);
 
-			return { user, total: tasks.length, active: activeTasks.length, todo, inArbeit, review, done, overdueCount: overdueTasks.length, urgentTasks };
+			return {
+				user,
+				total: tasks.length,
+				active: activeTasks.length,
+				todo,
+				inArbeit,
+				review,
+				done,
+				overdueCount: overdueTasks.length,
+				urgentTasks
+			};
 		})
 	);
 
@@ -86,6 +96,7 @@
 		totalReview: userMetrics.reduce((acc, curr) => acc + curr.review, 0),
 		totalOverdue: userMetrics.reduce((acc, curr) => acc + curr.overdueCount, 0)
 	});
+
 </script>
 
 {#snippet subtaskTree(subtasks: Subtask[])}
@@ -148,7 +159,6 @@
 								</div>
 							{/if}
 						</div>
-
 						<div class="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-800 border-b border-slate-100 dark:border-slate-800 shrink-0">
 							<div class="p-3 text-center">
 								<div class="text-xl font-bold text-slate-700 dark:text-slate-200">{data.todo}</div>
@@ -163,7 +173,6 @@
 								<div class="text-[10px] font-bold text-purple-500/70 uppercase tracking-wider mt-1">Review</div>
 							</div>
 						</div>
-
 						<div class="p-5 bg-slate-50/30 dark:bg-slate-900/20">
 							<h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><Clock size={14} /> Dringendste Aufgaben</h4>
 							{#if data.urgentTasks.length > 0}
@@ -183,7 +192,7 @@
 													{isMicro ? 'TEIL-REVIEW' : (effStatus === 'WAITING' ? 'IN ARBEIT' : effStatus)}
 												</span>
 												{#if task.flaggedDate}
-													<div class="flex items-center gap-1.5 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded"><Flag size={12} class="fill-red-600 dark:fill-red-400" /> GERICHTSFRIST: {new Date(task.flaggedDate).toLocaleDateString('de-DE')}</div>
+													<div class="flex items-center gap-1.5 text-[11px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded"><Flag size={12} class="fill-red-600 dark:fill-red-400" /> FRIST: {new Date(task.flaggedDate).toLocaleDateString('de-DE')}</div>
 												{:else if task.dueDate}
 													<div class="text-[11px] font-medium text-slate-500">Target: {new Date(task.dueDate).toLocaleDateString('de-DE')}</div>
 												{/if}
@@ -228,7 +237,7 @@
 						<div class="text-sm font-medium text-slate-700 dark:text-slate-200 flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold">{selectedTask.expand?.owner?.shortsign || '?'}</div><span>{(selectedTask.expand?.owner as any)?.name || 'Unbekannt'}</span></div>
 					</div>
 					<div>
-						<div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{selectedTask.flaggedDate ? 'Gerichtsfrist' : 'Target'}</div>
+						<div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{selectedTask.flaggedDate ? 'Frist' : 'Target'}</div>
 						{#if selectedTask.flaggedDate}<div class="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5"><Flag size={14} class="fill-red-600 dark:fill-red-400" />{new Date(selectedTask.flaggedDate).toLocaleDateString('de-DE')}</div>{:else if selectedTask.dueDate}<div class="text-sm font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5"><Calendar size={14} class="text-slate-400" />{new Date(selectedTask.dueDate).toLocaleDateString('de-DE')}</div>{:else}<div class="text-sm text-slate-400 italic">Keine Frist</div>{/if}
 					</div>
 				</div>

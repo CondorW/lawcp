@@ -8,7 +8,7 @@
 	import { pb } from '$lib/pocketbase';
 	import type { Task, SubtaskType, Subtask } from '$lib/types';
 	import { cn, formatDate } from '$lib/utils';
-	import { ChevronDown, ChevronUp, ListTodo, Archive, Plus, Flag, Calendar, Clock, X, BrainCircuit, Loader2 } from 'lucide-svelte';
+	import { ChevronDown, ChevronUp, ListTodo, Archive, Plus, Flag, Calendar, Clock, X, BrainCircuit, Loader2, Zap } from 'lucide-svelte';
 	import { onMount, tick } from 'svelte';
 
 	import TaskTitle from './task/TaskTitle.svelte';
@@ -272,14 +272,17 @@
 
 <svelte:window onkeydown={(e) => { if (isExpanded && e.key === 'Escape') { e.preventDefault(); closeExpanded(); } }} />
 
-<!-- MAIN BOARD CARD (Minimiertes Grid Layout) -->
 <div
 	id={`case-card-${task.id}`}
 	class={cn(
-		"group relative flex flex-col cursor-move bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md h-fit p-2.5 gap-1.5 w-full",
-		!isStale && "border border-slate-200 dark:border-slate-700",
-		isStale && "ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent",
-		task.status === 'DONE' && "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border-slate-200",
+		"group relative flex flex-col cursor-move rounded-xl h-fit p-2.5 gap-1.5 w-full transition-shadow duration-200",
+		task.status === 'DONE' 
+			? "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border border-slate-200 dark:border-slate-700 shadow-none" 
+			: task.priority === 'HIGH' 
+				? "bg-white dark:bg-slate-800 ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)] border-transparent"
+				: isStale 
+					? "bg-white dark:bg-slate-800 ring-2 ring-brand-600 dark:ring-brand-500 shadow-brand-500/10 border-transparent"
+					: "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md",
 		dragging && "opacity-50",
 	)}
 	style:break-inside="avoid"
@@ -320,6 +323,10 @@
 				<span class="px-1.5 py-0.5 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-[10px] font-bold uppercase shrink-0">
 					{ownerShortsign}
 				</span>
+			{/if}
+
+			{#if task.priority === 'HIGH' && task.status !== 'DONE'}
+				<Zap size={12} class="text-red-500 fill-red-500 shrink-0 drop-shadow-[0_0_3px_rgba(239,68,68,0.5)]" />
 			{/if}
 		</div>
 		
@@ -396,17 +403,17 @@
 		</div>
 	{/if}
 
-	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-2 flex-nowrap w-full overflow-hidden">
+	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-1 flex-nowrap w-full">
 		<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 shrink-0">
 			<ListTodo size={13} /> 
-			{activeDoneCount} / {activeTotalCount}
+			{activeDoneCount}/{activeTotalCount}
 		</div>
 
-		<div class="flex items-center gap-1.5 ml-auto flex-nowrap justify-end shrink-0">
+		<div class="flex items-center gap-1 ml-auto flex-nowrap justify-end shrink-0">
 			{#if task.flaggedDate}
-				<button type="button" class="relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-slate-700 flex items-center gap-1.5 hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink min-w-0" onclick={openNativePicker} title="Gerichtstermin anpassen">
+				<button type="button" class="relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-slate-700 flex items-center gap-1 hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Gerichtstermin anpassen">
 					<Flag size={13} class="pointer-events-none shrink-0" />
-					<span class="text-xs font-bold tracking-wide pointer-events-none whitespace-nowrap">{formatDate(task.flaggedDate)}</span>
+					<span class="text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap shrink-0">{formatDate(task.flaggedDate)}</span>
 					<input type="date" class="sr-only" tabindex="-1" value={task.flaggedDate.split('T')[0]} onchange={updateCourtDate} onclick={(e) => e.stopPropagation()} />
 				</button>
 			{:else}
@@ -417,9 +424,9 @@
 			{/if}
 
 			{#if task.dueDate}
-				<button type="button" class="relative h-6 px-1.5 flex items-center gap-1.5 rounded text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink min-w-0" onclick={openNativePicker} title="Fälligkeit anpassen">
+				<button type="button" class="relative h-6 px-1.5 flex items-center gap-1 rounded text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Fälligkeit anpassen">
 					<Calendar size={13} class="pointer-events-none shrink-0" />
-					<span class="text-xs tracking-wide pointer-events-none whitespace-nowrap">{formatDate(task.dueDate)}</span>
+					<span class="text-xs tracking-tight pointer-events-none whitespace-nowrap shrink-0">{formatDate(task.dueDate)}</span>
 					<input type="date" class="sr-only" tabindex="-1" value={task.dueDate.split('T')[0]} onchange={updateInternalDate} onclick={(e) => e.stopPropagation()} />
 				</button>
 			{:else}
@@ -432,9 +439,6 @@
 	</div>
 </div>
 
-<!-- ============================================== -->
-<!-- FULL SCREEN COMBINED MODAL (Task + Context) -->
-<!-- ============================================== -->
 {#if isExpanded}
 	<div 
 		class="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm overflow-y-auto" 
@@ -448,7 +452,10 @@
 			onclick={(e) => { if(e.target === e.currentTarget) closeExpanded(); }}
 		>
 			<div 
-				class={cn("bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800", task.matterRef ? "max-w-6xl" : "max-w-3xl")}
+				class={cn("bg-white dark:bg-slate-900 rounded-2xl w-full flex flex-col overflow-hidden transition-all duration-300", 
+					task.matterRef ? "max-w-6xl" : "max-w-3xl",
+					task.priority === 'HIGH' && task.status !== 'DONE' ? "ring-2 ring-red-500 shadow-[0_0_30px_rgba(239,68,68,0.3)] border-transparent" : "border border-slate-200 dark:border-slate-800 shadow-2xl"
+				)}
 				style="height: 85vh;" 
 				role="dialog"
 				aria-modal="true"
@@ -467,6 +474,12 @@
 						<span class="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 uppercase tracking-wider">{task.matterRef || 'NO-REF'}</span>
 						{#if !isOwner}
 							<span class="px-2 py-1 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-xs font-bold uppercase">{ownerShortsign}</span>
+						{/if}
+
+						{#if task.priority === 'HIGH'}
+							<span class="px-2 py-1 bg-red-500 text-white rounded text-[10px] font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(239,68,68,0.4)] flex items-center gap-1.5">
+								<Zap size={12} class="fill-white" /> Prio
+							</span>
 						{/if}
 					</div>
 					<button onclick={closeExpanded} class="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors outline-none focus:ring-2 focus:ring-brand-500">

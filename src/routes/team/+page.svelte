@@ -2,10 +2,11 @@
 	import { store } from '$lib/stores/tasks';
 	import { pb } from '$lib/pocketbase';
 	import { goto } from '$app/navigation';
-	import { ArrowLeft, Activity, AlertCircle, CheckCircle2, Clock, ShieldAlert, Flag, X, ListTodo, CheckSquare, Square, Calendar } from 'lucide-svelte';
+	import { ArrowLeft, Activity, AlertCircle, CheckCircle2, Clock, ShieldAlert, Flag, X, ListTodo, CheckSquare, Square, Calendar, Zap } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 	import type { Task, Subtask } from '$lib/types';
+	import { cn } from '$lib/utils';
 
 	let isTeamLeader = $derived(!pb.authStore.model?.teamLeader);
 	let myId = $derived(pb.authStore.model?.id || '');
@@ -33,6 +34,27 @@
 			}
 			return acc;
 		}, [] as Subtask[]);
+	}
+
+	// === NEU: Prio-Toggle ===
+	async function togglePriority(e: Event, task: Task) {
+		e.stopPropagation();
+		const newPrio = task.priority === 'HIGH' ? 'MEDIUM' : 'HIGH';
+		
+		// Optimistic Update für schnelles UI Feedback
+		if (selectedTask && selectedTask.id === task.id) {
+			selectedTask.priority = newPrio;
+		}
+
+		try {
+			await pb.collection('tasks').update(task.id, { priority: newPrio });
+		} catch (err) {
+			console.error(err);
+			// Rollback bei Fehler
+			if (selectedTask && selectedTask.id === task.id) {
+				selectedTask.priority = newPrio === 'HIGH' ? 'MEDIUM' : 'HIGH';
+			}
+		}
 	}
 
 	let teamMembers = $derived($store.firmUsers.filter((u) => u.teamLeader === myId));
@@ -64,6 +86,10 @@
 			const urgentTasks = activeTasks
 				.slice()
 				.sort((a, b) => {
+					// Prio HIGH überschreibt normale Sortierung
+					if (a.priority === 'HIGH' && b.priority !== 'HIGH') return -1;
+					if (a.priority !== 'HIGH' && b.priority === 'HIGH') return 1;
+
 					const aIsCourt = a.flaggedDate !== null;
 					const bIsCourt = b.flaggedDate !== null;
 					if (aIsCourt && !bIsCourt) return -1;
@@ -180,9 +206,15 @@
 									{#each data.urgentTasks as task}
 										{@const effStatus = hasSubtaskInReview(task.subtasks) && task.status !== 'DONE' ? 'REVIEW' : task.status}
 										{@const isMicro = effStatus === 'REVIEW' && task.status !== 'REVIEW'}
-										<button onclick={() => selectedTask = task} class="w-full text-left group flex flex-col gap-2 p-3.5 rounded-lg border bg-white dark:bg-slate-800 shadow-sm transition-all hover:border-brand-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand-500">
+										
+										<button onclick={() => selectedTask = task} class={cn("w-full text-left group flex flex-col gap-2 p-3.5 rounded-lg border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500", task.priority === 'HIGH' ? "bg-red-50/50 dark:bg-red-900/20 border-red-300 dark:border-red-800 shadow-[0_0_10px_rgba(239,68,68,0.15)] hover:border-red-400" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:shadow-md")}>
 											<div class="flex justify-between items-start gap-3 w-full">
-												<span class="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug group-hover:text-brand-700 dark:group-hover:text-brand-400 transition-colors">{task.title}</span>
+												<span class="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-2 leading-snug group-hover:text-brand-700 dark:group-hover:text-brand-400 transition-colors flex items-start gap-1.5">
+													{#if task.priority === 'HIGH'}
+														<Zap size={14} class="text-red-500 fill-red-500 shrink-0 mt-0.5" />
+													{/if}
+													{task.title}
+												</span>
 												{#if task.matterRef}
 													<span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-500 whitespace-nowrap uppercase shrink-0">{task.matterRef}</span>
 												{/if}
@@ -217,14 +249,20 @@
 	{@const displaySubs = isMicro ? filterReviewSubtasks(selectedTask.subtasks || []) : (selectedTask.subtasks || [])}
 	<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" transition:fade={{ duration: 150 }}>
 		<div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick={() => selectedTask = null} onkeydown={(e) => e.key === 'Escape' && (selectedTask = null)} role="button" tabindex="-1"></div>
-		<div class="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]" transition:scale={{ duration: 200, start: 0.95 }}>
+		
+		<div class={cn("relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl flex flex-col max-h-[90vh] transition-all", selectedTask.priority === 'HIGH' && selectedTask.status !== 'DONE' ? "ring-2 ring-red-500 shadow-[0_0_25px_rgba(239,68,68,0.4)] border-transparent" : "border border-slate-200 dark:border-slate-800 shadow-2xl")} transition:scale={{ duration: 200, start: 0.95 }}>
 			<div class="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 rounded-t-2xl flex justify-between items-start gap-4">
 				<div class="flex-1">
-					<div class="flex items-center gap-3 mb-3">
+					<div class="flex items-center gap-3 mb-3 flex-wrap">
 						<span class={`text-[10px] font-bold px-2 py-1 rounded tracking-widest uppercase ${effStatus === 'WAITING' ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400' : effStatus === 'REVIEW' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
 							{isMicro ? 'TEIL-REVIEW' : (effStatus === 'WAITING' ? 'IN ARBEIT' : effStatus)}
 						</span>
 						{#if selectedTask.matterRef}<span class="text-[10px] font-bold px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-500 uppercase tracking-wider">Ref: {selectedTask.matterRef}</span>{/if}
+						
+						<button onclick={(e) => togglePriority(e, selectedTask!)} class={cn("flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors outline-none focus:ring-2 focus:ring-red-500", selectedTask.priority === 'HIGH' ? "bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]" : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700")}>
+							<Zap size={12} class={selectedTask.priority === 'HIGH' ? "fill-white" : ""} /> {selectedTask.priority === 'HIGH' ? 'Prio: Hoch' : 'Prio Setzen'}
+						</button>
+
 					</div>
 					<h2 class="text-xl font-bold text-slate-900 dark:text-white leading-snug">{selectedTask.title}</h2>
 				</div>

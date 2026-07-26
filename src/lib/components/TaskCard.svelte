@@ -275,7 +275,7 @@
 <div
 	id={`case-card-${task.id}`}
 	class={cn(
-		"group relative flex flex-col cursor-move rounded-xl h-fit p-2.5 gap-1.5 w-full transition-shadow duration-200",
+		"group relative flex flex-col cursor-move rounded-xl h-fit p-2.5 gap-1.5 w-full transition-shadow duration-200 overflow-hidden",
 		task.status === 'DONE' 
 			? "bg-slate-50 dark:bg-slate-800/50 opacity-60 grayscale ring-0 border border-slate-200 dark:border-slate-700 shadow-none" 
 			: task.priority === 'HIGH' 
@@ -292,7 +292,7 @@
 	ondragend={() => dragging = false}
 >
 	<div 
-		class="flex justify-between items-center gap-1 outline-none w-full" 
+		class="flex justify-between items-center gap-1 outline-none w-full min-w-0" 
 		role="button" 
 		tabindex="0" 
 		onclick={openExpanded}
@@ -337,21 +337,22 @@
 		</div>
 	</div>
 
+	<!-- FIX: w-full, min-w-0, overflow-hidden und [overflow-wrap:anywhere] verhindern horizontales Ausbrechen -->
 	<div 
-		class="flex-grow min-w-0 flex flex-col pointer-events-none"
+		class="flex-grow min-w-0 flex flex-col pointer-events-none w-full overflow-hidden"
 		role="button" 
 		tabindex="0" 
 		onclick={openExpanded}
 		onkeydown={undefined}
 	>
-		<div class="w-full text-sm font-medium whitespace-normal break-words line-clamp-3">
+		<div class="w-full text-sm font-medium whitespace-normal break-words [overflow-wrap:anywhere] line-clamp-3 min-w-0">
 			<TaskTitle {task} />
 		</div>
 	</div>
 
 	{#if !isMicroReviewForTL}
 		<div 
-			class="mt-1 flex items-start gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 py-1 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text min-h-[28px]"
+			class="mt-1 flex items-start gap-1.5 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-700/50 px-1.5 py-1 hover:border-brand-300 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors cursor-text min-h-[28px] w-full min-w-0"
 			role="button"
 			tabindex="0"
 			onclick={(e) => { e.stopPropagation(); document.getElementById(`quick-add-${task.id}`)?.focus(); }}
@@ -362,7 +363,7 @@
 				id={`quick-add-${task.id}`}
 				bind:value={newSubtaskTitle} 
 				placeholder="Task hinzufügen..." 
-				class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 m-0 w-full text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none resize-none leading-snug overflow-hidden" 
+				class="flex-1 bg-transparent border-none focus:ring-0 text-[11px] p-0 m-0 w-full min-w-0 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 outline-none resize-none leading-snug overflow-hidden" 
 				rows="1"
 				oninput={(e) => {
 					e.currentTarget.style.height = 'auto';
@@ -383,15 +384,16 @@
 	{/if}
 
 	{#if pendingSubtasksList.length > 0}
-		<div class="mt-1.5 flex flex-col gap-1 mb-1">
+		<div class="mt-1.5 flex flex-col gap-1 mb-1 w-full min-w-0">
 			{#each pendingSubtasksList as sub (sub.id)}
+				<!-- FIX: w-full min-w-0 overflow-hidden und [overflow-wrap:anywhere] am Subtask-Button -->
 				<button 
-					class="flex items-start gap-2 text-left px-1.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group/mini outline-none focus:ring-1 focus:ring-brand-500"
+					class="flex items-start gap-2 text-left px-1.5 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group/mini outline-none focus:ring-1 focus:ring-brand-500 w-full min-w-0 overflow-hidden"
 					onclick={(e) => { e.stopPropagation(); store.toggleSubtask(task.id, sub.id); }}
 					title={sub.title}
 				>
 					<div class="w-4 h-4 rounded-sm border border-slate-300 dark:border-slate-500 mt-0.5 shrink-0 flex items-center justify-center group-hover/mini:border-brand-500 transition-colors"></div>
-					<span class="text-xs text-slate-700 dark:text-slate-300 leading-snug whitespace-normal break-words">{sub.title}</span>
+					<span class="text-xs text-slate-700 dark:text-slate-300 leading-snug whitespace-normal break-words [overflow-wrap:anywhere] flex-1 min-w-0">{sub.title}</span>
 					
 					{#if sub.reviewState === 'REQUESTED'}
 						<span class="ml-auto text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 mt-0.5">Rev</span>
@@ -403,13 +405,13 @@
 		</div>
 	{/if}
 
-	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-1 flex-nowrap w-full">
+	<div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50 gap-1 flex-nowrap w-full min-w-0">
 		<div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 shrink-0">
 			<ListTodo size={13} /> 
 			{activeDoneCount}/{activeTotalCount}
 		</div>
 
-		<div class="flex items-center gap-1 ml-auto flex-nowrap justify-end shrink-0">
+		<div class="flex items-center gap-1 ml-auto flex-nowrap justify-end shrink-0 min-w-0">
 			{#if task.flaggedDate}
 				<button type="button" class="relative h-6 px-1.5 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 rounded border border-rose-300 dark:border-slate-700 flex items-center gap-1 hover:bg-rose-200 transition-colors outline-none focus:ring-0 shrink-0" onclick={openNativePicker} title="Gerichtstermin anpassen">
 					<Flag size={13} class="pointer-events-none shrink-0" />
@@ -439,6 +441,9 @@
 	</div>
 </div>
 
+<!-- ============================================== -->
+<!-- FULL SCREEN COMBINED MODAL (Task + Context) -->
+<!-- ============================================== -->
 {#if isExpanded}
 	<div 
 		class="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm overflow-y-auto" 
@@ -470,7 +475,7 @@
 				}}
 			>
 				<div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 shrink-0">
-					<div class="flex items-center gap-3">
+					<div class="flex items-center gap-3 flex-wrap">
 						<span class="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 uppercase tracking-wider">{task.matterRef || 'NO-REF'}</span>
 						{#if !isOwner}
 							<span class="px-2 py-1 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 rounded text-xs font-bold uppercase">{ownerShortsign}</span>
@@ -489,13 +494,13 @@
 
 				<div class="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
 					
-					<div class="flex-1 p-5 sm:p-6 md:overflow-y-auto custom-scrollbar flex flex-col gap-5 shrink-0 md:shrink">
-						<div class="text-lg sm:text-xl font-bold whitespace-normal break-words text-slate-900 dark:text-slate-100">
+					<div class="flex-1 p-5 sm:p-6 md:overflow-y-auto custom-scrollbar flex flex-col gap-5 shrink-0 md:shrink min-w-0">
+						<div class="text-lg sm:text-xl font-bold whitespace-normal break-words [overflow-wrap:anywhere] text-slate-900 dark:text-slate-100 w-full min-w-0">
 							<TaskTitle {task} />
 						</div>
 						
 						{#if isOwner && isTeamLeader}
-							<div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-1 shrink-0">
+							<div class="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-1 shrink-0 flex-wrap">
 								<span class="text-xs font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">An:</span>
 								<div class="flex flex-wrap gap-1.5">
 									<button onclick={() => assignTo('')} class={cn("px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-sm", currentAssignee === '' ? "bg-yellow-50 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-slate-700" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700")}>ME</button>
@@ -509,13 +514,13 @@
 						{/if}
 
 						{#if !isMicroReviewForTL}
-							<div class="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-2.5 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors shrink-0">
+							<div class="flex items-start gap-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-2.5 focus-within:border-brand-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-colors shrink-0 w-full min-w-0">
 								<Plus size={18} class="text-slate-400 mt-[5px] shrink-0" />
 								<textarea 
 									id={`new-subtask-${task.id}`} 
 									bind:value={newSubtaskTitle} 
 									placeholder="Neuer Task..." 
-									class="flex-grow bg-transparent border-0 focus:ring-0 w-full text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none resize-none leading-snug min-h-[44px]" 
+									class="flex-grow bg-transparent border-0 focus:ring-0 w-full min-w-0 text-sm placeholder:text-slate-400 text-slate-800 dark:text-slate-200 outline-none resize-none leading-snug min-h-[44px]" 
 									rows="2"
 									oninput={(e) => {
 										e.currentTarget.style.height = 'auto';
@@ -535,14 +540,15 @@
 							</div>
 						{/if}
 
-						<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start shrink-0 [&_span]:whitespace-normal [&_span]:break-words">
+						<!-- FIX: [overflow-wrap:anywhere] und min-w-0 am Subtask Grid im Modal -->
+						<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start shrink-0 w-full min-w-0 [&_span]:whitespace-normal [&_span]:break-words [&_span]:[overflow-wrap:anywhere] [&_*]:min-w-0">
 							{#each displaySubtasks as sub (sub.id)}
 								<SubtaskItem taskId={task.id} {sub} />
 							{/each}
 						</div>
 
 						{#if archivedSubtasks.length > 0}
-							<div class="mt-2 pt-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+							<div class="mt-2 pt-4 border-t border-slate-100 dark:border-slate-800 shrink-0 w-full min-w-0">
 								<button 
 									onclick={(e) => { e.stopPropagation(); showArchived = !showArchived; }}
 									class="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 uppercase tracking-widest outline-none transition-colors w-fit"
@@ -555,7 +561,7 @@
 								</button>
 
 								{#if showArchived}
-									<div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start opacity-75 grayscale-[50%] border-l-2 border-slate-200 dark:border-slate-700 pl-4 ml-2 [&_span]:whitespace-normal [&_span]:break-words">
+									<div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start opacity-75 grayscale-[50%] border-l-2 border-slate-200 dark:border-slate-700 pl-4 ml-2 w-full min-w-0 [&_span]:whitespace-normal [&_span]:break-words [&_span]:[overflow-wrap:anywhere] [&_*]:min-w-0">
 										{#each archivedSubtasks as sub (sub.id)}
 											<SubtaskItem taskId={task.id} {sub} />
 										{/each}
@@ -570,7 +576,7 @@
 					</div>
 
 					{#if task.matterRef}
-						<div class="w-full md:w-[380px] lg:w-[450px] min-h-[300px] md:min-h-0 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col shrink-0">
+						<div class="w-full md:w-[380px] lg:w-[450px] min-h-[300px] md:min-h-0 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col shrink-0 min-w-0">
 							<div class="flex items-center gap-2 px-5 py-3 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
 								<div class="p-1.5 bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300 rounded">
 									<BrainCircuit size={16} />
@@ -585,7 +591,7 @@
 								<textarea 
 									bind:value={noteContent} 
 									onkeydown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); closeExpanded(); } }}
-									class="flex-1 w-full resize-none border-0 bg-transparent focus:ring-0 text-sm leading-relaxed text-slate-700 dark:text-slate-300 placeholder:text-slate-400 custom-scrollbar" 
+									class="flex-1 w-full min-w-0 resize-none border-0 bg-transparent focus:ring-0 text-sm leading-relaxed text-slate-700 dark:text-slate-300 placeholder:text-slate-400 custom-scrollbar" 
 									placeholder="Brain Dump: Strategie, Notizen... (Strg+Enter zum Schließen)" 
 									spellcheck="false"
 								></textarea>

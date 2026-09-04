@@ -5,9 +5,54 @@
 
 	let { title, id, tasks, color = 'bg-slate-400' }: { title: string, id: Task['status'], tasks: Task[], color?: string } = $props();
 
+	let containerWidth = $state(0);
+
+	const MIN_COL_WIDTH = 185;
+	const GAP = 12;
+	const PADDING = 24; // px-3 (12px links + 12px rechts)
+
+	// Berechnet die optimale Spaltenanzahl dynamisch anhand der Container-Breite
+	let columnCount = $derived.by(() => {
+		if (!containerWidth) return 1;
+		const available = containerWidth - PADDING;
+		const count = Math.floor((available + GAP) / (MIN_COL_WIDTH + GAP));
+		return Math.max(1, count);
+	});
+
+	// Höhenbewusster Greedy-Algorithmus: Verteilt Aufgaben in die jeweils niedrigste Spalte
+	function distributeTasks(taskList: Task[], colCount: number): Task[][] {
+		if (colCount <= 1) return [taskList];
+
+		const cols: Task[][] = Array.from({ length: colCount }, () => []);
+		const colHeights: number[] = new Array(colCount).fill(0);
+
+		for (const task of taskList) {
+			let minColIdx = 0;
+			let minHeight = colHeights[0];
+
+			for (let i = 1; i < colCount; i++) {
+				if (colHeights[i] < minHeight) {
+					minHeight = colHeights[i];
+					minColIdx = i;
+				}
+			}
+
+			cols[minColIdx].push(task);
+
+			// Geschätzte Höhe: Basishöhe (Header/Footer/Quick-Add ~120px) + 28px pro offener Subtask
+			const pendingSubs = (task.subtasks || []).filter((s) => !s.done && !s.archived).length;
+			const estimatedHeight = 120 + pendingSubs * 28;
+			colHeights[minColIdx] += estimatedHeight + GAP;
+		}
+
+		return cols;
+	}
+
+	let distributedColumns = $derived(distributeTasks(tasks, columnCount));
+
 	function onDragOver(e: DragEvent) {
 		e.preventDefault();
-		if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
 	}
 
 	function onDrop(e: DragEvent) {
@@ -30,21 +75,23 @@
 		</span>
 	</div>
 
-	<!-- flex flex-col hinzugefügt, damit die Dropzone mt-auto nutzen kann -->
-	<div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col">
-		
-		<!-- CSS Columns (Masonry Layout): Keine Grid-Zeilen, Karten fließen nahtlos ineinander -->
-		<div class="columns-[185px] gap-3 px-3 pt-1 w-full">
-			{#each tasks as task (task.id)}
-				<div class="break-inside-avoid block w-full mb-3">
-					<TaskCard {task} />
+	<div 
+		bind:clientWidth={containerWidth} 
+		class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col"
+	>
+		<!-- Masonry Spaltenverbund: Keine Grid-Zeilen, vollständige vertikale Füllung -->
+		<div class="flex items-start gap-3 px-3 pt-1 w-full">
+			{#each distributedColumns as col, colIdx (colIdx)}
+				<div class="flex flex-col gap-3 flex-1 min-w-0">
+					{#each col as task (task.id)}
+						<TaskCard {task} />
+					{/each}
 				</div>
 			{/each}
 		</div>
 
-		<!-- FIX: Die Drop-Zone wurde AUS dem Masonry-Grid herausgeschoben. 
-		     Dadurch verbraucht sie keine Spalte mehr und verursacht keine Löcher! -->
-		<div class="px-3 pb-4 mt-auto">
+		<!-- Drop-Zone am unteren Ende -->
+		<div class="px-3 pb-4 mt-auto pt-3">
 			<div 
 				role="region" 
 				aria-label="Drop-Zone Puffer" 

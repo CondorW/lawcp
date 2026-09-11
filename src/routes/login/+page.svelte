@@ -89,11 +89,6 @@
                 {/if}
             </button>
         </div>
-
-        <div class="bg-slate-50 dark:bg-slate-800/50 px-8 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-center items-center gap-2">
-            <ShieldCheck size={14} class="text-emerald-600" />
-            <span class="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400">End-to-End verschlüsselt</span>
-        </div>
     </div>
 
     <p class="mt-8 text-slate-400 text-xs tracking-wide">

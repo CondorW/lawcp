@@ -35,10 +35,6 @@ function stringList(value: unknown): string[] {
 		: [];
 }
 
-function finiteNumber(value: unknown, fallback = 0): number {
-	return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
 export function parseTaskRecord(input: unknown): Task {
 	const record = PocketBaseRecordSchema.parse(input);
 	const raw = record as Record<string, unknown>;
@@ -58,10 +54,8 @@ export function parseTaskRecord(input: unknown): Task {
 		archived: Boolean(raw.archived),
 		createdAt: record.created ?? new Date(0).toISOString(),
 		updatedAt: record.updated,
-		timeTracked: finiteNumber(raw.timeTracked),
 		timeLogs,
 		subtasks: sortSubtasksDeep(subtasks),
-		dependencies: stringList(raw.dependencies),
 		assignees: stringList(raw.assignees),
 		owner: optionalText(raw.owner),
 		expand: raw.expand

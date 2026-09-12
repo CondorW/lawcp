@@ -7,8 +7,15 @@
 		title,
 		id,
 		tasks,
-		color = 'bg-slate-400'
-	}: { title: string; id: Task['status']; tasks: Task[]; color?: string } = $props();
+		color = 'bg-slate-400',
+		columns
+	}: {
+		title: string;
+		id: Task['status'];
+		tasks: Task[];
+		color?: string;
+		columns?: number;
+	} = $props();
 
 	let containerWidth = $state(0);
 
@@ -17,12 +24,15 @@
 	const PADDING = 24; // px-3 (12px links + 12px rechts)
 
 	// Berechnet die optimale Spaltenanzahl dynamisch anhand der Container-Breite
-	let columnCount = $derived.by(() => {
+	let automaticColumnCount = $derived.by(() => {
 		if (!containerWidth) return 1;
 		const available = containerWidth - PADDING;
 		const count = Math.floor((available + GAP) / (MIN_COL_WIDTH + GAP));
 		return Math.max(1, count);
 	});
+	let columnCount = $derived(
+		columns === undefined ? automaticColumnCount : Math.max(1, Math.floor(columns))
+	);
 
 	// Höhenbewusster Greedy-Algorithmus: Verteilt Aufgaben in die jeweils niedrigste Spalte
 	function distributeTasks(taskList: Task[], colCount: number): Task[][] {

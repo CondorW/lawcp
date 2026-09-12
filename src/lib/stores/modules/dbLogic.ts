@@ -165,9 +165,7 @@ export async function addTask(
 		archived: false,
 		createdAt: timestamp,
 		updatedAt: timestamp,
-		timeTracked: 0,
 		timeLogs: [],
-		dependencies: [],
 		flaggedDate: null,
 		expand: {
 			owner: {
@@ -191,9 +189,7 @@ export async function addTask(
 				assignees: task.assignees,
 				priority: task.priority,
 				archived: false,
-				timeTracked: 0,
 				timeLogs: [],
-				dependencies: [],
 				flaggedDate: null
 			},
 			{ expand: 'owner', requestKey: null }

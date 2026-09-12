@@ -82,7 +82,9 @@ function createStore() {
 	return {
 		subscribe,
 		activeMatter: activeMatterStore,
-		init: () => SyncLogic.initPocketBaseSync(update),
+		init: async () => {
+			await Promise.all([SyncLogic.initPocketBaseSync(update), chatStore.init()]);
+		},
 		resetSession,
 		toggleDarkMode: () => update((state) => saveLocal(AppLogic.toggleDarkMode(state))),
 		login: (shortsign: string) => update((state) => saveLocal(AppLogic.login(state, shortsign))),

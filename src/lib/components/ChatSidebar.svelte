@@ -4,7 +4,7 @@
 	import { pb } from '$lib/pocketbase';
 	import { X, Send, Mic, MessageSquare, AlertCircle, Square, Trash2 } from 'lucide-svelte';
 	import { fly, fade } from 'svelte/transition';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import ChatMessageText from '$lib/components/text/ChatMessageText.svelte';
 	import type { FirmUser } from '$lib/types';
 
@@ -42,31 +42,33 @@
 	);
 
 	onMount(() => {
-		chatStore.init();
+		void chatStore.init();
 	});
 
 	$effect(() => {
-		chatStore.isChatOpen = isOpen;
-		if (isOpen) {
-			chatStore.markAsRead();
-			tick().then(() => {
-				setTimeout(() => {
-					if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
-				}, 50);
-			});
-		}
+		const open = isOpen;
+
+		// Store-Änderungen dürfen keine Abhängigkeiten dieses Effects werden.
+		untrack(() => {
+			chatStore.isChatOpen = open;
+			if (open) chatStore.markAsRead();
+		});
+
+		if (open) scrollToLatestMessage();
 	});
 
 	let msgLen = $derived(chatStore.messages.length);
 	$effect(() => {
-		if (msgLen > 0 && isOpen && scrollContainer) {
-			tick().then(() => {
-				setTimeout(() => {
-					if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
-				}, 50);
-			});
-		}
+		if (msgLen > 0 && isOpen) scrollToLatestMessage();
 	});
+
+	function scrollToLatestMessage(): void {
+		void tick().then(() => {
+			setTimeout(() => {
+				if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+			}, 50);
+		});
+	}
 
 	const myId = pb.authStore.model?.id;
 

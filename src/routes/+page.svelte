@@ -44,24 +44,6 @@
 		navInputRef = '';
 
 		await store.addTask('TODO', title, ref, date);
-
-		setTimeout(() => {
-			const myCases = $store.tasks.filter(
-				(t) => t.owner === currentUserId || (t.assignees && t.assignees.includes(currentUserId))
-			);
-			const newestCase = [...myCases].sort(
-				(a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-			)[0];
-
-			if (newestCase) {
-				const input =
-					document.getElementById(`quick-add-${newestCase.id}`) ||
-					document.getElementById(`new-subtask-${newestCase.id}`);
-				if (input) input.focus({ preventScroll: true });
-			} else {
-				document.getElementById('nav-task-title')?.focus();
-			}
-		}, 150);
 	}
 
 	function onNavKeyDown(e: KeyboardEvent) {
@@ -325,26 +307,38 @@
 			</div>
 		{/if}
 
-		<!-- FIX: Ein sauberes, stures 4-Spalten-Layout (1:2:1 Ratio) für ALLE (Leader & Member). Keine Review Spalte mehr. -->
+		<!-- Sieben gleich breite Kartenbahnen: To Do 1, In Arbeit 5, Abgeschlossen 1. -->
 		<div
-			class="grid min-h-0 flex-1 grid-cols-4 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900"
+			class="grid min-h-0 flex-1 grid-cols-7 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900"
 		>
 			<div
 				class="col-span-1 flex h-full min-h-0 flex-col overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"
 			>
-				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" />
+				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" columns={1} />
 			</div>
 
 			<div
-				class="col-span-2 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
+				class="col-span-5 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
 			>
-				<TaskColumn id="WAITING" title="In Arbeit" tasks={waiting} color="bg-brand-500" />
+				<TaskColumn
+					id="WAITING"
+					title="In Arbeit"
+					tasks={waiting}
+					color="bg-brand-500"
+					columns={5}
+				/>
 			</div>
 
 			<div
 				class="col-span-1 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
 			>
-				<TaskColumn id="DONE" title="Abgeschlossen" tasks={done} color="bg-emerald-600" />
+				<TaskColumn
+					id="DONE"
+					title="Abgeschlossen"
+					tasks={done}
+					color="bg-emerald-600"
+					columns={1}
+				/>
 			</div>
 		</div>
 	</main>

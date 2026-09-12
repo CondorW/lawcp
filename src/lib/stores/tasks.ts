@@ -1,121 +1,184 @@
-import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
-import { pb } from '$lib/pocketbase';
 import { goto } from '$app/navigation';
-import type { AppData, Settings, Resource, SubtaskType } from '$lib/types';
-
+import { resolve } from '$app/paths';
+import { pb } from '$lib/pocketbase';
+import { chatStore } from '$lib/stores/chat.svelte';
 import * as AppLogic from '$lib/stores/modules/appLogic';
 import * as DBLogic from '$lib/stores/modules/dbLogic';
 import * as SyncLogic from '$lib/stores/modules/syncLogic';
+import { flushTaskMutations, resetTaskMutationQueue } from '$lib/stores/modules/taskMutationQueue';
+import {
+	SettingsSchema,
+	type AppData,
+	type Resource,
+	type Settings,
+	type SubtaskType,
+	type TaskPriority
+} from '$lib/types';
+import { get, writable } from 'svelte/store';
 
-const createStore = () => {
-	const { subscribe, set, update } = writable<AppData>({
+const DEFAULT_SETTINGS: Settings = {
+	myShortsign: 'ME',
+	darkMode: true,
+	isAuthenticated: false,
+	team: []
+};
+
+function createInitialState(darkMode = true): AppData {
+	return {
 		tasks: [],
-		settings: { myShortsign: 'ME', darkMode: true, isAuthenticated: false, team: [] },
+		settings: { ...DEFAULT_SETTINGS, darkMode },
 		resources: [],
 		matterNotes: [],
 		firmUsers: []
-	});
+	};
+}
 
-	const activeMatterStore = writable<string | null>(null);
+function loadStoredSettings(): Settings | null {
+	if (!browser) return null;
+	const stored = localStorage.getItem('lawcp_settings');
+	if (!stored) return null;
 
-	if (browser) {
-		const storedSettings = localStorage.getItem('lawcp_settings');
-		update((s) => ({
-			...s,
-			settings: storedSettings ? { ...s.settings, ...JSON.parse(storedSettings) } : s.settings
-		}));
+	try {
+		const parsedJson: unknown = JSON.parse(stored);
+		const storedObject =
+			typeof parsedJson === 'object' && parsedJson !== null && !Array.isArray(parsedJson)
+				? parsedJson
+				: {};
+		const result = SettingsSchema.safeParse({ ...DEFAULT_SETTINGS, ...storedObject });
+		return result.success ? result.data : null;
+	} catch (error) {
+		console.error('Lokale Einstellungen konnten nicht gelesen werden:', error);
+		return null;
 	}
+}
 
-	const saveLocal = (state: AppData) => {
-		if (browser) {
-			localStorage.setItem('lawcp_settings', JSON.stringify(state.settings));
-		}
+function createStore() {
+	const initialState = createInitialState();
+	const { subscribe, update } = writable<AppData>(initialState);
+	const activeMatterStore = writable<string | null>(null);
+	const readableStore = { subscribe };
+	const read = () => get(readableStore);
+
+	const storedSettings = loadStoredSettings();
+	if (storedSettings) update((state) => ({ ...state, settings: storedSettings }));
+
+	const saveLocal = (state: AppData): AppData => {
+		if (browser) localStorage.setItem('lawcp_settings', JSON.stringify(state.settings));
 		return state;
+	};
+
+	const clearSessionState = (): void => {
+		activeMatterStore.set(null);
+		update((state) => createInitialState(state.settings.darkMode));
+	};
+
+	const resetSession = async (): Promise<void> => {
+		await Promise.all([SyncLogic.disposePocketBaseSync(), chatStore.reset()]);
+		resetTaskMutationQueue();
+		clearSessionState();
 	};
 
 	return {
 		subscribe,
 		activeMatter: activeMatterStore,
 		init: () => SyncLogic.initPocketBaseSync(update),
-		toggleDarkMode: () => update((s) => saveLocal(AppLogic.toggleDarkMode(s))),
-		login: (sign: string) => update((s) => saveLocal(AppLogic.login(s, sign))),
-		addTeamMember: (n: string, s: string, c: string) =>
-			update((st) => saveLocal(AppLogic.addTeamMember(st, n, s, c))),
-		removeTeamMember: (id: string) => update((s) => saveLocal(AppLogic.removeTeamMember(s, id))),
-		setTeamLeader: (id: string) => update((s) => saveLocal(AppLogic.setTeamLeader(s, id))),
-		
-		updateSettings: async (vals: Partial<Settings>) => {
-			update((s) => saveLocal(AppLogic.updateSettings(s, vals)));
-			if (pb.authStore.isValid && pb.authStore.model && vals.myShortsign) {
+		resetSession,
+		toggleDarkMode: () => update((state) => saveLocal(AppLogic.toggleDarkMode(state))),
+		login: (shortsign: string) => update((state) => saveLocal(AppLogic.login(state, shortsign))),
+		addTeamMember: (name: string, shortsign: string, color: string) =>
+			update((state) => saveLocal(AppLogic.addTeamMember(state, name, shortsign, color))),
+		removeTeamMember: (id: string) =>
+			update((state) => saveLocal(AppLogic.removeTeamMember(state, id))),
+		setTeamLeader: (id: string) => update((state) => saveLocal(AppLogic.setTeamLeader(state, id))),
+
+		updateSettings: async (values: Partial<Settings>) => {
+			update((state) => saveLocal(AppLogic.updateSettings(state, values)));
+			if (pb.authStore.isValid && pb.authStore.model && values.myShortsign) {
 				try {
-					await pb.collection('users').update(pb.authStore.model.id, { shortsign: vals.myShortsign });
-					await pb.collection('users').authRefresh();
-				} catch (e) {
-					console.error(e);
+					await pb
+						.collection('users')
+						.update(pb.authStore.model.id, { shortsign: values.myShortsign }, { requestKey: null });
+					await pb.collection('users').authRefresh({ requestKey: null });
+				} catch (error) {
+					console.error('Einstellungen konnten nicht synchronisiert werden:', error);
 				}
 			}
 		},
-		
+
 		logout: async () => {
+			// Persist already accepted edits before invalidating the authenticated client.
+			await flushTaskMutations();
+			await Promise.all([SyncLogic.disposePocketBaseSync(), chatStore.reset()]);
+			resetTaskMutationQueue();
 			pb.authStore.clear();
 			if (browser) {
 				localStorage.removeItem('lawcp_settings');
 				localStorage.removeItem('lawcp_resources');
-				update((s) => ({
-					...s,
-					tasks: [],
-					resources: [],
-					settings: { myShortsign: 'ME', darkMode: s.settings.darkMode, isAuthenticated: false, team: [] }
-				}));
-				await goto('/login');
+				clearSessionState();
+				await goto(resolve('/login'));
 			}
 		},
 
-		addResource: (resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => DBLogic.addResource(update, resData),
+		addResource: (resource: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) =>
+			DBLogic.addResource(update, resource),
 		deleteResource: (id: string) => DBLogic.deleteResource(update, id),
 
-		addTask: (status: string, title: string, ref?: string, date?: string, assignedTo?: string) => DBLogic.addTask(update, status, title, ref, date, assignedTo),
-		assignTask: (taskId: string, assigneeId: string) => DBLogic.assignTask(update, taskId, assigneeId),
+		addTask: (
+			status: string,
+			title: string,
+			matterRef?: string,
+			date?: string,
+			assignedTo?: string
+		) => DBLogic.addTask(update, status, title, matterRef, date, assignedTo),
+		assignTask: (taskId: string, assigneeId: string) =>
+			DBLogic.assignTask(update, taskId, assigneeId),
 		deleteTask: (id: string) => DBLogic.deleteTask(update, id),
-		
-		// NEU
 		archiveTask: (id: string, archived: boolean) => DBLogic.archiveTask(update, id, archived),
-
 		updateTaskTitle: (id: string, title: string) => DBLogic.updateTaskTitle(update, id, title),
-		updateTaskRef: (id: string, ref: string) => DBLogic.updateTaskRef(update, id, ref),
+		updateTaskRef: (id: string, matterRef: string) => DBLogic.updateTaskRef(update, id, matterRef),
+		updateTaskPriority: (id: string, priority: TaskPriority) =>
+			DBLogic.updateTaskPriority(update, id, priority),
 		updateDate: (id: string, date: string) => DBLogic.updateDate(update, id, date),
 		toggleFlag: (id: string, date: string | null) => DBLogic.toggleFlag(update, id, date),
 		moveTask: (id: string, status: string) => DBLogic.moveTask(update, id, status),
 
-		addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 0, y = 0) => DBLogic.addSubtask(update, () => get({ subscribe }), taskId, title, type, x, y),
-		toggleSubtask: (taskId: string, subId: string) => DBLogic.toggleSubtask(update, () => get({ subscribe }), taskId, subId),
-		
-		archiveSubtask: (taskId: string, subId: string, archived: boolean) => DBLogic.archiveSubtask(update, () => get({ subscribe }), taskId, subId, archived),
+		addSubtask: (taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 0, y = 0) =>
+			DBLogic.addSubtask(update, taskId, title, type, x, y),
+		toggleSubtask: (taskId: string, subtaskId: string) =>
+			DBLogic.toggleSubtask(update, taskId, subtaskId),
+		archiveSubtask: (taskId: string, subtaskId: string, archived: boolean) =>
+			DBLogic.archiveSubtask(update, taskId, subtaskId, archived),
+		setSubtaskReviewState: (
+			taskId: string,
+			subtaskId: string,
+			state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null
+		) => DBLogic.setSubtaskReviewState(update, read, taskId, subtaskId, state),
+		updateSubtaskTitle: (taskId: string, subtaskId: string, title: string) =>
+			DBLogic.updateSubtaskTitle(update, taskId, subtaskId, title),
+		addSubSubtask: (taskId: string, parentSubtaskId: string, title: string) =>
+			DBLogic.addSubSubtask(update, taskId, parentSubtaskId, title),
+		updateSubtaskPos: (taskId: string, subtaskId: string, x: number, y: number) =>
+			DBLogic.updateSubtaskPos(update, taskId, subtaskId, x, y),
+		connectSubtasks: (taskId: string, sourceId: string, targetId: string) =>
+			DBLogic.connectSubtasks(update, taskId, sourceId, targetId),
+		disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) =>
+			DBLogic.disconnectSubtasks(update, taskId, sourceId, targetId),
+		deleteSubtask: (taskId: string, subtaskId: string) =>
+			DBLogic.deleteSubtask(update, taskId, subtaskId),
 
-		setSubtaskReviewState: (taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) => DBLogic.setSubtaskReviewState(update, () => get({ subscribe }), taskId, subId, state),
-		updateSubtaskTitle: (taskId: string, subId: string, title: string) => DBLogic.updateSubtaskTitle(update, () => get({ subscribe }), taskId, subId, title),
-		addSubSubtask: (taskId: string, parentSubId: string, title: string) => DBLogic.addSubSubtask(update, () => get({ subscribe }), taskId, parentSubId, title),
-		updateSubtaskPos: (taskId: string, subId: string, x: number, y: number) => DBLogic.updateSubtaskPos(update, () => get({ subscribe }), taskId, subId, x, y),
-		connectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.connectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
-		disconnectSubtasks: (taskId: string, sourceId: string, targetId: string) => DBLogic.disconnectSubtasks(update, () => get({ subscribe }), taskId, sourceId, targetId),
-		deleteSubtask: (taskId: string, subtaskIdToDelete: string) => DBLogic.deleteSubtask(update, () => get({ subscribe }), taskId, subtaskIdToDelete),
-
-		openMatterNotes: (ref: string) => activeMatterStore.set(ref),
+		openMatterNotes: (matterRef: string) => activeMatterStore.set(matterRef),
 		closeMatterNotes: () => activeMatterStore.set(null),
-		updateMatterNote: async (ref: string, content: string) => console.log('Note Update:', ref),
-		fetchContext: async (ref: string) => DBLogic.fetchContext(ref),
-		saveContext: async (ref: string, content: string, contextId?: string) => DBLogic.saveContext(ref, content, contextId),
+		fetchContext: (matterRef: string) => DBLogic.fetchContext(matterRef),
+		saveContext: (matterRef: string, content: string, contextId?: string) =>
+			DBLogic.saveContext(matterRef, content, contextId),
 
-		// --- ZEITERFASSUNG ---
-		addTimeLog: (taskId: string, minutes: number, note: string, dateStr: string) => 
-			DBLogic.addTimeLog(update, () => get({ subscribe }), taskId, minutes, note, dateStr),
-		updateTimeLog: (taskId: string, logId: string, minutes: number, note: string, dateStr: string) => 
-			DBLogic.updateTimeLog(update, () => get({ subscribe }), taskId, logId, minutes, note, dateStr),
-		deleteTimeLog: (taskId: string, logId: string) => 
-			DBLogic.deleteTimeLog(update, () => get({ subscribe }), taskId, logId),
-
+		addTimeLog: (taskId: string, minutes: number, note: string, date: string) =>
+			DBLogic.addTimeLog(update, taskId, minutes, note, date),
+		updateTimeLog: (taskId: string, logId: string, minutes: number, note: string, date: string) =>
+			DBLogic.updateTimeLog(update, taskId, logId, minutes, note, date),
+		deleteTimeLog: (taskId: string, logId: string) => DBLogic.deleteTimeLog(update, taskId, logId)
 	};
-};
+}
 
 export const store = createStore();

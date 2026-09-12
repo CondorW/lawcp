@@ -18,7 +18,7 @@
 		inputTitle = '';
 		inputRef = '';
 		inputDate = new Date().toISOString().split('T')[0];
-		
+
 		const textarea = document.getElementById('task-input') as HTMLTextAreaElement;
 		if (textarea) {
 			textarea.style.height = 'auto';
@@ -35,47 +35,50 @@
 </script>
 
 <!-- BRANDING: Royal brand Focus States -->
-<div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-400">
+<div
+	class="rounded-xl border border-slate-200 bg-white shadow-sm transition-all focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-500/20 dark:border-slate-700 dark:bg-slate-800"
+>
 	<div class="flex flex-col gap-1 p-1 sm:flex-row sm:items-start">
-		
 		<div class="relative flex-grow">
-			<div class="absolute top-2.5 left-2.5 pointer-events-none text-brand-500 opacity-60">
+			<div class="pointer-events-none absolute top-2.5 left-2.5 text-brand-500 opacity-60">
 				<Plus size={18} />
 			</div>
 			<!-- TYPOGRAPHY: text-sm (14px) -->
-			<textarea 
-				id="task-input" 
-				bind:value={inputTitle} 
-				oninput={resize} 
-				onkeydown={onKeyDown} 
-				rows="1" 
-				placeholder="Neue Aufgabe erfassen... (Strg+Enter)" 
-				class="w-full rounded-lg border-0 bg-transparent py-2.5 pl-10 pr-3 text-slate-900 placeholder:text-slate-400 focus:ring-0 text-sm font-medium resize-none overflow-hidden dark:text-slate-100"
+			<textarea
+				id="task-input"
+				bind:value={inputTitle}
+				oninput={resize}
+				onkeydown={onKeyDown}
+				rows="1"
+				placeholder="Neue Aufgabe erfassen... (Strg+Enter)"
+				class="w-full resize-none overflow-hidden rounded-lg border-0 bg-transparent py-2.5 pr-3 pl-10 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:ring-0 dark:text-slate-100"
 			></textarea>
 		</div>
 
-		<div class="flex items-center gap-2 border-t border-slate-100 dark:border-slate-700 pt-1.5 sm:border-t-0 sm:pt-1.5 sm:border-l sm:pl-2 sm:pr-1">
+		<div
+			class="flex items-center gap-2 border-t border-slate-100 pt-1.5 sm:border-t-0 sm:border-l sm:pt-1.5 sm:pr-1 sm:pl-2 dark:border-slate-700"
+		>
 			<!-- TYPOGRAPHY: text-[11px] -->
-			<input 
-				bind:value={inputRef} 
-				type="text" 
-				onkeydown={onKeyDown} 
-				placeholder="Ref-Nr." 
-				class="w-24 rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 focus:bg-brand-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-brand-500/50 transition-colors" 
+			<input
+				bind:value={inputRef}
+				type="text"
+				onkeydown={onKeyDown}
+				placeholder="Ref-Nr."
+				class="w-24 rounded-md border-0 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold tracking-wider text-slate-700 uppercase transition-colors focus:bg-brand-50 focus:ring-1 focus:ring-brand-500/50 dark:bg-slate-900 dark:text-slate-300 dark:focus:bg-slate-700"
 			/>
 			<!-- TYPOGRAPHY: text-xs (12px) -->
-			<input 
-				bind:value={inputDate} 
-				type="date" 
-				onkeydown={onKeyDown} 
-				class="rounded-md border-0 bg-slate-50 dark:bg-slate-900 py-1.5 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 focus:bg-brand-50 dark:focus:bg-slate-700 focus:ring-1 focus:ring-brand-500/50 transition-colors dark:[color-scheme:dark]" 
+			<input
+				bind:value={inputDate}
+				type="date"
+				onkeydown={onKeyDown}
+				class="rounded-md border-0 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors focus:bg-brand-50 focus:ring-1 focus:ring-brand-500/50 dark:bg-slate-900 dark:text-slate-300 dark:[color-scheme:dark] dark:focus:bg-slate-700"
 			/>
-			
+
 			<!-- BRANDING: Add-Button in Royal brand -->
-			<button 
-				onclick={handleAdd} 
-				title="Strg+Enter zum Speichern" 
-				class="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-brand-700 transition-all active:scale-95 outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1"
+			<button
+				onclick={handleAdd}
+				title="Strg+Enter zum Speichern"
+				class="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition-all outline-none hover:bg-brand-700 focus:ring-2 focus:ring-brand-400 focus:ring-offset-1 active:scale-95"
 			>
 				<span>Add</span>
 				<CornerDownLeft size={12} class="opacity-60" />

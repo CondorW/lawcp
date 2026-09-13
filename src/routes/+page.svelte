@@ -84,7 +84,7 @@
 	}
 
 	function effectiveStatus(t: Task) {
-		// FIX: REVIEW existiert als Board-Spalte nicht mehr. Wird für alle wie In Arbeit (WAITING) behandelt.
+		// REVIEW existiert als Board-Spalte nicht mehr und wird wie WAITING behandelt.
 		if (t.status === 'REVIEW') {
 			return 'WAITING';
 		}
@@ -104,14 +104,19 @@
 			)
 			.sort(byDateAndPriority)
 	);
+
 	let waiting = $derived(
 		$store.tasks
 			.filter(
 				(t) =>
-					!t.archived && effectiveStatus(t) === 'WAITING' && matchesFilter(t) && showOnMainBoard(t)
+					!t.archived &&
+					effectiveStatus(t) === 'WAITING' &&
+					matchesFilter(t) &&
+					showOnMainBoard(t)
 			)
 			.sort(byDateAndPriority)
 	);
+
 	let done = $derived(
 		$store.tasks
 			.filter(
@@ -160,9 +165,10 @@
 					>
 						L
 					</div>
-					<span class="font-sansserif hidden text-xl font-bold tracking-tight text-white xl:block"
-						>LAWganized</span
-					>
+
+					<span class="font-sansserif hidden text-xl font-bold tracking-tight text-white xl:block">
+						LAWganized
+					</span>
 				</div>
 
 				<div
@@ -172,6 +178,7 @@
 						<div class="absolute top-1/2 left-3.5 -translate-y-1/2 text-brand-500 opacity-80">
 							<Plus size={18} />
 						</div>
+
 						<input
 							id="nav-task-title"
 							type="text"
@@ -181,7 +188,9 @@
 							class="w-full border-0 bg-transparent py-2.5 pr-3 pl-10 text-sm text-white outline-none placeholder:text-slate-400 focus:ring-0"
 						/>
 					</div>
+
 					<div class="mx-1 h-6 w-px shrink-0 bg-slate-700"></div>
+
 					<input
 						type="text"
 						bind:value={navInputRef}
@@ -189,18 +198,22 @@
 						placeholder="REF"
 						class="w-24 border-0 bg-transparent px-3 py-2.5 text-center text-[11px] font-bold tracking-wider text-slate-300 uppercase outline-none placeholder:text-slate-500 focus:ring-0"
 					/>
+
 					<div class="mx-1 h-6 w-px shrink-0 bg-slate-700"></div>
+
 					<input
 						type="date"
 						bind:value={navInputDate}
 						onkeydown={onNavKeyDown}
 						class="w-36 border-0 bg-transparent px-3 py-2.5 text-sm text-slate-300 outline-none focus:ring-0 dark:[color-scheme:dark]"
 					/>
+
 					<button
 						onclick={handleNavAdd}
 						class="ml-1 flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors outline-none hover:bg-brand-500 focus:ring-2 focus:ring-white"
-						>Add</button
 					>
+						Add
+					</button>
 				</div>
 
 				<div class="flex shrink-0 items-center gap-1.5">
@@ -209,6 +222,7 @@
 							class="absolute top-2 left-3 text-slate-400 transition-colors group-focus-within:text-brand-500"
 							size={16}
 						/>
+
 						<input
 							type="text"
 							bind:value={refFilter}
@@ -220,17 +234,25 @@
 					<a
 						href={resolve('/')}
 						class="ml-2 rounded-xl bg-brand-900/20 p-2.5 text-brand-500 transition-colors"
-						title="Board"><LayoutGrid size={20} /></a
+						title="Board"
 					>
+						<LayoutGrid size={20} />
+					</a>
 
 					<div class="mx-1 h-5 w-px bg-slate-700"></div>
+
 					<button
 						onclick={() => (isChatOpen = !isChatOpen)}
-						class={`flex items-center justify-center rounded-xl p-2.5 transition-colors outline-none focus:ring-2 focus:ring-brand-500 ${isChatOpen ? 'bg-brand-900/30 text-brand-500' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+						class={`flex items-center justify-center rounded-xl p-2.5 transition-colors outline-none focus:ring-2 focus:ring-brand-500 ${
+							isChatOpen
+								? 'bg-brand-900/30 text-brand-500'
+								: 'text-slate-300 hover:bg-slate-800 hover:text-white'
+						}`}
 						title="Team Chat öffnen"
 					>
 						<div class="relative flex items-center justify-center">
 							<MessageSquare size={20} />
+
 							{#if chatStore.unreadCount > 0}
 								<div
 									class="animate-in zoom-in absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full border border-slate-900 bg-rose-500 text-[9px] font-bold text-white shadow-sm"
@@ -240,55 +262,78 @@
 							{/if}
 						</div>
 					</button>
+
 					<div class="mx-1 h-5 w-px bg-slate-700"></div>
 
 					<a
 						href={resolve('/calendar')}
 						class="rounded-xl p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						title="Kalender"><Calendar size={20} /></a
+						title="Kalender"
 					>
+						<Calendar size={20} />
+					</a>
+
 					<a
 						href={resolve('/workflow')}
 						class="rounded-xl p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						title="Workflow"><GitBranch size={20} /></a
+						title="Workflow"
 					>
+						<GitBranch size={20} />
+					</a>
+
 					<a
 						href={resolve('/resources')}
 						class="rounded-xl p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						title="Ressourcen"><Building2 size={20} /></a
+						title="Ressourcen"
 					>
+						<Building2 size={20} />
+					</a>
+
 					<a
 						href={resolve('/abrechnung')}
 						class="rounded-xl p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						title="Abrechnung"><DollarSign size={20} /></a
+						title="Abrechnung"
 					>
+						<DollarSign size={20} />
+					</a>
 
 					{#if isTeamLeader}
 						<div class="mx-2 h-5 w-px bg-slate-700"></div>
+
 						<a
 							href={resolve('/team')}
 							class="rounded-xl p-2.5 text-brand-500 transition-colors hover:bg-slate-800 hover:text-brand-400"
-							title="Teamansicht"><Users size={20} /></a
+							title="Teamansicht"
 						>
+							<Users size={20} />
+						</a>
 					{/if}
 
 					<div class="mx-2 h-5 w-px bg-slate-700"></div>
+
 					<a
 						href={resolve('/archive')}
 						class="rounded-full p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						title="Archiv"><ArchiveIcon size={20} /></a
+						title="Archiv"
 					>
+						<ArchiveIcon size={20} />
+					</a>
+
 					<button
 						onclick={printAgenda}
 						title="Tagesagenda drucken"
 						class="rounded-full p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						><Printer size={20} /></button
 					>
+						<Printer size={20} />
+					</button>
+
 					<a
 						href={resolve('/settings')}
 						class="rounded-full p-2.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-						title="Einstellungen"><Settings size={20} /></a
+						title="Einstellungen"
 					>
+						<Settings size={20} />
+					</a>
 				</div>
 			</div>
 		</div>
@@ -301,44 +346,48 @@
 			>
 				<Filter size={16} class="text-brand-600" />
 				<span>Gefiltert nach: <strong>{refFilter}</strong></span>
-				<button onclick={() => (refFilter = '')} class="ml-3 font-bold hover:text-rose-600"
-					>✕</button
-				>
+
+				<button onclick={() => (refFilter = '')} class="ml-3 font-bold hover:text-rose-600">
+					✕
+				</button>
 			</div>
 		{/if}
 
-		<!-- Sieben gleich breite Kartenbahnen: To Do 1, In Arbeit 5, Abgeschlossen 1. -->
-		<div
-			class="grid min-h-0 flex-1 grid-cols-7 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900"
-		>
+		<!-- Unter 77rem bleibt jede Kartenbahn bedienbar und das Board wird horizontal scrollbar. -->
+		<div class="custom-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden rounded-xl">
+			<!-- Sieben gleich breite Kartenbahnen: To Do 1, In Arbeit 5, Abgeschlossen 1. -->
 			<div
-				class="col-span-1 flex h-full min-h-0 flex-col overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"
+				class="grid h-full min-w-[77rem] grid-cols-7 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900"
 			>
-				<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" columns={1} />
-			</div>
+				<div
+					class="col-span-1 flex h-full min-h-0 flex-col overflow-hidden bg-slate-50/50 dark:bg-slate-900/50"
+				>
+					<TaskColumn id="TODO" title="To Do" tasks={todos} color="bg-slate-600" columns={1} />
+				</div>
 
-			<div
-				class="col-span-5 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
-			>
-				<TaskColumn
-					id="WAITING"
-					title="In Arbeit"
-					tasks={waiting}
-					color="bg-brand-500"
-					columns={5}
-				/>
-			</div>
+				<div
+					class="col-span-5 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
+				>
+					<TaskColumn
+						id="WAITING"
+						title="In Arbeit"
+						tasks={waiting}
+						color="bg-brand-500"
+						columns={5}
+					/>
+				</div>
 
-			<div
-				class="col-span-1 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
-			>
-				<TaskColumn
-					id="DONE"
-					title="Abgeschlossen"
-					tasks={done}
-					color="bg-emerald-600"
-					columns={1}
-				/>
+				<div
+					class="col-span-1 flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-900"
+				>
+					<TaskColumn
+						id="DONE"
+						title="Abgeschlossen"
+						tasks={done}
+						color="bg-emerald-600"
+						columns={1}
+					/>
+				</div>
 			</div>
 		</div>
 	</main>

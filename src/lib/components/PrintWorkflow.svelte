@@ -1,69 +1,83 @@
 <script lang="ts">
-    import type { Task, Subtask } from '$lib/types';
+	import type { Task, Subtask } from '$lib/types';
 
-    // Svelte 5 Props: Wir erwarten genau EINE Aufgabe
-    let { task, userSign, dateString }: { task: Task | undefined, userSign: string, dateString: string } = $props();
+	// Svelte 5 Props: Wir erwarten genau EINE Aufgabe
+	let {
+		task,
+		userSign,
+		dateString
+	}: { task: Task | undefined; userSign: string; dateString: string } = $props();
 </script>
 
 {#if task}
-<div class="hidden print:block max-w-[210mm] mx-auto bg-white text-black p-8 font-serif">
-    <div class="border-b-2 border-black pb-4 mb-8 flex justify-between items-end">
-        <div>
-            <h1 class="text-3xl font-bold tracking-tight mb-1">Workflow-Protokoll</h1>
-            <p class="text-gray-600 font-sans text-sm font-bold uppercase tracking-wider">
-                {task.matterRef ? `REF: ${task.matterRef}` : 'Keine Referenz'}
-            </p>
-        </div>
-        <div class="text-right">
-            <div class="font-bold text-lg mb-1">{userSign}</div>
-            <div class="text-sm text-gray-500 font-sans">{dateString}</div>
-        </div>
-    </div>
+	<div class="mx-auto hidden max-w-[210mm] bg-white p-8 font-serif text-black print:block">
+		<div class="mb-8 flex items-end justify-between border-b-2 border-black pb-4">
+			<div>
+				<h1 class="mb-1 text-3xl font-bold tracking-tight">Workflow-Protokoll</h1>
+				<p class="font-sans text-sm font-bold tracking-wider text-gray-600 uppercase">
+					{task.matterRef ? `REF: ${task.matterRef}` : 'Keine Referenz'}
+				</p>
+			</div>
+			<div class="text-right">
+				<div class="mb-1 text-lg font-bold">{userSign}</div>
+				<div class="font-sans text-sm text-gray-500">{dateString}</div>
+			</div>
+		</div>
 
-    <div class="mb-10 bg-slate-50 border border-slate-200 p-4 rounded-lg">
-        <h2 class="text-xl font-bold text-gray-900 mb-1">{task.title}</h2>
-        {#if task.dueDate}
-            <p class="text-sm text-gray-500 font-sans">Fälligkeit: {new Date(task.dueDate).toLocaleDateString('de-CH')}</p>
-        {/if}
-    </div>
+		<div class="mb-10 rounded-lg border border-slate-200 bg-slate-50 p-4">
+			<h2 class="mb-1 text-xl font-bold text-gray-900">{task.title}</h2>
+			{#if task.dueDate}
+				<p class="font-sans text-sm text-gray-500">
+					Fälligkeit: {new Date(task.dueDate).toLocaleDateString('de-CH')}
+				</p>
+			{/if}
+		</div>
 
-    {#snippet printSubtasks(subs: Subtask[], level: number)}
-        {#each subs as sub}
-            <div class="flex items-start gap-4 mb-4" style="margin-left: {level * 1.5}rem">
-                <div class="mt-0.5 text-xl font-mono {sub.done ? 'text-gray-400' : 'text-black'}">
-                    {sub.done ? '☑' : '☐'}
-                </div>
-                <div class="flex-1">
-                    <div class="font-bold text-base {sub.done ? 'text-gray-500 line-through decoration-gray-300' : 'text-gray-900'}">
-                        {sub.title}
-                    </div>
-                    <div class="text-[10px] text-gray-400 font-sans uppercase tracking-wider mt-0.5">
-                        {sub.type === 'GENERIC' ? (level > 0 ? 'Unterschritt' : 'Schritt') : sub.type}
-                    </div>
-                </div>
-            </div>
-            
-            {#if sub.subtasks && sub.subtasks.length > 0}
-                <div class="mt-2 mb-6 border-l-2 border-gray-200 pl-4">
-                    {@render printSubtasks(sub.subtasks, level + 1)}
-                </div>
-            {/if}
-        {/each}
-    {/snippet}
+		{#snippet printSubtasks(subs: Subtask[], level: number)}
+			{#each subs as sub (sub.id)}
+				<div class="mb-4 flex items-start gap-4" style="margin-left: {level * 1.5}rem">
+					<div class="mt-0.5 font-mono text-xl {sub.done ? 'text-gray-400' : 'text-black'}">
+						{sub.done ? '☑' : '☐'}
+					</div>
+					<div class="flex-1">
+						<div
+							class="text-base font-bold {sub.done
+								? 'text-gray-500 line-through decoration-gray-300'
+								: 'text-gray-900'}"
+						>
+							{sub.title}
+						</div>
+						<div class="mt-0.5 font-sans text-[10px] tracking-wider text-gray-400 uppercase">
+							{sub.type === 'GENERIC' ? (level > 0 ? 'Unterschritt' : 'Schritt') : sub.type}
+						</div>
+					</div>
+				</div>
 
-    <div>
-        <h3 class="text-sm font-bold mb-4 pb-1 border-b border-gray-300 uppercase tracking-wider text-gray-800 font-sans">
-            Prozess-Schritte
-        </h3>
-        {#if task.subtasks && task.subtasks.length > 0}
-            {@render printSubtasks(task.subtasks, 0)}
-        {:else}
-            <p class="text-gray-500 italic font-sans text-sm">Keine Arbeitsschritte in diesem Workflow definiert.</p>
-        {/if}
-    </div>
+				{#if sub.subtasks && sub.subtasks.length > 0}
+					<div class="mt-2 mb-6 border-l-2 border-gray-200 pl-4">
+						{@render printSubtasks(sub.subtasks, level + 1)}
+					</div>
+				{/if}
+			{/each}
+		{/snippet}
 
-    <div class="fixed bottom-4 right-8 text-xs text-gray-400 font-sans">
-        Automatisch generiert aus Lawganized LWA
-    </div>
-</div>
+		<div>
+			<h3
+				class="mb-4 border-b border-gray-300 pb-1 font-sans text-sm font-bold tracking-wider text-gray-800 uppercase"
+			>
+				Prozess-Schritte
+			</h3>
+			{#if task.subtasks && task.subtasks.length > 0}
+				{@render printSubtasks(task.subtasks, 0)}
+			{:else}
+				<p class="font-sans text-sm text-gray-500 italic">
+					Keine Arbeitsschritte in diesem Workflow definiert.
+				</p>
+			{/if}
+		</div>
+
+		<div class="fixed right-8 bottom-4 font-sans text-xs text-gray-400">
+			Automatisch generiert aus Lawganized LWA
+		</div>
+	</div>
 {/if}

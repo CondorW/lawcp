@@ -13,6 +13,6 @@ export const pb = new PocketBase(pbUrl);
 export const currentUser = writable(pb.authStore.model);
 
 // Synchronisation des Stores bei Login/Logout
-pb.authStore.onChange((auth) => {
-    currentUser.set(pb.authStore.model);
+pb.authStore.onChange(() => {
+	currentUser.set(pb.authStore.model);
 });

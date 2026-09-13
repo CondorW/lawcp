@@ -1,499 +1,603 @@
 import { pb } from '$lib/pocketbase';
 import { v4 as uuidv4 } from 'uuid';
-import type { AppData, Task, SubtaskType, Resource, Subtask } from '$lib/types';
-import { recursiveAdd, recursiveUpdate } from '$lib/utils';
-// NEU: Import des Chat-Stores für die System-Pings
-import { chatStore } from '$lib/stores/chat.svelte'; 
+import { z } from 'zod';
+import {
+	addChildSubtask,
+	findSubtask,
+	indentSubtaskTree,
+	outdentSubtaskTree,
+	removeSubtask,
+	sortSubtasksDeep,
+	updateSubtask
+} from '$lib/domain/subtasks';
+import { belongsToLeader } from '$lib/domain/users';
+import { parseResourceRecord, parseTaskRecord } from '$lib/pocketbaseRecords';
+import { chatStore } from '$lib/stores/chat.svelte';
+import {
+	enqueueTaskMutation,
+	flushTaskMutations,
+	type StoreUpdate,
+	type TaskMutation
+} from '$lib/stores/modules/taskMutationQueue';
+import {
+	TaskStatusSchema,
+	type AppData,
+	type Resource,
+	type ReviewState,
+	type Subtask,
+	type SubtaskType,
+	type Task,
+	type TaskPriority,
+	type TimeLog
+} from '$lib/types';
 
-// --- HELPER: Deterministic Identity ---
-const generatePbId = () => {
+export type StoreRead = () => AppData;
+
+export interface ContextRecord {
+	id: string;
+	content: string;
+}
+
+const ContextRecordSchema = z.object({ id: z.string(), content: z.string().default('') }).loose();
+
+function generatePocketBaseId(): string {
 	const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-	let result = '';
-	for (let i = 0; i < 15; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-	return result;
-};
+	return Array.from({ length: 15 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
 
-// --- HELPER: Deep Sort Subtasks ---
-export const sortSubtasksDeep = (nodes: Subtask[]): Subtask[] => {
-	if (!Array.isArray(nodes)) return [];
-	const cloned = [...nodes];
-	cloned.forEach((n, i) => {
-		if (n.subtasks && n.subtasks.length > 0) {
-			cloned[i] = { ...n, subtasks: sortSubtasksDeep(n.subtasks) };
+function optimisticTaskMutation(
+	update: StoreUpdate,
+	taskId: string,
+	apply: (task: Task) => Task,
+	payload: (task: Task) => Record<string, unknown>
+): Promise<void> {
+	const mutation: TaskMutation = { apply, payload };
+	return enqueueTaskMutation(update, taskId, mutation);
+}
+
+function mutateSubtasks(
+	update: StoreUpdate,
+	taskId: string,
+	mutate: (subtasks: Subtask[]) => Subtask[]
+): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		taskId,
+		(task) => ({ ...task, subtasks: sortSubtasksDeep(mutate(task.subtasks)) }),
+		(task) => ({ subtasks: task.subtasks })
+	);
+}
+
+function normalizeIsoDate(value: string): string {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) throw new Error(`Ungültiges Datum: ${value}`);
+	return date.toISOString();
+}
+
+export async function addResource(
+	update: StoreUpdate,
+	resourceData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>
+): Promise<void> {
+	const user = pb.authStore.model;
+	if (!pb.authStore.isValid || !user?.id) return;
+
+	const id = generatePocketBaseId();
+	const timestamp = new Date().toISOString();
+	const optimisticResource: Resource = {
+		...resourceData,
+		id,
+		owner: user.id,
+		created: timestamp,
+		updated: timestamp,
+		expand: {
+			owner: {
+				shortsign: typeof user.shortsign === 'string' ? user.shortsign : 'ME'
+			}
 		}
-	});
-
-	return cloned.sort((a, b) => {
-		if (a.done !== b.done) return Number(a.done) - Number(b.done);
-		const aReq = a.reviewState === 'REQUESTED' ? 1 : 0;
-		const bReq = b.reviewState === 'REQUESTED' ? 1 : 0;
-		if (aReq !== bReq) return bReq - aReq;
-		const aRev = a.reviewState === 'REVISION' ? 1 : 0;
-		const bRev = b.reviewState === 'REVISION' ? 1 : 0;
-		if (aRev !== bRev) return bRev - aRev;
-		return 0;
-	});
-};
-
-// --- RESOURCES ---
-export const addResource = async (update: any, resData: Omit<Resource, 'id' | 'created' | 'updated' | 'owner' | 'expand'>) => {
-	const userModel = pb.authStore.model;
-	const userId = userModel?.id;
-	if (!userId || !userModel) return;
-	const finalId = generatePbId();
-	update((s: AppData) => {
-		const newRes: Resource = {
-			...resData,
-			id: finalId,
-			owner: userId,
-			created: new Date().toISOString(),
-			updated: new Date().toISOString(),
-			expand: { owner: { shortsign: userModel.shortsign || 'ME' } as any }
-		};
-		return { ...s, resources: [newRes, ...s.resources] };
-	});
+	};
+	update((state) => ({ ...state, resources: [optimisticResource, ...state.resources] }));
 
 	try {
-		const record = await pb.collection('resources').create(
-			{ ...resData, id: finalId, owner: userId },
-			{ expand: 'owner' }
-		);
-		update((s: AppData) => ({
-			...s,
-			resources: s.resources.map((r) => (r.id === finalId ? { ...r, expand: record.expand } : r))
+		const record = await pb
+			.collection('resources')
+			.create({ ...resourceData, id, owner: user.id }, { expand: 'owner', requestKey: null });
+		const savedResource = parseResourceRecord(record);
+		update((state) => ({
+			...state,
+			resources: state.resources.map((resource) => (resource.id === id ? savedResource : resource))
 		}));
-	} catch (e) {
-		console.error('Failed to add resource:', e);
-		update((s: AppData) => ({ ...s, resources: s.resources.filter((r) => r.id !== finalId) }));
+	} catch (error) {
+		console.error('Ressource konnte nicht erstellt werden:', error);
+		update((state) => ({
+			...state,
+			resources: state.resources.filter((resource) => resource.id !== id)
+		}));
 	}
-};
+}
 
-export const deleteResource = async (update: (fn: (s: AppData) => AppData) => void, id: string) => {
-	update((s) => ({ ...s, resources: s.resources.filter((r) => r.id !== id) }));
-	try {
-		await pb.collection('resources').delete(id);
-	} catch (e) {
-		console.error('Failed to delete resource:', e);
-	}
-};
-
-// --- TASKS ---
-export const addTask = async (update: any, status: string, title: string, ref?: string, date?: string, assignedTo?: string) => {
-	const userModel = pb.authStore.model;
-	const userId = userModel?.id;
-	if (!userId) return;
-
-	const dueDate = date || new Date().toISOString();
-	const finalId = generatePbId();
-
-	update((s: AppData) => {
-		const newTask: Task = {
-			id: finalId,
-			title,
-			status: status as Task['status'],
-			matterRef: ref,
-			dueDate,
-			subtasks: [],
-			owner: userId,
-			assignees: assignedTo ? [assignedTo] : [userId],
-			priority: 'MEDIUM',
-			archived: false,
-			createdAt: new Date().toISOString(),
-			timeTracked: 0,
-			timeLogs: [],
-			dependencies: [],
-			flaggedDate: null,
-			expand: { owner: { shortsign: userModel.shortsign || 'ME' } as any }
-		};
-		return { ...s, tasks: [newTask, ...s.tasks] };
+export async function deleteResource(update: StoreUpdate, id: string): Promise<void> {
+	let removed: Resource | undefined;
+	let originalIndex = -1;
+	update((state) => {
+		originalIndex = state.resources.findIndex((resource) => resource.id === id);
+		removed = state.resources[originalIndex];
+		return { ...state, resources: state.resources.filter((resource) => resource.id !== id) };
 	});
 
 	try {
-		await pb.collection('tasks').create({
-			id: finalId,
-			title,
-			status,
-			matterRef: ref,
-			dueDate,
-			subtasks: [],
-			owner: userId,
-			assignees: assignedTo ? [assignedTo] : [userId],
-			priority: 'MEDIUM',
-			archived: false,
-			timeTracked: 0,
-			dependencies: [],
-			flaggedDate: null
-		});
-	} catch (e) {
-		console.error('Task creation failed:', e);
-		update((s: AppData) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== finalId) }));
-	}
-};
-
-export const assignTask = async (update: (fn: (s: AppData) => AppData) => void, taskId: string, assigneeId: string) => {
-	update((s) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, assignees: assigneeId ? [assigneeId] : [] } : t))
-	}));
-	pb.collection('tasks').update(taskId, { assignees: assigneeId ? [assigneeId] : [] }).catch((e) => console.error(e));
-};
-
-export const deleteTask = async (update: (fn: (s: AppData) => AppData) => void, id: string) => {
-	update((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
-	pb.collection('tasks').delete(id).catch((e) => console.error(e));
-};
-
-export const archiveTask = async (update: (fn: (s: AppData) => AppData) => void, id: string, archived: boolean) => {
-	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived } : t)) }));
-	pb.collection('tasks').update(id, { archived }).catch((e) => console.error(e));
-};
-
-export const updateTaskTitle = async (update: any, id: string, title: string) => {
-	update((s: AppData) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, title } : t)) }));
-	pb.collection('tasks').update(id, { title }).catch((e) => console.error(e));
-};
-
-export const updateTaskRef = async (update: any, id: string, ref: string) => {
-	update((s: AppData) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, matterRef: ref } : t)) }));
-	pb.collection('tasks').update(id, { matterRef: ref }).catch((e) => console.error(e));
-};
-
-export const updateDate = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string) => {
-	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, dueDate: date } : t)) }));
-	pb.collection('tasks').update(id, { dueDate: date }).catch((e) => console.error(e));
-};
-
-export const toggleFlag = async (update: (fn: (s: AppData) => AppData) => void, id: string, date: string | null) => {
-	update((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, flaggedDate: date } : t)) }));
-	pb.collection('tasks').update(id, { flaggedDate: date }).catch((e) => console.error(e));
-};
-
-export const moveTask = async (update: (fn: (s: AppData) => AppData) => void, id: string, status: string) => {
-	const myId = pb.authStore.model?.id || '';
-	update((s) => {
-		const task = s.tasks.find((t) => t.id === id);
-		if (!task) return s;
-
-		const isOwner = task.owner === myId;
-		const isAssignee = task.assignees?.includes(myId);
-		const isTeamLeader = task.expand?.owner?.teamLeader === myId;
-
-		if (isTeamLeader && !isOwner && !isAssignee && status !== 'REVIEW') {
-			return { ...s, tasks: s.tasks.filter((t) => t.id !== id) };
+		await pb.collection('resources').delete(id, { requestKey: null });
+	} catch (error) {
+		console.error('Ressource konnte nicht gelöscht werden:', error);
+		if (removed) {
+			update((state) => {
+				const resources = [...state.resources];
+				resources.splice(Math.max(0, originalIndex), 0, removed as Resource);
+				return { ...state, resources };
+			});
 		}
-		return { ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, status: status as Task['status'] } : t)) };
-	});
-	pb.collection('tasks').update(id, { status }).catch((e) => console.error(e));
-};
+	}
+}
 
-export const addSubtask = async (update: any, get: any, taskId: string, title: string, type: SubtaskType = 'GENERIC', x = 300, y = 200) => {
-	const newSub: Subtask = { id: uuidv4(), title, done: false, archived: false, type, x, y, next: [], subtasks: [] };
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: sortSubtasksDeep([...t.subtasks, newSub]) } : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
+export async function addTask(
+	update: StoreUpdate,
+	statusInput: string,
+	title: string,
+	matterRef?: string,
+	dueDate?: string,
+	assignedTo?: string
+): Promise<void> {
+	const user = pb.authStore.model;
+	const statusResult = TaskStatusSchema.safeParse(statusInput);
+	if (!pb.authStore.isValid || !user?.id || !statusResult.success || !title.trim()) return;
 
-export const toggleSubtask = async (update: any, get: any, taskId: string, subId: string) => {
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => {
-				const isNowDone = !sub.done;
-				return { ...sub, done: isNowDone, completedAt: isNowDone ? new Date().toISOString() : undefined };
-			}))
-		} : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
-
-export const archiveSubtask = async (update: any, get: any, taskId: string, subId: string, archived: boolean) => {
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, archived })))
-		} : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
-
-export const updateSubtaskTitle = async (update: any, get: any, taskId: string, subId: string, title: string) => {
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, title }))
-		} : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
-
-export const addSubSubtask = async (update: any, get: any, taskId: string, parentSubId: string, title: string) => {
-	const newSub: Subtask = { id: uuidv4(), title, done: false, archived: false, type: 'GENERIC', x: 350, y: 250, next: [], subtasks: [] };
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: sortSubtasksDeep(recursiveAdd(t.subtasks, parentSubId, newSub))
-		} : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
-
-export const deleteSubtask = async (update: any, get: any, taskId: string, subtaskIdToDelete: string) => {
-	const deepClean = (nodes: any): Subtask[] => {
-		if (!Array.isArray(nodes)) return [];
-		return nodes
-			.filter((n) => n && typeof n === 'object' && n.id !== subtaskIdToDelete)
-			.map((n) => ({
-				...n,
-				next: Array.isArray(n.next) ? n.next.filter((id: string) => id !== subtaskIdToDelete) : [],
-				subtasks: deepClean(n.subtasks)
-			}));
+	const id = generatePocketBaseId();
+	const timestamp = new Date().toISOString();
+	const task: Task = {
+		id,
+		title: title.trim(),
+		status: statusResult.data,
+		matterRef: matterRef?.trim() || undefined,
+		dueDate: dueDate ?? timestamp,
+		subtasks: [],
+		owner: user.id,
+		assignees: assignedTo ? [assignedTo] : [user.id],
+		priority: 'MEDIUM',
+		archived: false,
+		createdAt: timestamp,
+		updatedAt: timestamp,
+		timeLogs: [],
+		flaggedDate: null,
+		expand: {
+			owner: {
+				shortsign: typeof user.shortsign === 'string' ? user.shortsign : 'ME',
+				teamLeader: user.teamLeader
+			}
+		}
 	};
+	update((state) => ({ ...state, tasks: [task, ...state.tasks] }));
 
-	let payloadToSync: Subtask[] | null = null;
-	update((s: AppData) => {
-		const task = s.tasks.find((t) => t.id === taskId);
-		if (!task) return s;
-		payloadToSync = sortSubtasksDeep(deepClean(task.subtasks));
-		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, subtasks: payloadToSync } : t)) };
-	});
-
-	if (payloadToSync !== null) pb.collection('tasks').update(taskId, { subtasks: payloadToSync }).catch((e) => console.error(e));
-};
-
-let moveTimer: ReturnType<typeof setTimeout>;
-export let isDraggingLock = false;
-
-export const updateSubtaskPos = async (update: any, get: any, taskId: string, subId: string, x: number, y: number) => {
-	isDraggingLock = true;
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, x, y }))
-		} : t))
-	}));
-	clearTimeout(moveTimer);
-	moveTimer = setTimeout(async () => {
-		const task = get().tasks.find((t: Task) => t.id === taskId);
-		if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-		isDraggingLock = false;
-	}, 400);
-};
-
-export const connectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: recursiveUpdate(t.subtasks, sourceId, (sub) => ({ ...sub, next: [...new Set([...sub.next, targetId])] }))
-		} : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
-
-export const disconnectSubtasks = async (update: any, get: any, taskId: string, sourceId: string, targetId: string) => {
-	update((s: AppData) => ({
-		...s,
-		tasks: s.tasks.map((t) => (t.id === taskId ? {
-			...t,
-			subtasks: recursiveUpdate(t.subtasks, sourceId, (sub) => ({ ...sub, next: sub.next.filter((id: string) => id !== targetId) }))
-		} : t))
-	}));
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-};
-
-export const indentSubtask = async (update: any, get: any, taskId: string, subId: string) => {
-	let hasChanged = false;
-	update((s: AppData) => {
-		const tasks = s.tasks.map((t) => {
-			if (t.id !== taskId) return t;
-			let newSubtasks = JSON.parse(JSON.stringify(t.subtasks));
-			const indent = (nodes: Subtask[]): boolean => {
-				for (let i = 0; i < nodes.length; i++) {
-					if (nodes[i].id === subId) {
-						if (i > 0) {
-							const target = nodes.splice(i, 1)[0];
-							if (!nodes[i - 1].subtasks) nodes[i - 1].subtasks = [];
-							nodes[i - 1].subtasks.push(target);
-							hasChanged = true;
-							return true;
-						}
-						return false;
-					}
-					if (nodes[i].subtasks && indent(nodes[i].subtasks)) return true;
-				}
-				return false;
-			};
-			indent(newSubtasks);
-			return { ...t, subtasks: sortSubtasksDeep(newSubtasks) };
-		});
-		return { ...s, tasks };
-	});
-	if (hasChanged) {
-		const task = get().tasks.find((t: Task) => t.id === taskId);
-		if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
+	try {
+		const record = await pb.collection('tasks').create(
+			{
+				id,
+				title: task.title,
+				status: task.status,
+				matterRef: task.matterRef,
+				dueDate: task.dueDate,
+				subtasks: [],
+				owner: task.owner,
+				assignees: task.assignees,
+				priority: task.priority,
+				archived: false,
+				timeLogs: [],
+				flaggedDate: null
+			},
+			{ expand: 'owner', requestKey: null }
+		);
+		const savedTask = parseTaskRecord(record);
+		update((state) => ({
+			...state,
+			tasks: state.tasks.map((candidate) => (candidate.id === id ? savedTask : candidate))
+		}));
+	} catch (error) {
+		console.error('Task konnte nicht erstellt werden:', error);
+		update((state) => ({
+			...state,
+			tasks: state.tasks.filter((candidate) => candidate.id !== id)
+		}));
 	}
-};
+}
 
-export const outdentSubtask = async (update: any, get: any, taskId: string, subId: string) => {
-	let hasChanged = false;
-	update((s: AppData) => {
-		const tasks = s.tasks.map((t) => {
-			if (t.id !== taskId) return t;
-			let newSubtasks = JSON.parse(JSON.stringify(t.subtasks));
-			const outdent = (nodes: Subtask[], parentArr: Subtask[] | null, parentIndex: number): boolean => {
-				for (let i = 0; i < nodes.length; i++) {
-					if (nodes[i].id === subId) {
-						if (parentArr) {
-							const target = nodes.splice(i, 1)[0];
-							parentArr.splice(parentIndex + 1, 0, target);
-							hasChanged = true;
-							return true;
-						}
-						return false;
-					}
-					if (nodes[i].subtasks && outdent(nodes[i].subtasks, nodes, i)) return true;
-				}
-				return false;
-			};
-			outdent(newSubtasks, null, -1);
-			return { ...t, subtasks: sortSubtasksDeep(newSubtasks) };
-		});
-		return { ...s, tasks };
+export function assignTask(update: StoreUpdate, taskId: string, assigneeId: string): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		taskId,
+		(task) => ({ ...task, assignees: assigneeId ? [assigneeId] : [] }),
+		(task) => ({ assignees: task.assignees })
+	);
+}
+
+export async function deleteTask(update: StoreUpdate, id: string): Promise<void> {
+	let removed: Task | undefined;
+	let originalIndex = -1;
+	update((state) => {
+		originalIndex = state.tasks.findIndex((task) => task.id === id);
+		removed = state.tasks[originalIndex];
+		return { ...state, tasks: state.tasks.filter((task) => task.id !== id) };
 	});
-	if (hasChanged) {
-		const task = get().tasks.find((t: Task) => t.id === taskId);
-		if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-	}
-};
 
-// --- CHAT INTEGRATION: Das Herzstück des Auto-Pings ---
-export const setSubtaskReviewState = async (update: any, get: any, taskId: string, subId: string, state: 'REQUESTED' | 'APPROVED' | 'REVISION' | null) => {
-	let caseName = '';
-	let subtaskName = '';
-
-	update((s: AppData) => {
-		// 1. Wir holen uns den Case und den Namen des Subtasks aus dem Store, um ihn später im Chat posten zu können
-		const task = s.tasks.find((t) => t.id === taskId);
-		if (task) {
-			caseName = task.matterRef || task.title;
-			
-			const findTitle = (nodes: Subtask[]): string => {
-				for (const node of nodes) {
-					if (node.id === subId) return node.title;
-					if (node.subtasks) {
-						const found = findTitle(node.subtasks);
-						if (found) return found;
-					}
-				}
-				return '';
-			};
-			subtaskName = findTitle(task.subtasks);
+	await flushTaskMutations(id);
+	try {
+		await pb.collection('tasks').delete(id, { requestKey: null });
+	} catch (error) {
+		console.error('Task konnte nicht gelöscht werden:', error);
+		if (removed) {
+			update((state) => {
+				const tasks = [...state.tasks];
+				tasks.splice(Math.max(0, originalIndex), 0, removed as Task);
+				return { ...state, tasks };
+			});
 		}
+	}
+}
 
-		// 2. Reguläres Update des Status
-		return {
-			...s,
-			tasks: s.tasks.map((t) => (t.id === taskId ? {
-				...t,
-				subtasks: sortSubtasksDeep(recursiveUpdate(t.subtasks, subId, (sub) => ({ ...sub, reviewState: state })))
-			} : t))
-		};
+export function archiveTask(update: StoreUpdate, id: string, archived: boolean): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, archived }),
+		(task) => ({ archived: task.archived })
+	);
+}
+
+export function updateTaskTitle(update: StoreUpdate, id: string, title: string): Promise<void> {
+	const normalizedTitle = title.trim();
+	if (!normalizedTitle) return Promise.resolve();
+	return optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, title: normalizedTitle }),
+		(task) => ({ title: task.title })
+	);
+}
+
+export function updateTaskRef(update: StoreUpdate, id: string, matterRef: string): Promise<void> {
+	const normalizedRef = matterRef.trim();
+	return optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, matterRef: normalizedRef || undefined }),
+		(task) => ({ matterRef: task.matterRef ?? '' })
+	);
+}
+
+export function updateTaskPriority(
+	update: StoreUpdate,
+	id: string,
+	priority: TaskPriority
+): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, priority }),
+		(task) => ({ priority: task.priority })
+	);
+}
+
+export function updateDate(update: StoreUpdate, id: string, dueDate: string): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, dueDate }),
+		(task) => ({ dueDate: task.dueDate })
+	);
+}
+
+export function toggleFlag(
+	update: StoreUpdate,
+	id: string,
+	flaggedDate: string | null
+): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, flaggedDate }),
+		(task) => ({ flaggedDate: task.flaggedDate })
+	);
+}
+
+export async function moveTask(
+	update: StoreUpdate,
+	id: string,
+	statusInput: string
+): Promise<void> {
+	const statusResult = TaskStatusSchema.safeParse(statusInput);
+	if (!statusResult.success) return;
+	const status = statusResult.data;
+	const userId = pb.authStore.model?.id ?? '';
+	let removeAfterSave = false;
+
+	update((state) => {
+		const task = state.tasks.find((candidate) => candidate.id === id);
+		if (!task) return state;
+		removeAfterSave =
+			belongsToLeader(task.expand?.owner?.teamLeader, userId) &&
+			task.owner !== userId &&
+			!task.assignees.includes(userId) &&
+			status !== 'REVIEW';
+		return state;
 	});
 
-	// 3. Datenbank Sync für den Task
-	const task = get().tasks.find((t: Task) => t.id === taskId);
-	if (task) pb.collection('tasks').update(taskId, { subtasks: task.subtasks }).catch((e) => console.error(e));
-
-	// 4. CHAT PING: Feuert eine automatische Systemnachricht in den Chat ab, wenn ein Review angefragt wird
-	if (state === 'REQUESTED' && caseName && subtaskName) {
-		chatStore.sendReviewPing(caseName, subtaskName);
+	await optimisticTaskMutation(
+		update,
+		id,
+		(task) => ({ ...task, status }),
+		(task) => ({ status: task.status })
+	);
+	if (removeAfterSave) {
+		update((state) => ({ ...state, tasks: state.tasks.filter((task) => task.id !== id) }));
 	}
-};
+}
 
-export const fetchContext = async (matterRef: string) => {
-	const userId = pb.authStore.model?.id;
-	if (!userId || !matterRef) return null;
-	try {
-		return await pb.collection('contexts').getFirstListItem(`matterRef="${matterRef}" && owner="${userId}"`);
-	} catch (e) {
-		return null;
-	}
-};
-
-export const saveContext = async (matterRef: string, content: string, contextId?: string) => {
-	const userId = pb.authStore.model?.id;
-	if (!userId || !matterRef) return null;
-	try {
-		if (contextId) return await pb.collection('contexts').update(contextId, { content });
-		else return await pb.collection('contexts').create({ matterRef, owner: userId, content });
-	} catch (e) {
-		console.error('Failed to save context:', e);
-		return null;
-	}
-};
-
-// --- ZEITERFASSUNG ---
-export const addTimeLog = async (update: any, get: any, taskId: string, minutes: number, note: string, dateStr: string) => {
-	const userId = pb.authStore.model?.id;
-	if (!userId) return;
-	const newLog = {
+export function addSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	title: string,
+	type: SubtaskType = 'GENERIC',
+	x = 300,
+	y = 200
+): Promise<void> {
+	const subtask: Subtask = {
 		id: uuidv4(),
-		userId: userId,
-		date: new Date(dateStr).toISOString(),
-		minutes: minutes,
-		note: note
+		title: title.trim(),
+		done: false,
+		archived: false,
+		type,
+		x,
+		y,
+		next: [],
+		subtasks: []
 	};
-	let payloadToSync: any[] | null = null;
-	update((s: AppData) => {
-		const task = s.tasks.find((t) => t.id === taskId);
-		if (!task) return s;
-		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
-		payloadToSync = [...currentLogs, newLog];
-		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t)) };
-	});
-	if (payloadToSync !== null) {
-		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
-	}
-};
+	return mutateSubtasks(update, taskId, (subtasks) => [...subtasks, subtask]);
+}
 
-export const updateTimeLog = async (update: any, get: any, taskId: string, logId: string, minutes: number, note: string, dateStr: string) => {
-	let payloadToSync: any[] | null = null;
-	update((s: AppData) => {
-		const task = s.tasks.find((t) => t.id === taskId);
-		if (!task) return s;
-		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
-		payloadToSync = currentLogs.map(log => log.id === logId ? { ...log, minutes, note, date: new Date(dateStr).toISOString() } : log);
-		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t)) };
-	});
-	if (payloadToSync !== null) {
-		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
-	}
-};
+export function toggleSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, subtaskId, (subtask) => {
+			const done = !subtask.done;
+			return { ...subtask, done, completedAt: done ? new Date().toISOString() : undefined };
+		})
+	);
+}
 
-export const deleteTimeLog = async (update: any, get: any, taskId: string, logId: string) => {
-	let payloadToSync: any[] | null = null;
-	update((s: AppData) => {
-		const task = s.tasks.find((t) => t.id === taskId);
-		if (!task) return s;
-		const currentLogs = Array.isArray(task.timeLogs) ? task.timeLogs : [];
-		payloadToSync = currentLogs.filter(log => log.id !== logId);
-		return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, timeLogs: payloadToSync } : t)) };
-	});
-	if (payloadToSync !== null) {
-		pb.collection('tasks').update(taskId, { timeLogs: payloadToSync }).catch((e) => console.error(e));
+export function archiveSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string,
+	archived: boolean
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, subtaskId, (subtask) => ({ ...subtask, archived }))
+	);
+}
+
+export function updateSubtaskTitle(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string,
+	title: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, subtaskId, (subtask) => ({ ...subtask, title: title.trim() }))
+	);
+}
+
+export function addSubSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	parentSubtaskId: string,
+	title: string
+): Promise<void> {
+	const subtask: Subtask = {
+		id: uuidv4(),
+		title: title.trim(),
+		done: false,
+		archived: false,
+		type: 'GENERIC',
+		x: 350,
+		y: 250,
+		next: [],
+		subtasks: []
+	};
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		addChildSubtask(subtasks, parentSubtaskId, subtask)
+	);
+}
+
+export function deleteSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) => removeSubtask(subtasks, subtaskId));
+}
+
+export function updateSubtaskPos(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string,
+	x: number,
+	y: number
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, subtaskId, (subtask) => ({ ...subtask, x, y }))
+	);
+}
+
+export function connectSubtasks(
+	update: StoreUpdate,
+	taskId: string,
+	sourceId: string,
+	targetId: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, sourceId, (subtask) => ({
+			...subtask,
+			next: subtask.next.includes(targetId) ? subtask.next : [...subtask.next, targetId]
+		}))
+	);
+}
+
+export function disconnectSubtasks(
+	update: StoreUpdate,
+	taskId: string,
+	sourceId: string,
+	targetId: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, sourceId, (subtask) => ({
+			...subtask,
+			next: subtask.next.filter((id) => id !== targetId)
+		}))
+	);
+}
+
+export function indentSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) => indentSubtaskTree(subtasks, subtaskId));
+}
+
+export function outdentSubtask(
+	update: StoreUpdate,
+	taskId: string,
+	subtaskId: string
+): Promise<void> {
+	return mutateSubtasks(update, taskId, (subtasks) => outdentSubtaskTree(subtasks, subtaskId));
+}
+
+export async function setSubtaskReviewState(
+	update: StoreUpdate,
+	read: StoreRead,
+	taskId: string,
+	subtaskId: string,
+	state: ReviewState | null
+): Promise<void> {
+	const task = read().tasks.find((candidate) => candidate.id === taskId);
+	const subtask = task ? findSubtask(task.subtasks, subtaskId) : null;
+
+	await mutateSubtasks(update, taskId, (subtasks) =>
+		updateSubtask(subtasks, subtaskId, (candidate) => ({ ...candidate, reviewState: state }))
+	);
+
+	if (state === 'REQUESTED' && task && subtask) {
+		await chatStore.sendReviewPing(task.matterRef || task.title, subtask.title);
 	}
-};
+}
+
+export async function fetchContext(matterRef: string): Promise<ContextRecord | null> {
+	const userId = pb.authStore.model?.id;
+	if (!userId || !matterRef.trim()) return null;
+
+	try {
+		const record = await pb.collection('contexts').getFirstListItem(
+			pb.filter('matterRef = {:matterRef} && owner = {:owner}', {
+				matterRef: matterRef.trim(),
+				owner: userId
+			}),
+			{ requestKey: null }
+		);
+		return ContextRecordSchema.parse(record);
+	} catch (error) {
+		if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404) {
+			return null;
+		}
+		console.error('Aktennotiz konnte nicht geladen werden:', error);
+		throw error;
+	}
+}
+
+export async function saveContext(
+	matterRef: string,
+	content: string,
+	contextId?: string
+): Promise<ContextRecord | null> {
+	const userId = pb.authStore.model?.id;
+	if (!userId || !matterRef.trim()) return null;
+
+	try {
+		const record = contextId
+			? await pb.collection('contexts').update(contextId, { content }, { requestKey: null })
+			: await pb
+					.collection('contexts')
+					.create({ matterRef: matterRef.trim(), owner: userId, content }, { requestKey: null });
+		return ContextRecordSchema.parse(record);
+	} catch (error) {
+		console.error('Aktennotiz konnte nicht gespeichert werden:', error);
+		return null;
+	}
+}
+
+export function addTimeLog(
+	update: StoreUpdate,
+	taskId: string,
+	minutes: number,
+	note: string,
+	date: string
+): Promise<void> {
+	const userId = pb.authStore.model?.id;
+	if (!userId || !Number.isFinite(minutes) || minutes <= 0) return Promise.resolve();
+	const timeLog: TimeLog = {
+		id: uuidv4(),
+		userId,
+		date: normalizeIsoDate(date),
+		minutes,
+		note: note.trim() || undefined
+	};
+	return optimisticTaskMutation(
+		update,
+		taskId,
+		(task) => ({ ...task, timeLogs: [...task.timeLogs, timeLog] }),
+		(task) => ({ timeLogs: task.timeLogs })
+	);
+}
+
+export function updateTimeLog(
+	update: StoreUpdate,
+	taskId: string,
+	logId: string,
+	minutes: number,
+	note: string,
+	date: string
+): Promise<void> {
+	if (!Number.isFinite(minutes) || minutes <= 0) return Promise.resolve();
+	const normalizedDate = normalizeIsoDate(date);
+	return optimisticTaskMutation(
+		update,
+		taskId,
+		(task) => ({
+			...task,
+			timeLogs: task.timeLogs.map((log) =>
+				log.id === logId
+					? { ...log, minutes, note: note.trim() || undefined, date: normalizedDate }
+					: log
+			)
+		}),
+		(task) => ({ timeLogs: task.timeLogs })
+	);
+}
+
+export function deleteTimeLog(update: StoreUpdate, taskId: string, logId: string): Promise<void> {
+	return optimisticTaskMutation(
+		update,
+		taskId,
+		(task) => ({ ...task, timeLogs: task.timeLogs.filter((log) => log.id !== logId) }),
+		(task) => ({ timeLogs: task.timeLogs })
+	);
+}

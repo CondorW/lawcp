@@ -1,182 +1,274 @@
-import { pb } from '$lib/pocketbase'; 
-import { browser } from '$app/environment'; 
-import { isDraggingLock, sortSubtasksDeep } from './dbLogic'; 
-import type { AppData, Task, Resource } from '$lib/types'; 
+import { browser } from '$app/environment';
+import { belongsToLeader } from '$lib/domain/users';
+import { pb } from '$lib/pocketbase';
+import {
+	parseFirmUserRecord,
+	parseRecordList,
+	parseResourceRecord,
+	parseTaskRecord
+} from '$lib/pocketbaseRecords';
+import { hasPendingTaskMutation, type StoreUpdate } from './taskMutationQueue';
+import type { AppData, Resource, Task } from '$lib/types';
 
-export const initPocketBaseSync = async (update: (fn: (s: AppData) => AppData) => void) => { 
-	if (!browser) return; 
-	
-	if (pb.authStore.isValid && pb.authStore.model) { 
-		const user = pb.authStore.model; 
-		update((s) => ({ ...s, settings: { ...s.settings, myShortsign: user.shortsign || 'ME', isAuthenticated: true } })); 
-	} 
-	
-	const forceFullSync = async () => { 
-		try { 
-			const users = await pb.collection('users').getFullList({ fields: 'id,name,shortsign,email,teamLeader', sort: 'shortsign' }); 
-			const resRecords = await pb.collection('resources').getFullList({ sort: '-created', expand: 'owner' }); 
-			const resources = resRecords.map((r: any) => ({ 
-				id: r.id, type: r.type, name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand 
-			})); 
-			
-			const records = await pb.collection('tasks').getFullList({ sort: '-created', expand: 'owner' }); 
-			const tasks = records.map((r: any) => ({ 
-				id: r.id, title: r.title, status: r.status, matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', 
-				subtasks: sortSubtasksDeep(r.subtasks || []), 
-				flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, 
-				priority: r.priority || 'MEDIUM', 
-				timeLogs: r.timeLogs || [], // <--- FIX: Neues Feld synchronisiert
-				archived: r.archived || false, 
-				createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand 
-			})); 
-			
-			update((s) => { 
-				if (isDraggingLock) return s; 
-				return { ...s, tasks: tasks as Task[], firmUsers: users, resources: resources as Resource[] }; 
-			}); 
-		} catch (e) { 
-			console.error('PB Load Error:', e); 
-		} 
-	}; 
-	
-	await forceFullSync(); 
-	
-	let lastWakeUp = 0; 
-	const onWakeUp = () => { 
-		const now = Date.now(); 
-		if (now - lastWakeUp > 2000) { 
-			lastWakeUp = now; 
-			forceFullSync(); 
-		} 
-	}; 
-	
-	window.addEventListener('focus', onWakeUp); 
-	document.addEventListener('visibilitychange', () => { 
-		if (document.visibilityState === 'visible') onWakeUp(); 
-	}); 
-	
-	pb.collection('tasks').subscribe('*', async (e) => { 
-		const myId = pb.authStore.model?.id; 
-		if (e.action === 'delete') { 
-			update((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== e.record.id) })); 
-			return; 
-		} 
-		if (e.action === 'create' || e.action === 'update') { 
-			try { 
-				const r = await pb.collection('tasks').getOne(e.record.id, { expand: 'owner' }); 
-				const isOwner = r.owner === myId; 
-				const isAssignee = r.assignees?.includes(myId); 
-				const isTeamTask = r.expand?.owner?.teamLeader === myId; 
-				if (isOwner || isAssignee || isTeamTask) { 
-					update((s) => { 
-						const index = s.tasks.findIndex((t) => t.id === r.id); 
-						const currentLocalTask = index !== -1 ? s.tasks[index] : null; 
-						const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : sortSubtasksDeep(r.subtasks || []); 
-						
-						const updatedTask: Task = { 
-							id: r.id, title: r.title, status: r.status as Task['status'], matterRef: r.matterRef, dueDate: r.dueDate ? r.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: r.flaggedDate ? r.flaggedDate.substring(0, 10) : null, priority: r.priority || 'MEDIUM', 
-							timeLogs: r.timeLogs || [], // <--- FIX: Neues Feld synchronisiert
-							archived: r.archived || false, 
-							createdAt: r.created, timeTracked: r.timeTracked || 0, dependencies: r.dependencies || [], assignees: r.assignees || [], owner: r.owner, expand: r.expand 
-						}; 
-						
-						if (index !== -1) { 
-							const newTasks = [...s.tasks]; 
-							newTasks[index] = updatedTask; 
-							return { ...s, tasks: newTasks }; 
-						} else { 
-							return { ...s, tasks: [updatedTask, ...s.tasks] }; 
-						} 
-					}); 
-				} else { 
-					update((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== r.id) })); 
-				} 
-			} catch (err) { 
-				update((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== e.record.id) })); 
-			} 
-		} 
-	}); 
-	
-	pb.collection('resources').subscribe('*', async (e) => { 
-		if (e.action === 'delete') { 
-			update((s) => ({ ...s, resources: s.resources.filter((r) => r.id !== e.record.id) })); 
-			return; 
-		} 
-		if (e.action === 'create' || e.action === 'update') { 
-			try { 
-				const r = await pb.collection('resources').getOne(e.record.id, { expand: 'owner' }); 
-				const updatedRes: Resource = { id: r.id, type: r.type as 'COMPANY' | 'PERSON' | 'AUTHORITY', name: r.name, identifier: r.identifier, address: r.address, street: r.street, zip: r.zip, city: r.city, notes: r.notes, created: r.created, updated: r.updated, owner: r.owner, expand: r.expand }; 
-				update((s) => { 
-					const index = s.resources.findIndex((res) => res.id === r.id); 
-					if (index !== -1) { 
-						const newRes = [...s.resources]; 
-						newRes[index] = updatedRes; 
-						return { ...s, resources: newRes }; 
-					} else { 
-						return { ...s, resources: [updatedRes, ...s.resources] }; 
-					} 
-				}); 
-			} catch (err) { 
-				update((s) => ({ ...s, resources: s.resources.filter((r) => r.id !== e.record.id) })); 
-			} 
-		} 
-	}); 
-	
-	let lastServerTime = ''; 
-	let pollInterval: ReturnType<typeof setInterval>; 
-	
-	const runSync = async () => { 
-		const myId = pb.authStore.model?.id; 
-		if (!myId) return; 
-		try { 
-			const serverMeta = await pb.collection('tasks').getFullList({ fields: 'id,updated', sort: '-updated', requestKey: null, headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }, limit: 1 }); 
-			if (!lastServerTime && serverMeta.length > 0) { 
-				lastServerTime = serverMeta[0].updated; 
-				return; 
-			} 
-			let missedTasks: any[] = []; 
-			if (lastServerTime && serverMeta.length > 0 && serverMeta[0].updated > lastServerTime) { 
-				missedTasks = await pb.collection('tasks').getFullList({ filter: `updated > "${lastServerTime}"`, expand: 'owner', sort: '-updated', requestKey: null, headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } }); 
-			} 
-			if (missedTasks.length > 0) { 
-				lastServerTime = missedTasks[0].updated; 
-				update((s) => { 
-					let newTasks = [...s.tasks]; 
-					let hasChanges = false; 
-					missedTasks.forEach((mt: any) => { 
-						const index = newTasks.findIndex((t) => t.id === mt.id); 
-						const isOwner = mt.owner === myId; 
-						const isAssignee = mt.assignees?.includes(myId); 
-						const isTeamTask = mt.expand?.owner?.teamLeader === myId; 
-						if (isOwner || isAssignee || isTeamTask) { 
-							const currentLocalTask = index !== -1 ? newTasks[index] : null; 
-							const subtasksToUse = isDraggingLock && currentLocalTask ? currentLocalTask.subtasks : sortSubtasksDeep(mt.subtasks || []); 
-							
-							const taskObj: Task = { 
-								id: mt.id, title: mt.title, status: mt.status, matterRef: mt.matterRef, dueDate: mt.dueDate ? mt.dueDate.substring(0, 10) : '', subtasks: subtasksToUse, flaggedDate: mt.flaggedDate ? mt.flaggedDate.substring(0, 10) : null, priority: mt.priority || 'MEDIUM', 
-								timeLogs: mt.timeLogs || [], // <--- FIX: Neues Feld synchronisiert
-								archived: mt.archived || false, 
-								createdAt: mt.created, timeTracked: mt.timeTracked || 0, dependencies: mt.dependencies || [], assignees: mt.assignees || [], owner: mt.owner, expand: mt.expand 
-							}; 
-							
-							if (index !== -1) { 
-								if (JSON.stringify(newTasks[index]) !== JSON.stringify(taskObj)) { 
-									newTasks[index] = taskObj; 
-									hasChanges = true; 
-								} 
-							} else { 
-								newTasks.unshift(taskObj); 
-								hasChanges = true; 
-							} 
-						} else if (index !== -1) { 
-							newTasks = newTasks.filter((t) => t.id !== mt.id); 
-							hasChanges = true; 
-						} 
-					}); 
-					return hasChanges ? { ...s, tasks: newTasks } : s; 
-				}); 
-			} 
-		} catch (e) {} 
-	}; 
-	pollInterval = setInterval(runSync, 15000); 
-};
+type Cleanup = () => void;
+
+interface SyncSession {
+	userId: string;
+	disposed: boolean;
+	cleanups: Cleanup[];
+	lastServerTime: string;
+	syncing: boolean;
+	ready: Promise<void>;
+}
+
+let activeSession: SyncSession | null = null;
+
+function isActive(session: SyncSession): boolean {
+	return activeSession === session && !session.disposed && pb.authStore.isValid;
+}
+
+function canViewTask(task: Task, userId: string): boolean {
+	return (
+		task.owner === userId ||
+		task.assignees.includes(userId) ||
+		belongsToLeader(task.expand?.owner?.teamLeader, userId)
+	);
+}
+
+function mergeTasks(currentTasks: Task[], serverTasks: Task[]): Task[] {
+	const currentById = new Map(currentTasks.map((task) => [task.id, task]));
+	const merged = serverTasks.map((task) =>
+		hasPendingTaskMutation(task.id) ? (currentById.get(task.id) ?? task) : task
+	);
+	const serverIds = new Set(serverTasks.map((task) => task.id));
+
+	for (const task of currentTasks) {
+		if (!serverIds.has(task.id) && hasPendingTaskMutation(task.id)) merged.unshift(task);
+	}
+	return merged;
+}
+
+function upsertTask(state: AppData, task: Task): AppData {
+	if (hasPendingTaskMutation(task.id)) return state;
+	const index = state.tasks.findIndex((candidate) => candidate.id === task.id);
+	if (index < 0) return { ...state, tasks: [task, ...state.tasks] };
+	const tasks = [...state.tasks];
+	tasks[index] = task;
+	return { ...state, tasks };
+}
+
+function upsertResource(state: AppData, resource: Resource): AppData {
+	const index = state.resources.findIndex((candidate) => candidate.id === resource.id);
+	if (index < 0) return { ...state, resources: [resource, ...state.resources] };
+	const resources = [...state.resources];
+	resources[index] = resource;
+	return { ...state, resources };
+}
+
+async function forceFullSync(update: StoreUpdate, session: SyncSession): Promise<void> {
+	if (!isActive(session) || session.syncing) return;
+	session.syncing = true;
+
+	try {
+		const [userRecords, resourceRecords, taskRecords] = await Promise.all([
+			pb.collection('users').getFullList({
+				fields: 'id,name,shortsign,email,teamLeader',
+				sort: 'shortsign',
+				requestKey: null
+			}),
+			pb.collection('resources').getFullList({
+				sort: '-created',
+				expand: 'owner',
+				requestKey: null
+			}),
+			pb.collection('tasks').getFullList({
+				sort: '-created',
+				expand: 'owner',
+				requestKey: null
+			})
+		]);
+		if (!isActive(session)) return;
+
+		const firmUsers = parseRecordList(userRecords, parseFirmUserRecord, 'users');
+		const resources = parseRecordList(resourceRecords, parseResourceRecord, 'resources');
+		const tasks = parseRecordList(taskRecords, parseTaskRecord, 'tasks').filter((task) =>
+			canViewTask(task, session.userId)
+		);
+		session.lastServerTime = tasks.reduce(
+			(latest, task) => (task.updatedAt && task.updatedAt > latest ? task.updatedAt : latest),
+			session.lastServerTime
+		);
+
+		update((state) => ({
+			...state,
+			tasks: mergeTasks(state.tasks, tasks),
+			firmUsers,
+			resources
+		}));
+	} catch (error) {
+		if (isActive(session)) console.error('PocketBase-Synchronisierung fehlgeschlagen:', error);
+	} finally {
+		session.syncing = false;
+	}
+}
+
+async function subscribeToTasks(update: StoreUpdate, session: SyncSession): Promise<void> {
+	const unsubscribe = await pb.collection('tasks').subscribe('*', async (event) => {
+		if (!isActive(session)) return;
+		if (event.action === 'delete') {
+			update((state) => ({
+				...state,
+				tasks: state.tasks.filter((task) => task.id !== event.record.id)
+			}));
+			return;
+		}
+
+		if (hasPendingTaskMutation(event.record.id)) return;
+		try {
+			const record = await pb.collection('tasks').getOne(event.record.id, {
+				expand: 'owner',
+				requestKey: null
+			});
+			if (!isActive(session)) return;
+			const task = parseTaskRecord(record);
+			session.lastServerTime = task.updatedAt ?? session.lastServerTime;
+			update((state) =>
+				canViewTask(task, session.userId)
+					? upsertTask(state, task)
+					: { ...state, tasks: state.tasks.filter((candidate) => candidate.id !== task.id) }
+			);
+		} catch (error) {
+			if (isActive(session)) {
+				console.error('Realtime-Task konnte nicht geladen werden:', error);
+				update((state) => ({
+					...state,
+					tasks: state.tasks.filter((task) => task.id !== event.record.id)
+				}));
+			}
+		}
+	});
+
+	if (isActive(session)) session.cleanups.push(unsubscribe);
+	else unsubscribe();
+}
+
+async function subscribeToResources(update: StoreUpdate, session: SyncSession): Promise<void> {
+	const unsubscribe = await pb.collection('resources').subscribe('*', async (event) => {
+		if (!isActive(session)) return;
+		if (event.action === 'delete') {
+			update((state) => ({
+				...state,
+				resources: state.resources.filter((resource) => resource.id !== event.record.id)
+			}));
+			return;
+		}
+
+		try {
+			const record = await pb.collection('resources').getOne(event.record.id, {
+				expand: 'owner',
+				requestKey: null
+			});
+			if (isActive(session)) update((state) => upsertResource(state, parseResourceRecord(record)));
+		} catch (error) {
+			if (isActive(session)) {
+				console.error('Realtime-Ressource konnte nicht geladen werden:', error);
+				update((state) => ({
+					...state,
+					resources: state.resources.filter((resource) => resource.id !== event.record.id)
+				}));
+			}
+		}
+	});
+
+	if (isActive(session)) session.cleanups.push(unsubscribe);
+	else unsubscribe();
+}
+
+async function initializeSession(update: StoreUpdate, session: SyncSession): Promise<void> {
+	await forceFullSync(update, session);
+	if (!isActive(session)) return;
+
+	let lastWakeUp = 0;
+	const onWakeUp = (): void => {
+		const now = Date.now();
+		if (now - lastWakeUp < 2_000) return;
+		lastWakeUp = now;
+		void forceFullSync(update, session);
+	};
+	const onVisibilityChange = (): void => {
+		if (document.visibilityState === 'visible') onWakeUp();
+	};
+
+	window.addEventListener('focus', onWakeUp);
+	document.addEventListener('visibilitychange', onVisibilityChange);
+	session.cleanups.push(() => window.removeEventListener('focus', onWakeUp));
+	session.cleanups.push(() => document.removeEventListener('visibilitychange', onVisibilityChange));
+
+	await Promise.all([subscribeToTasks(update, session), subscribeToResources(update, session)]);
+	if (!isActive(session)) return;
+
+	const interval = window.setInterval(async () => {
+		if (!isActive(session)) return;
+		try {
+			const latest = await pb.collection('tasks').getList(1, 1, {
+				fields: 'id,updated',
+				sort: '-updated',
+				requestKey: null,
+				headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+			});
+			const latestUpdated = latest.items[0]?.updated;
+			if (latestUpdated && latestUpdated > session.lastServerTime) {
+				await forceFullSync(update, session);
+			}
+		} catch (error) {
+			if (isActive(session)) console.error('PocketBase-Polling fehlgeschlagen:', error);
+		}
+	}, 15_000);
+	session.cleanups.push(() => window.clearInterval(interval));
+}
+
+export async function initPocketBaseSync(update: StoreUpdate): Promise<void> {
+	if (!browser || !pb.authStore.isValid || !pb.authStore.model?.id) return;
+	const user = pb.authStore.model;
+
+	if (activeSession?.userId === user.id && !activeSession.disposed) {
+		return activeSession.ready;
+	}
+	await disposePocketBaseSync();
+
+	const session: SyncSession = {
+		userId: user.id,
+		disposed: false,
+		cleanups: [],
+		lastServerTime: '',
+		syncing: false,
+		ready: Promise.resolve()
+	};
+	activeSession = session;
+	update((state) => ({
+		...state,
+		settings: {
+			...state.settings,
+			myShortsign: typeof user.shortsign === 'string' ? user.shortsign : 'ME',
+			isAuthenticated: true
+		}
+	}));
+
+	session.ready = initializeSession(update, session);
+	return session.ready;
+}
+
+export async function disposePocketBaseSync(): Promise<void> {
+	const session = activeSession;
+	if (!session) return;
+	activeSession = null;
+	session.disposed = true;
+
+	for (const cleanup of session.cleanups.splice(0)) {
+		try {
+			cleanup();
+		} catch (error) {
+			console.error('Synchronisierungs-Ressource konnte nicht beendet werden:', error);
+		}
+	}
+}

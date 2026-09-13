@@ -21,6 +21,7 @@
 	import { autosize, focusOnMount } from '$lib/actions';
 	import TaggedText from '$lib/components/text/TaggedText.svelte';
 	import { belongsToLeader } from '$lib/domain/users';
+	import { toastStore } from '$lib/stores/toasts';
 
 	export let taskId: string;
 	export let sub: Subtask;
@@ -79,10 +80,39 @@
 		const body = `Liebe ${recipientName},\n\n${sub.title}\n\nLG`;
 		try {
 			await navigator.clipboard.writeText(body);
-			alert('E-Mail kopiert!');
+			toastStore.success('E-Mail kopiert', 'Der Entwurf liegt jetzt in der Zwischenablage.');
 		} catch (e) {
 			console.error(e);
+			toastStore.error(
+				'Kopieren fehlgeschlagen',
+				'Die Zwischenablage konnte nicht beschrieben werden.'
+			);
 		}
+	}
+
+	async function toggleSubtaskArchive(): Promise<void> {
+		if (sub.archived) {
+			await store.archiveSubtask(taskId, sub.id, false);
+			return;
+		}
+
+		const confirmed = await toastStore.confirm({
+			title: 'Subtask archivieren?',
+			message: `„${sub.title}“ wird aus der aktiven Ansicht ausgeblendet.`,
+			confirmLabel: 'Archivieren',
+			tone: 'warning'
+		});
+		if (confirmed) await store.archiveSubtask(taskId, sub.id, true);
+	}
+
+	async function deleteSubtask(): Promise<void> {
+		const confirmed = await toastStore.confirm({
+			title: 'Subtask endgültig löschen?',
+			message: `„${sub.title}“ und alle darunterliegenden Schritte werden gelöscht.`,
+			confirmLabel: 'Löschen',
+			tone: 'danger'
+		});
+		if (confirmed) await store.deleteSubtask(taskId, sub.id);
 	}
 
 	function getFullFilename(variant: string) {
@@ -219,7 +249,7 @@
 			<button
 				onclick={(e) => {
 					e.stopPropagation();
-					store.archiveSubtask(taskId, sub.id, !sub.archived);
+					void toggleSubtaskArchive();
 				}}
 				class="mt-0.5 ml-1 text-gray-300 opacity-0 transition-opacity group-hover/sub:opacity-100 hover:text-brand-500"
 				title={sub.archived ? 'Wiederherstellen' : 'Archivieren'}
@@ -234,7 +264,7 @@
 			<button
 				onclick={(e) => {
 					e.stopPropagation();
-					store.deleteSubtask(taskId, sub.id);
+					void deleteSubtask();
 				}}
 				class="mt-0.5 text-gray-300 opacity-0 transition-opacity group-hover/sub:opacity-100 hover:text-red-500"
 				title="Löschen"

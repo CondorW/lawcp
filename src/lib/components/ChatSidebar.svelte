@@ -7,7 +7,8 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import ChatMessageText from '$lib/components/text/ChatMessageText.svelte';
 	import type { FirmUser } from '$lib/types';
-
+	import { toastStore } from '$lib/stores/toasts';
+	
 	let { isOpen = $bindable(false) } = $props();
 
 	let inputText = $state('');
@@ -127,7 +128,10 @@
 			recordState = 'recording';
 		} catch (err) {
 			console.error('Mikrofon-Zugriff verweigert:', err);
-			alert('Bitte erlaube den Mikrofon-Zugriff im Browser, um Sprachnachrichten aufzunehmen.');
+			toastStore.error(
+				'Mikrofon nicht verfügbar',
+				'Bitte erlaube den Mikrofon-Zugriff im Browser, um Sprachnachrichten aufzunehmen.'
+			);
 		}
 	}
 

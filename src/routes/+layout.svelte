@@ -8,28 +8,29 @@
 	import { page } from '$app/stores';
 	import MatterNotesPanel from '$lib/components/MatterNotesPanel.svelte';
 	import CommandPalette from '$lib/components/CommandPalette.svelte';
+	import ToastHost from '$lib/components/ToastHost.svelte';
+	import { toastStore } from '$lib/stores/toasts';
 
 	let { children } = $props();
+
 	onMount(() => {
-		// 1. Sofort-Check beim Laden der Seite (z.B. Refresh F5)
+		// Prüft beim direkten Aufruf oder nach einem Browser-Refresh die vorhandene Session.
 		if (pb.authStore.isValid) {
 			void store.init();
 		} else if ($page.url.pathname !== '/login') {
-			goto(resolve('/login'));
+			void goto(resolve('/login'));
 		}
 
-		// 2. Listener für Login/Logout (WICHTIG für den Wechsel von Login -> Dashboard)
+		// Reagiert auch auf Login, Logout und extern abgelaufene Sessions.
 		const unsubscribeAuth = pb.authStore.onChange(() => {
 			if (pb.authStore.isValid) {
-				// User hat sich gerade eingeloggt -> Daten laden!
 				void store.init();
 			} else {
-				// Cleanup also covers expired or externally cleared sessions.
+				toastStore.clear();
 				void store.resetSession().finally(() => goto(resolve('/login')));
 			}
 		});
 
-		// Dark Mode Logic
 		const unsubscribeStore = store.subscribe((state) => {
 			if (state.settings.darkMode) document.documentElement.classList.add('dark');
 			else document.documentElement.classList.remove('dark');
@@ -38,6 +39,7 @@
 		return () => {
 			unsubscribeStore();
 			unsubscribeAuth();
+			toastStore.clear();
 			void store.resetSession();
 		};
 	});
@@ -52,3 +54,5 @@
 		<MatterNotesPanel />
 	</div>
 {/if}
+
+<ToastHost />

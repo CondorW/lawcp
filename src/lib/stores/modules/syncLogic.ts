@@ -16,10 +16,14 @@ interface SyncSession {
 	userId: string;
 	disposed: boolean;
 	cleanups: Cleanup[];
-	lastServerTime: string;
 	syncing: boolean;
+	syncingTasks: boolean;
+	checkingTaskVersions: boolean;
+	taskVersions: Map<string, string>;
 	ready: Promise<void>;
 }
+
+const TASK_RECONCILIATION_INTERVAL_MS = 3_000;
 
 let activeSession: SyncSession | null = null;
 
@@ -48,6 +52,24 @@ function mergeTasks(currentTasks: Task[], serverTasks: Task[]): Task[] {
 	return merged;
 }
 
+function getTaskVersions(tasks: Task[]): Map<string, string> {
+	return new Map(tasks.map((task) => [task.id, task.updatedAt ?? '']));
+}
+
+function getRecordVersions(records: Array<{ id: string; updated?: unknown }>): Map<string, string> {
+	return new Map(
+		records.map((record) => [record.id, typeof record.updated === 'string' ? record.updated : ''])
+	);
+}
+
+function taskVersionsMatch(left: Map<string, string>, right: Map<string, string>): boolean {
+	if (left.size !== right.size) return false;
+	for (const [taskId, version] of left) {
+		if (right.get(taskId) !== version) return false;
+	}
+	return true;
+}
+
 function upsertTask(state: AppData, task: Task): AppData {
 	if (hasPendingTaskMutation(task.id)) return state;
 	const index = state.tasks.findIndex((candidate) => candidate.id === task.id);
@@ -66,7 +88,7 @@ function upsertResource(state: AppData, resource: Resource): AppData {
 }
 
 async function forceFullSync(update: StoreUpdate, session: SyncSession): Promise<void> {
-	if (!isActive(session) || session.syncing) return;
+	if (!isActive(session) || session.syncing || session.syncingTasks) return;
 	session.syncing = true;
 
 	try {
@@ -94,17 +116,14 @@ async function forceFullSync(update: StoreUpdate, session: SyncSession): Promise
 		const tasks = parseRecordList(taskRecords, parseTaskRecord, 'tasks').filter((task) =>
 			canViewTask(task, session.userId)
 		);
-		session.lastServerTime = tasks.reduce(
-			(latest, task) => (task.updatedAt && task.updatedAt > latest ? task.updatedAt : latest),
-			session.lastServerTime
-		);
 
-		update((state) => ({
-			...state,
-			tasks: mergeTasks(state.tasks, tasks),
-			firmUsers,
-			resources
-		}));
+		update((state) => {
+			const mergedTasks = mergeTasks(state.tasks, tasks);
+			// Die Versionskarte folgt bewusst dem lokalen Merge. Ein währenddessen noch
+			// ausstehender Task wird dadurch nach Abschluss der Mutation erneut abgeglichen.
+			session.taskVersions = getTaskVersions(mergedTasks);
+			return { ...state, tasks: mergedTasks, firmUsers, resources };
+		});
 	} catch (error) {
 		if (isActive(session)) console.error('PocketBase-Synchronisierung fehlgeschlagen:', error);
 	} finally {
@@ -112,10 +131,66 @@ async function forceFullSync(update: StoreUpdate, session: SyncSession): Promise
 	}
 }
 
+async function syncVisibleTasks(update: StoreUpdate, session: SyncSession): Promise<void> {
+	if (!isActive(session) || session.syncing || session.syncingTasks) return;
+	session.syncingTasks = true;
+
+	try {
+		const taskRecords = await pb.collection('tasks').getFullList({
+			sort: '-created',
+			expand: 'owner',
+			requestKey: null,
+			headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+		});
+		if (!isActive(session)) return;
+
+		const tasks = parseRecordList(taskRecords, parseTaskRecord, 'tasks').filter((task) =>
+			canViewTask(task, session.userId)
+		);
+		update((state) => {
+			const mergedTasks = mergeTasks(state.tasks, tasks);
+			session.taskVersions = getTaskVersions(mergedTasks);
+			return { ...state, tasks: mergedTasks };
+		});
+	} catch (error) {
+		if (isActive(session)) console.error('Task-Abgleich mit PocketBase fehlgeschlagen:', error);
+	} finally {
+		session.syncingTasks = false;
+	}
+}
+
+async function reconcileVisibleTasks(update: StoreUpdate, session: SyncSession): Promise<void> {
+	if (!isActive(session) || session.syncing || session.syncingTasks || session.checkingTaskVersions)
+		return;
+	session.checkingTaskVersions = true;
+
+	try {
+		// Realtime darf nach einem Rechteverlust kein Update mehr ausliefern. Dieser kleine
+		// Versionsabgleich erkennt daher auch Tasks, die aus der sichtbaren Menge verschwinden.
+		const records = await pb.collection('tasks').getFullList({
+			fields: 'id,updated',
+			sort: 'id',
+			requestKey: null,
+			headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+		});
+		if (!isActive(session)) return;
+
+		const serverVersions = getRecordVersions(records);
+		if (!taskVersionsMatch(session.taskVersions, serverVersions)) {
+			await syncVisibleTasks(update, session);
+		}
+	} catch (error) {
+		if (isActive(session)) console.error('PocketBase-Task-Abgleich fehlgeschlagen:', error);
+	} finally {
+		session.checkingTaskVersions = false;
+	}
+}
+
 async function subscribeToTasks(update: StoreUpdate, session: SyncSession): Promise<void> {
 	const unsubscribe = await pb.collection('tasks').subscribe('*', async (event) => {
 		if (!isActive(session)) return;
 		if (event.action === 'delete') {
+			session.taskVersions.delete(event.record.id);
 			update((state) => ({
 				...state,
 				tasks: state.tasks.filter((task) => task.id !== event.record.id)
@@ -131,7 +206,11 @@ async function subscribeToTasks(update: StoreUpdate, session: SyncSession): Prom
 			});
 			if (!isActive(session)) return;
 			const task = parseTaskRecord(record);
-			session.lastServerTime = task.updatedAt ?? session.lastServerTime;
+			if (canViewTask(task, session.userId)) {
+				session.taskVersions.set(task.id, task.updatedAt ?? '');
+			} else {
+				session.taskVersions.delete(task.id);
+			}
 			update((state) =>
 				canViewTask(task, session.userId)
 					? upsertTask(state, task)
@@ -140,6 +219,7 @@ async function subscribeToTasks(update: StoreUpdate, session: SyncSession): Prom
 		} catch (error) {
 			if (isActive(session)) {
 				console.error('Realtime-Task konnte nicht geladen werden:', error);
+				session.taskVersions.delete(event.record.id);
 				update((state) => ({
 					...state,
 					tasks: state.tasks.filter((task) => task.id !== event.record.id)
@@ -207,23 +287,9 @@ async function initializeSession(update: StoreUpdate, session: SyncSession): Pro
 	await Promise.all([subscribeToTasks(update, session), subscribeToResources(update, session)]);
 	if (!isActive(session)) return;
 
-	const interval = window.setInterval(async () => {
-		if (!isActive(session)) return;
-		try {
-			const latest = await pb.collection('tasks').getList(1, 1, {
-				fields: 'id,updated',
-				sort: '-updated',
-				requestKey: null,
-				headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-			});
-			const latestUpdated = latest.items[0]?.updated;
-			if (latestUpdated && latestUpdated > session.lastServerTime) {
-				await forceFullSync(update, session);
-			}
-		} catch (error) {
-			if (isActive(session)) console.error('PocketBase-Polling fehlgeschlagen:', error);
-		}
-	}, 15_000);
+	const interval = window.setInterval(() => {
+		if (document.visibilityState === 'visible') void reconcileVisibleTasks(update, session);
+	}, TASK_RECONCILIATION_INTERVAL_MS);
 	session.cleanups.push(() => window.clearInterval(interval));
 }
 
@@ -240,8 +306,10 @@ export async function initPocketBaseSync(update: StoreUpdate): Promise<void> {
 		userId: user.id,
 		disposed: false,
 		cleanups: [],
-		lastServerTime: '',
 		syncing: false,
+		syncingTasks: false,
+		checkingTaskVersions: false,
+		taskVersions: new Map(),
 		ready: Promise.resolve()
 	};
 	activeSession = session;

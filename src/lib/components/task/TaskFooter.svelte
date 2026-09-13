@@ -4,6 +4,7 @@
 	import { Calendar, Flag, BrainCircuit, Trash2, Archive, ArchiveRestore } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils';
 	import { isoToDateInputValue, localDateInputToIso } from '$lib/domain/dates';
+	import { toastStore } from '$lib/stores/toasts';
 
 	interface Props {
 		task: Task;
@@ -11,34 +12,59 @@
 		isExpanded?: boolean;
 		onOpenContext?: () => void;
 	}
+
 	let { task, isOwner, isExpanded = false, onOpenContext }: Props = $props();
 
-	function openNativePicker(e: MouseEvent) {
+	function openNativePicker(e: MouseEvent): void {
 		e.stopPropagation();
-		const btn = e.currentTarget as HTMLElement;
-		const input = btn.querySelector('input[type="date"]') as HTMLInputElement;
-		if (input) {
-			try {
-				input.showPicker();
-			} catch {
-				input.focus();
-				input.click();
-			}
+		const button = e.currentTarget as HTMLElement;
+		const input = button.querySelector<HTMLInputElement>('input[type="date"]');
+
+		if (!input) return;
+
+		try {
+			input.showPicker();
+		} catch {
+			input.focus();
+			input.click();
 		}
 	}
 
-	function updateCourtDate(e: Event) {
-		const target = e.target as HTMLInputElement;
+	function updateCourtDate(e: Event): void {
+		const target = e.currentTarget as HTMLInputElement;
 		void store.toggleFlag(task.id, target.value ? localDateInputToIso(target.value) : null);
 	}
 
-	function updateInternalDate(e: Event) {
-		const target = e.target as HTMLInputElement;
+	function updateInternalDate(e: Event): void {
+		const target = e.currentTarget as HTMLInputElement;
 		void store.updateDate(task.id, target.value ? localDateInputToIso(target.value) : '');
 	}
 
-	function deleteTask(): void {
-		if (confirm('Möchtest du diese Aufgabe wirklich löschen?')) void store.deleteTask(task.id);
+	async function toggleTaskArchive(): Promise<void> {
+		if (task.archived) {
+			await store.archiveTask(task.id, false);
+			return;
+		}
+
+		const confirmed = await toastStore.confirm({
+			title: 'Case archivieren?',
+			message: `„${task.title}“ wird aus dem aktiven Board ausgeblendet.`,
+			confirmLabel: 'Archivieren',
+			tone: 'warning'
+		});
+
+		if (confirmed) await store.archiveTask(task.id, true);
+	}
+
+	async function deleteTask(): Promise<void> {
+		const confirmed = await toastStore.confirm({
+			title: 'Case endgültig löschen?',
+			message: `„${task.title}“ inklusive aller Subtasks und Zeitbuchungen wird gelöscht.`,
+			confirmLabel: 'Löschen',
+			tone: 'danger'
+		});
+
+		if (confirmed) await store.deleteTask(task.id);
 	}
 </script>
 
@@ -47,8 +73,9 @@
 		{#if task.matterRef && !isExpanded}
 			<button
 				type="button"
-				onclick={(e) => {
-					e.stopPropagation();
+				onclick={(event) => {
+					event.stopPropagation();
+
 					if (onOpenContext) onOpenContext();
 					else store.openMatterNotes(task.matterRef!);
 				}}
@@ -64,24 +91,25 @@
 		{#if isOwner}
 			<button
 				type="button"
-				onclick={(e) => {
-					e.stopPropagation();
-					void store.archiveTask(task.id, !task.archived);
+				onclick={(event) => {
+					event.stopPropagation();
+					void toggleTaskArchive();
 				}}
 				class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-400 transition-all outline-none hover:bg-brand-50 hover:text-brand-600 focus:ring-0 dark:hover:bg-brand-900/20"
 				title={task.archived ? 'Wiederherstellen' : 'Archivieren'}
 			>
-				{#if task.archived}<ArchiveRestore size={13} class="pointer-events-none" />{:else}<Archive
-						size={13}
-						class="pointer-events-none"
-					/>{/if}
+				{#if task.archived}
+					<ArchiveRestore size={13} class="pointer-events-none" />
+				{:else}
+					<Archive size={13} class="pointer-events-none" />
+				{/if}
 			</button>
 
 			<button
 				type="button"
-				onclick={(e) => {
-					e.stopPropagation();
-					deleteTask();
+				onclick={(event) => {
+					event.stopPropagation();
+					void deleteTask();
 				}}
 				class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-400 transition-all outline-none hover:bg-rose-50 hover:text-rose-600 focus:ring-0 dark:hover:bg-rose-900/20"
 				title="Löschen"
@@ -98,19 +126,19 @@
 			onclick={openNativePicker}
 			title={task.flaggedDate ? 'Gerichtstermin anpassen' : 'Gerichtstermin setzen'}
 		>
+			<Flag size={13} class="pointer-events-none" />
+
 			{#if task.flaggedDate}
-				<Flag size={13} class="pointer-events-none" />
 				<span class="pointer-events-none">{formatDate(task.flaggedDate)}</span>
-			{:else}
-				<Flag size={13} class="pointer-events-none" />
 			{/if}
+
 			<input
 				type="date"
 				class="sr-only"
 				tabindex="-1"
 				value={isoToDateInputValue(task.flaggedDate)}
 				onchange={updateCourtDate}
-				onclick={(e) => e.stopPropagation()}
+				onclick={(event) => event.stopPropagation()}
 			/>
 		</button>
 
@@ -122,19 +150,19 @@
 			onclick={openNativePicker}
 			title={task.dueDate ? 'Fälligkeit anpassen' : 'Fälligkeit setzen'}
 		>
+			<Calendar size={13} class="pointer-events-none" />
+
 			{#if task.dueDate}
-				<Calendar size={13} class="pointer-events-none" />
 				<span class="pointer-events-none tracking-wide">{formatDate(task.dueDate)}</span>
-			{:else}
-				<Calendar size={13} class="pointer-events-none" />
 			{/if}
+
 			<input
 				type="date"
 				class="sr-only"
 				tabindex="-1"
 				value={isoToDateInputValue(task.dueDate)}
 				onchange={updateInternalDate}
-				onclick={(e) => e.stopPropagation()}
+				onclick={(event) => event.stopPropagation()}
 			/>
 		</button>
 	</div>

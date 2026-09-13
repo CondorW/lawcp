@@ -17,7 +17,8 @@
 	} from '$lib/features/billing/billing';
 	import { pb } from '$lib/pocketbase';
 	import { store } from '$lib/stores/tasks';
-
+	import { toastStore } from '$lib/stores/toasts';
+	
 	let filterMode = $state<BillingFilterMode>('TODAY');
 	let viewMode = $state<BillingViewMode>('ME');
 	let showTimeLogDialog = $state(false);
@@ -70,10 +71,14 @@
 		closeDialog();
 	}
 
-	function deleteTimeLog(log: EnrichedTimeLog): void {
-		if (confirm('Möchtest du diese Buchung wirklich löschen?')) {
-			void store.deleteTimeLog(log.taskId, log.id);
-		}
+	async function deleteTimeLog(log: EnrichedTimeLog): Promise<void> {
+		const confirmed = await toastStore.confirm({
+			title: 'Zeitbuchung endgültig löschen?',
+			message: `${log.minutes} Minuten für „${log.taskTitle}“ werden entfernt.`,
+			confirmLabel: 'Löschen',
+			tone: 'danger'
+		});
+		if (confirmed) await store.deleteTimeLog(log.taskId, log.id);
 	}
 
 	function exportCsv(): void {

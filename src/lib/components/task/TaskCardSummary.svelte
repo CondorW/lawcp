@@ -2,9 +2,9 @@
 	import { localDateInputToIso, isoToDateInputValue } from '$lib/domain/dates';
 	import { filterReviewSubtasks, getPendingSubtasks } from '$lib/domain/subtasks';
 	import { store } from '$lib/stores/tasks';
-	import type { Task, TeamMember } from '$lib/types';
+	import type { Subtask, Task, TeamMember } from '$lib/types';
 	import { cn, formatDate } from '$lib/utils';
-	import { Calendar, ChevronDown, Flag, Plus, Zap } from 'lucide-svelte';
+	import { BadgeCheck, Calendar, ChevronDown, Flag, Plus, Zap } from 'lucide-svelte';
 	import TaggedText from '$lib/components/text/TaggedText.svelte';
 
 	interface Props {
@@ -17,30 +17,31 @@
 	}
 
 	let { task, team, isOwner, ownerShortsign, isStale, onOpen }: Props = $props();
-
 	let dragging = $state(false);
 	let newSubtaskTitle = $state('');
 	let isEditingRef = $state(false);
 	let editRefBuffer = $state('');
 
 	let pendingSubtasks = $derived(getPendingSubtasks(task.subtasks));
-
 	let isMicroReview = $derived(
 		!isOwner && task.status !== 'REVIEW' && filterReviewSubtasks(task.subtasks).length > 0
 	);
+	let activeTopLevelSubtasks = $derived(task.subtasks.filter((subtask) => !subtask.archived));
+	let completedCount = $derived(activeTopLevelSubtasks.filter((subtask) => subtask.done).length);
+	let hasApprovedReview = $derived(containsActiveApproval(task.subtasks));
 
-	let activeTopLevelSubtasks = $derived(
-		task.subtasks.filter((subtask) => !subtask.archived)
-	);
-
-	let completedCount = $derived(
-		activeTopLevelSubtasks.filter((subtask) => subtask.done).length
-	);
+	function containsActiveApproval(subtasks: Subtask[]): boolean {
+		return subtasks.some(
+			(subtask) =>
+				!subtask.archived &&
+				((!subtask.done && subtask.reviewState === 'APPROVED') ||
+					containsActiveApproval(subtask.subtasks))
+		);
+	}
 
 	function handleAddSubtask(): void {
 		const title = newSubtaskTitle.trim();
 		if (!title) return;
-
 		void store.addSubtask(task.id, title);
 		newSubtaskTitle = '';
 	}
@@ -48,41 +49,30 @@
 	function startEditRef(): void {
 		editRefBuffer = task.matterRef ?? '';
 		isEditingRef = true;
-
-		setTimeout(() => {
-			document.getElementById(`edit-ref-${task.id}`)?.focus();
-		}, 10);
+		setTimeout(() => document.getElementById(`edit-ref-${task.id}`)?.focus(), 10);
 	}
 
 	function saveEditRef(): void {
-		if (editRefBuffer !== (task.matterRef ?? '')) {
-			void store.updateTaskRef(task.id, editRefBuffer);
-		}
-
+		if (editRefBuffer !== (task.matterRef ?? '')) void store.updateTaskRef(task.id, editRefBuffer);
 		isEditingRef = false;
 	}
 
 	function onDragStart(event: DragEvent): void {
 		const target = event.target as HTMLElement;
-
 		if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) {
 			event.preventDefault();
 			return;
 		}
-
 		event.dataTransfer?.setData('text/plain', task.id);
 		dragging = true;
 	}
 
 	function openNativePicker(event: MouseEvent): void {
 		event.stopPropagation();
-
 		const input = (event.currentTarget as HTMLElement).querySelector<HTMLInputElement>(
 			'input[type="date"]'
 		);
-
 		if (!input) return;
-
 		try {
 			input.showPicker();
 		} catch {
@@ -113,6 +103,7 @@
 				: isStale
 					? 'border-transparent bg-white ring-2 shadow-brand-500/10 ring-brand-600 dark:bg-slate-800 dark:ring-brand-500'
 					: 'border border-slate-200 bg-white shadow-sm hover:shadow-md dark:border-slate-700 dark:bg-slate-800',
+		hasApprovedReview && task.status !== 'DONE' && 'shadow-[0_0_12px_rgba(16,185,129,0.38)]',
 		dragging && 'opacity-50'
 	)}
 	style:break-inside="avoid"
@@ -164,6 +155,16 @@
 				{completedCount}/{activeTopLevelSubtasks.length}
 			</span>
 
+			{#if hasApprovedReview && task.status !== 'DONE'}
+				<span
+					class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.75)] dark:bg-emerald-900/50 dark:text-emerald-300"
+					title="Mindestens ein Subtask wurde freigegeben"
+					aria-label="Freigegebener Subtask"
+				>
+					<BadgeCheck size={13} />
+				</span>
+			{/if}
+
 			{#if !isOwner}
 				<span
 					class="shrink-0 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-bold text-brand-600 uppercase dark:bg-brand-900/30 dark:text-brand-400"
@@ -179,7 +180,6 @@
 				/>
 			{/if}
 		</div>
-
 		<div class="flex shrink-0 items-center gap-1 text-slate-400">
 			<div
 				class="flex h-6 w-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-slate-100 dark:hover:bg-slate-700/50"
@@ -206,7 +206,6 @@
 			class="mt-1 flex min-h-[28px] w-full min-w-0 cursor-text items-start gap-1.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-1 transition-colors focus-within:border-brand-500 focus-within:bg-white hover:border-brand-300 dark:border-slate-700/50 dark:bg-slate-900/50 dark:focus-within:bg-slate-800"
 		>
 			<Plus size={11} class="mt-0.5 shrink-0 text-slate-400" />
-
 			<textarea
 				id={`quick-add-${task.id}`}
 				bind:value={newSubtaskTitle}
@@ -221,7 +220,6 @@
 					if (event.key === 'Enter' && !event.shiftKey) {
 						event.preventDefault();
 						event.stopPropagation();
-
 						handleAddSubtask();
 						event.currentTarget.style.height = 'auto';
 					}
@@ -244,25 +242,20 @@
 					<span
 						class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-slate-300 transition-colors group-hover/mini:border-brand-500 dark:border-slate-500"
 					></span>
-
 					<span
 						class="min-w-0 flex-1 text-xs leading-snug [overflow-wrap:anywhere] break-words whitespace-normal text-slate-700 dark:text-slate-300"
+						>{subtask.title}</span
 					>
-						{subtask.title}
-					</span>
-
 					{#if subtask.reviewState === 'REQUESTED'}
 						<span
 							class="mt-0.5 ml-auto shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-purple-700 uppercase"
+							>Rev</span
 						>
-							Rev
-						</span>
 					{:else if subtask.reviewState === 'REVISION'}
 						<span
 							class="mt-0.5 ml-auto shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-rose-700 uppercase"
+							>!</span
 						>
-							!
-						</span>
 					{/if}
 				</button>
 			{/each}
@@ -282,15 +275,10 @@
 				title={task.flaggedDate ? 'Gerichtstermin anpassen' : 'Gerichtstermin setzen'}
 			>
 				<Flag size={13} class="pointer-events-none shrink-0" />
-
-				{#if task.flaggedDate}
-					<span
+				{#if task.flaggedDate}<span
 						class="pointer-events-none shrink-0 text-xs font-bold tracking-tight whitespace-nowrap"
-					>
-						{formatDate(task.flaggedDate)}
-					</span>
-				{/if}
-
+						>{formatDate(task.flaggedDate)}</span
+					>{/if}
 				<input
 					type="date"
 					class="sr-only"
@@ -310,13 +298,10 @@
 				title={task.dueDate ? 'Fälligkeit anpassen' : 'Fälligkeit setzen'}
 			>
 				<Calendar size={13} class="pointer-events-none shrink-0" />
-
-				{#if task.dueDate}
-					<span class="pointer-events-none shrink-0 text-xs tracking-tight whitespace-nowrap">
-						{formatDate(task.dueDate)}
-					</span>
-				{/if}
-
+				{#if task.dueDate}<span
+						class="pointer-events-none shrink-0 text-xs tracking-tight whitespace-nowrap"
+						>{formatDate(task.dueDate)}</span
+					>{/if}
 				<input
 					type="date"
 					class="sr-only"

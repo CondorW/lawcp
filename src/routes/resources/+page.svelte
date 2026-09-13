@@ -14,7 +14,8 @@
 	} from 'lucide-svelte';
 	import type { Resource } from '$lib/types';
 	import { resolve } from '$app/paths';
-
+	import { toastStore } from '$lib/stores/toasts';
+	
 	let filter = '';
 	let resType: 'COMPANY' | 'PERSON' | 'AUTHORITY' = 'COMPANY';
 	let resName = '';
@@ -85,6 +86,16 @@
 		}
 	}
 
+	async function deleteResource(res: Resource): Promise<void> {
+		const confirmed = await toastStore.confirm({
+			title: 'Ressource endgültig löschen?',
+			message: `„${res.name}“ wird aus den Ressourcen entfernt.`,
+			confirmLabel: 'Löschen',
+			tone: 'danger'
+		});
+		if (confirmed) await store.deleteResource(res.id);
+	}
+
 	function formatDate(dateString: string | undefined) {
 		if (!dateString) return 'Unbekannt';
 		return new Date(dateString).toLocaleDateString('de-DE', {
@@ -102,7 +113,6 @@
 <div
 	class="min-h-screen bg-slate-50 p-6 font-sans text-slate-900 lg:p-8 dark:bg-slate-950 dark:text-slate-100"
 >
-	<!-- LAYOUT: Auf 1600px verbreitert -->
 	<div class="mx-auto max-w-[1600px]">
 		<div class="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
 			<div class="flex items-center gap-4">
@@ -117,7 +127,6 @@
 
 			<div class="relative w-full sm:w-80">
 				<Search class="absolute top-3 left-3.5 text-slate-400" size={18} />
-				<!-- TYPOGRAPHY: text-sm (14px) -->
 				<input
 					bind:value={filter}
 					placeholder="Suchen..."
@@ -127,7 +136,6 @@
 		</div>
 
 		<div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
-			<!-- Linke Spalte (Liste) -->
 			<div class="space-y-4 lg:col-span-2">
 				{#each list as res (res.id)}
 					<div
@@ -135,7 +143,6 @@
 					>
 						<div class="flex w-full items-start justify-between gap-4">
 							<div class="flex min-w-0 gap-4">
-								<!-- BRANDING: Farben je nach Typ (Royal brand, Gold, Ruby Red) -->
 								<div
 									class={`shrink-0 rounded-lg p-3.5 ${
 										res.type === 'COMPANY'
@@ -154,7 +161,6 @@
 									{/if}
 								</div>
 								<div class="min-w-0">
-									<!-- TYPOGRAPHY: text-base (16px) -->
 									<h3 class="truncate text-base font-bold text-slate-900 dark:text-white">
 										{res.name}
 									</h3>
@@ -163,7 +169,6 @@
 									{/if}
 									<div class="mt-2 space-y-0.5 text-sm text-slate-600 dark:text-slate-400">
 										{#if res.seat}
-											<!-- TYPOGRAPHY: text-xs (12px) -->
 											<div class="mb-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
 												Sitz: {res.seat}
 											</div>
@@ -178,11 +183,9 @@
 								</div>
 							</div>
 
-							<!-- Aktionen -->
 							<div
 								class="flex shrink-0 gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
 							>
-								<!-- BRANDING: Hover ist jetzt Royal brand -->
 								<button
 									onclick={() => copyForContract(res)}
 									title="Für Vertrag kopieren"
@@ -203,9 +206,9 @@
 										<ExternalLink size={18} />
 									</button>
 								{/if}
-								<!-- BRANDING: Trash in Ruby Red -->
 								<button
-									onclick={() => store.deleteResource(res.id)}
+									onclick={() => void deleteResource(res)}
+									title="Ressource löschen"
 									class="rounded-lg border border-transparent p-2 text-slate-400 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600 dark:hover:border-slate-700 dark:hover:bg-slate-800"
 								>
 									<Trash2 size={18} />
@@ -213,18 +216,15 @@
 							</div>
 						</div>
 
-						<!-- Footer Meta -->
 						<div
 							class="mt-1 flex w-full items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800"
 						>
-							<!-- TYPOGRAPHY: text-[11px] -->
 							<span
 								class="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-bold tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
 								title="Erstellt von"
 							>
 								{res.expand?.owner?.shortsign || 'System'}
 							</span>
-							<!-- TYPOGRAPHY: text-xs (12px) -->
 							<span class="text-xs font-medium text-slate-400">
 								hinzugefügt am {formatDate(res.created)}
 							</span>
@@ -232,18 +232,16 @@
 					</div>
 				{:else}
 					<div
-						class="text-center py-16 text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700"
+						class="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-slate-400 dark:border-slate-700 dark:bg-slate-900"
 					>
 						<p class="text-base font-medium">Keine Einträge gefunden.</p>
 					</div>
 				{/each}
 			</div>
 
-			<!-- Rechte Spalte (Sidebar / Formular) -->
 			<div
 				class="sticky top-6 h-fit rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8 dark:border-slate-800 dark:bg-slate-900"
 			>
-				<!-- TYPOGRAPHY: text-base (16px) -->
 				<h2 class="mb-6 text-base font-bold text-slate-800 dark:text-white">
 					Neuer Kontakt / Ressource
 				</h2>
@@ -333,7 +331,6 @@
 						</div>
 					</div>
 
-					<!-- BRANDING: Save-Button in Royal brand -->
 					<button
 						onclick={add}
 						disabled={!resName}
